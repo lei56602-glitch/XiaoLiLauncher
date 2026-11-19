@@ -56,7 +56,10 @@ public class ReceiveForegroundService extends Service {
         super.onCreate();
         NotificationManager nm=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
         if(Build.VERSION.SDK_INT>=26){NotificationChannel ch=new NotificationChannel(CHANNEL,"文件接收",NotificationManager.IMPORTANCE_LOW);ch.setDescription("小李全联正在等待局域网文件");nm.createNotificationChannel(ch);}
-        Notification n=new Notification.Builder(this,Build.VERSION.SDK_INT>=26?CHANNEL:"")
+        Notification.Builder notificationBuilder = Build.VERSION.SDK_INT >= 26
+            ? new Notification.Builder(this, CHANNEL)
+            : new Notification.Builder(this);
+        Notification n=notificationBuilder
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle("小李全联 · 接收服务")
             .setContentText("正在等待附近设备发送文件")
