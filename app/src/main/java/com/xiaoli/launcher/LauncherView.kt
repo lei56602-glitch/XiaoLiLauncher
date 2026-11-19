@@ -298,6 +298,34 @@ class LauncherView(context: Context) : View(context) {
         invalidate()
     }
 
+    private fun clearWallpaper() {
+        wallpaperBitmap?.recycle()
+        wallpaperBitmap = null
+        prefs.edit().remove("wallpaper_uri").apply()
+        invalidate()
+    }
+
+    private fun drawWallpaperPreview(c: Canvas, rect: RectF) {
+        val bitmap = wallpaperBitmap
+        paint.color = 0x553AAFFF
+        c.drawRoundRect(rect, 16f, 16f, paint)
+        if (bitmap != null) {
+            val save = c.save()
+            val inner = RectF(rect.left + 5f, rect.top + 5f, rect.right - 5f, rect.bottom - 5f)
+            c.clipRect(inner)
+            val scale = maxOf(inner.width() / bitmap.width, inner.height() / bitmap.height)
+            val dw = bitmap.width * scale
+            val dh = bitmap.height * scale
+            val dst = RectF(inner.centerX() - dw / 2f, inner.centerY() - dh / 2f,
+                inner.centerX() + dw / 2f, inner.centerY() + dh / 2f)
+            c.drawBitmap(bitmap, null, dst, paint)
+            c.restoreToCount(save)
+        } else {
+            text(c, "当前使用默认蓝色壁纸", rect.left + 12f, rect.centerY() + h * .008f,
+                h * .018f, 0xFFDDEEFF.toInt())
+        }
+    }
+
     private fun drawLauncherSettings(c: Canvas, w: Float, h: Float) {
         paint.color = 0xE6052B68.toInt()
         c.drawRoundRect(RectF(w * .08f, h * .16f, w * .92f, h * .86f), 30f, 30f, paint)
@@ -318,19 +346,29 @@ class LauncherView(context: Context) : View(context) {
         }
         text(c, "默认五列，可根据习惯选择三列、四列或五列。", w * .13f, h * .66f, h * .024f, 0xFFDDEEFF.toInt())
 
-        val wallpaper = RectF(w * .52f, h * .59f, w * .87f, h * .68f)
+        val wallpaper = RectF(w * .13f, h * .59f, w * .48f, h * .68f)
         paint.color = if (settingsFocus == 3) 0xFF31B9FF.toInt() else 0x5544BFFF
         c.drawRoundRect(wallpaper, 16f, 16f, paint)
-        text(c, "更换桌面壁纸", w * .56f, h * .647f, h * .023f, -1, true)
+        text(c, "更换桌面壁纸", w * .17f, h * .647f, h * .023f, -1, true)
+
+        val preview = RectF(w * .52f, h * .59f, w * .87f, h * .68f)
+        drawWallpaperPreview(c, preview)
+        if (settingsFocus == 4) {
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = h * .003f
+            paint.color = 0xFF75D7FF.toInt()
+            c.drawRoundRect(preview, 16f, 16f, paint)
+            paint.style = Paint.Style.FILL
+        }
 
         val card = RectF(w * .13f, h * .70f, w * .87f, h * .84f)
-        paint.color = if (settingsFocus == 4) 0xFF167FD8.toInt() else 0x553AAFFF
+        paint.color = if (settingsFocus == 5) 0xFF167FD8.toInt() else 0x553AAFFF
         c.drawRoundRect(card, 20f, 20f, paint)
         text(c, "⇄  小李全联 · 快传", w * .17f, h * .755f, h * .03f, -1, true)
         text(c, "桌面内置设备互传功能  ·  核心模块接入中", w * .17f, h * .805f, h * .021f, 0xFFDDEEFF.toInt())
 
         val sys = RectF(w * .13f, h * .87f, w * .48f, h * .95f)
-        paint.color = if (settingsFocus == 5) 0xFF31B9FF.toInt() else 0x44FFFFFF
+        paint.color = if (settingsFocus == 6) 0xFF31B9FF.toInt() else 0x44FFFFFF
         c.drawRoundRect(sys, 16f, 16f, paint)
         text(c, "打开系统设置", sys.centerX() - w * .11f, h * .92f, h * .024f, -1, true)
         text(c, "返回桌面", w * .72f, h * .92f, h * .024f, -1, true)
@@ -424,8 +462,10 @@ class LauncherView(context: Context) : View(context) {
                         val start = width * .13f
                         val selected = ((event.x - start) / (buttonW + gap)).toInt()
                         if (selected in 0..2) setDrawerColumns(selected + 3)
-                    } else if (event.y in (height * .59f)..(height * .68f) && event.x > width * .5f) {
+                    } else if (event.y in (height * .59f)..(height * .68f) && event.x < width * .5f) {
                         onChooseWallpaper?.invoke()
+                    } else if (event.y in (height * .59f)..(height * .68f) && event.x >= width * .5f) {
+                        clearWallpaper()
                     } else if (event.y in (height * .70f)..(height * .84f)) {
                         context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
                     } else if (event.y in (height * .87f)..(height * .95f) && event.x < width * .5f) {
@@ -500,11 +540,12 @@ class LauncherView(context: Context) : View(context) {
             when (keyCode) {
                 KeyEvent.KEYCODE_BACK -> { closeLauncherSettings(); return true }
                 KeyEvent.KEYCODE_DPAD_LEFT -> settingsFocus = (settingsFocus - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> settingsFocus = (settingsFocus + 1).coerceAtMost(5)
+                KeyEvent.KEYCODE_DPAD_RIGHT -> settingsFocus = (settingsFocus + 1).coerceAtMost(6)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     if (settingsFocus in 0..2) setDrawerColumns(settingsFocus + 3)
                     else if (settingsFocus == 3) onChooseWallpaper?.invoke()
-                    else if (settingsFocus == 4) context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
+                    else if (settingsFocus == 4) clearWallpaper()
+                    else if (settingsFocus == 5) context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
                     else runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                 }
             }
