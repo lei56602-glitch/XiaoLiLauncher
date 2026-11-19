@@ -35,6 +35,7 @@ class LauncherView(context: Context) : View(context) {
     var isDrawerOpen = false
         private set
     private var isSettingsOpen = false
+    val isLauncherSettingsOpen: Boolean get() = isSettingsOpen
     private var settingsFocus = 0
     private val handler = Handler(Looper.getMainLooper())
     private val clockTick = object : Runnable {
