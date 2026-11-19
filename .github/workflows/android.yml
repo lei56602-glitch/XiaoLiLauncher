@@ -1,24 +1,49 @@
 name: Android APK
+
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - development
+      - integration/quanlian-core
+  pull_request:
+    branches:
+      - main
+      - development
   workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Build debug APK
-        run: gradle assembleDebug
-      - name: Upload APK
+
+      - name: Validate Kotlin and Android sources
+        run: gradle --no-daemon lintDebug testDebugUnitTest assembleDebug
+
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: XiaoLiLauncher-debug
+          name: XiaoLiLauncher-debug-${{ github.sha }}
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: XiaoLiLauncher-lint-report
+          path: app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore
