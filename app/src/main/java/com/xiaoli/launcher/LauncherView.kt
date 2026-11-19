@@ -122,14 +122,8 @@ class LauncherView(context: Context) : View(context) {
     private fun drawHome(c: Canvas, w: Float, h: Float) {
         val count = minOf(5, favorites.size)
         if (count > 0) {
-            val gap = w * .035f
-            val itemW = w * .13f
-            val total = count * itemW + (count - 1) * gap
-            val start = (w - total) / 2f
             favorites.take(5).forEachIndexed { i, app ->
-                val left = start + i * (itemW + gap)
-                val top = h * .57f
-                val rect = RectF(left, top, left + itemW, top + h * .16f)
+                val rect = homeItemRect(i, w, h)
                 paint.color = if (i == homeIndex) 0xFFFFFFFF.toInt() else 0x66FFFFFF
                 c.drawRoundRect(rect, 28f, 28f, paint)
                 if (i == homeIndex) {
@@ -165,11 +159,13 @@ class LauncherView(context: Context) : View(context) {
         paint.textAlign = Paint.Align.RIGHT
         text(c, if (editingFavorites) "完成管理" else "管理首页应用", w*.9f, h*.25f, h*.025f, 0xFFBDEBFF.toInt(), true)
         paint.textAlign = Paint.Align.LEFT
-        val cols = 5; val cellW = w*.16f; val cellH = h*.15f
+        val cols = drawerColumns()
+        val cellW = w * .8f / cols
+        val cellH = if (w < h) h * .105f else h * .15f
         apps.forEachIndexed { i, app ->
             val row = i / cols; val col = i % cols
             val x = w*.1f + col*cellW; val y = h*.32f + row*cellH
-            val rect = RectF(x,y,x+cellW*.78f,y+cellH*.72f)
+            val rect = RectF(x,y,x+cellW*.88f,y+cellH*.78f)
             val selected = favorites.any { it.packageName == app.packageName }
             paint.color = when {
                 i == drawerIndex -> 0xFF31B9FF.toInt()
@@ -186,30 +182,57 @@ class LauncherView(context: Context) : View(context) {
     }
 
 
+    private fun isCompactLayout(): Boolean = width < height
+
+    private fun drawerColumns(): Int = when {
+        width < height -> 3
+        width < height * 1.45f -> 4
+        else -> 5
+    }
+
+    private fun homeItemRect(index: Int, w: Float, h: Float): RectF {
+        if (w >= h) {
+            val gap = w * .035f
+            val itemW = w * .13f
+            val total = favorites.size * itemW + (favorites.size - 1).coerceAtLeast(0) * gap
+            val left = (w - total) / 2f + index * (itemW + gap)
+            return RectF(left, h * .57f, left + itemW, h * .73f)
+        }
+        val cols = 3
+        val itemW = w * .27f
+        val itemH = h * .14f
+        val gapX = w * .045f
+        val gapY = h * .035f
+        val total = cols * itemW + (cols - 1) * gapX
+        val startX = (w - total) / 2f
+        val rows = (favorites.size + cols - 1) / cols
+        val totalH = rows * itemH + (rows - 1).coerceAtLeast(0) * gapY
+        val startY = (h - totalH) / 2f + h * .04f
+        val left = startX + (index % cols) * (itemW + gapX)
+        val top = startY + (index / cols) * (itemH + gapY)
+        return RectF(left, top, left + itemW, top + itemH)
+    }
+
     private fun homeItemIndexAt(x: Float, y: Float): Int {
-        if (favorites.isEmpty() || y < height * .54f || y > height * .76f) return -1
-        val w = width.toFloat()
-        val gap = w * .035f
-        val itemW = w * .13f
-        val total = favorites.size * itemW + (favorites.size - 1) * gap
-        val start = (w - total) / 2f
         favorites.indices.forEach { i ->
-            val left = start + i * (itemW + gap)
-            if (x >= left && x <= left + itemW) return i
+            if (homeItemRect(i, width.toFloat(), height.toFloat()).contains(x, y)) return i
         }
         return -1
     }
 
     private fun drawerItemIndexAt(x: Float, y: Float): Int {
         if (y < height * .32f || y > height * .82f) return -1
-        val col = ((x - width * .1f) / (width * .16f)).toInt()
-        val row = ((y - height * .32f) / (height * .15f)).toInt()
-        if (col !in 0..4 || row < 0) return -1
-        val index = row * 5 + col
-        val cellLeft = width * .1f + col * width * .16f
-        val cellTop = height * .32f + row * height * .15f
-        return if (x <= cellLeft + width * .16f * .78f &&
-            y <= cellTop + height * .15f * .72f && index in apps.indices) index else -1
+        val cols = drawerColumns()
+        val cellW = width * .8f / cols
+        val cellH = if (width < height) height * .105f else height * .15f
+        val col = ((x - width * .1f) / cellW).toInt()
+        val row = ((y - height * .32f) / cellH).toInt()
+        if (col !in 0 until cols || row < 0) return -1
+        val index = row * cols + col
+        val cellLeft = width * .1f + col * cellW
+        val cellTop = height * .32f + row * cellH
+        return if (x <= cellLeft + cellW * .88f &&
+            y <= cellTop + cellH * .78f && index in apps.indices) index else -1
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -313,8 +336,8 @@ class LauncherView(context: Context) : View(context) {
                 KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> editingFavorites = !editingFavorites
                 KeyEvent.KEYCODE_DPAD_LEFT -> drawerIndex = (drawerIndex - 1).coerceAtLeast(0)
                 KeyEvent.KEYCODE_DPAD_RIGHT -> drawerIndex = (drawerIndex + 1).coerceAtMost(apps.lastIndex.coerceAtLeast(0))
-                KeyEvent.KEYCODE_DPAD_UP -> drawerIndex = (drawerIndex - 5).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_DOWN -> drawerIndex = (drawerIndex + 5).coerceAtMost(apps.lastIndex.coerceAtLeast(0))
+                KeyEvent.KEYCODE_DPAD_UP -> drawerIndex = (drawerIndex - drawerColumns()).coerceAtLeast(0)
+                KeyEvent.KEYCODE_DPAD_DOWN -> drawerIndex = (drawerIndex + drawerColumns()).coerceAtMost(apps.lastIndex.coerceAtLeast(0))
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     apps.getOrNull(drawerIndex)?.let { app ->
                         if (editingFavorites) {
