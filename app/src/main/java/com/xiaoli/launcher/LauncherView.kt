@@ -1000,6 +1000,7 @@ class LauncherView(context: Context) : View(context) {
                 } else if (dy < -height * .06f) {
                     isDrawerOpen = true
                     drawerIndex = 0
+                    drawerScrollRow = 0
                 } else if (kotlin.math.abs(dx) > width * .08f && kotlin.math.abs(dx) > kotlin.math.abs(dy)) {
                     if (favorites.isNotEmpty()) {
                         homeIndex = if (dx < 0) (homeIndex + 1).coerceAtMost(favorites.lastIndex)
@@ -1017,6 +1018,7 @@ class LauncherView(context: Context) : View(context) {
                     } else if (event.y > height * .78f && event.x < width * .42f) {
                         isDrawerOpen = true
                         drawerIndex = 0
+                        drawerScrollRow = 0
                     } else if (event.y < height * .16f && event.x < width * .28f) {
                         openLauncherSettings()
                     }
@@ -1142,7 +1144,7 @@ class LauncherView(context: Context) : View(context) {
             KeyEvent.KEYCODE_SETTINGS -> { toggleWidgetEditMode(); return true }
             KeyEvent.KEYCODE_DPAD_UP -> {
                 if(homeQuickTransferFocused)homeQuickTransferFocused=false
-                else{isDrawerOpen=true;drawerIndex=0}
+                else{isDrawerOpen=true;drawerIndex=0;drawerScrollRow=0}
                 invalidate();return true
             }
             KeyEvent.KEYCODE_DPAD_DOWN -> {homeQuickTransferFocused=true;invalidate();return true}
