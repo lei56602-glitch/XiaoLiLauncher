@@ -328,7 +328,32 @@ class LauncherView(context: Context) : View(context) {
         c.drawRoundRect(rect, 12f, 12f, paint)
         paint.style = Paint.Style.FILL
         paint.color = 0xFF55D9FF.toInt()
-        c.drawCircle(rect.left + 8f, rect.top + 8f, (height * .008f).coerceAtLeast(5f), paint)
+        val handle = (height * .009f).coerceAtLeast(6f)
+        listOf(
+            rect.left to rect.top, rect.right to rect.top,
+            rect.left to rect.bottom, rect.right to rect.bottom
+        ).forEach { (x, y) -> c.drawCircle(x, y, handle, paint) }
+        val widgetName = listOf("时间", "日期", "农历", "天气")[selectedEditWidget]
+        paint.color = 0xCC063B78.toInt()
+        val hintRect = RectF(rect.left, rect.bottom + height * .012f,
+            rect.left + width * .31f, rect.bottom + height * .062f)
+        c.drawRoundRect(hintRect, 10f, 10f, paint)
+        paint.textAlign = Paint.Align.LEFT
+        text(c, "$widgetName  ·  方向键移动  ·  音量键缩放",
+            hintRect.left + 12f, hintRect.centerY() + height * .007f,
+            height * .017f, -1, true)
+        paint.textAlign = Paint.Align.LEFT
+    }
+
+    private fun resetSelectedWidget() {
+        when (selectedEditWidget) {
+            0 -> { clockX = .965f; clockY = .085f; clockScale = 1f }
+            1 -> { dateX = .965f; dateY = .125f; dateScale = 1f }
+            2 -> { lunarX = .965f; lunarY = .16f; lunarScale = 1f }
+            3 -> { weatherX = .965f; weatherY = .195f; weatherScale = 1f }
+        }
+        saveWidgetPositions()
+        invalidate()
     }
 
     private fun toggleWidgetEditMode() {
@@ -991,6 +1016,20 @@ class LauncherView(context: Context) : View(context) {
         return true
     }
 
+    override fun onKeyLongPress(keyCode: Int, event: KeyEvent): Boolean {
+        if (widgetEditMode && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
+                keyCode == KeyEvent.KEYCODE_ENTER)) {
+            resetSelectedWidget()
+            return true
+        }
+        if (!widgetEditMode && !isSettingsOpen && !isDrawerOpen &&
+            keyCode == KeyEvent.KEYCODE_MENU) {
+            toggleWidgetEditMode()
+            return true
+        }
+        return super.onKeyLongPress(keyCode, event)
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (widgetEditMode && !isSettingsOpen && !isDrawerOpen) {
             when (keyCode) {
@@ -1060,10 +1099,8 @@ class LauncherView(context: Context) : View(context) {
             invalidate(); return true
         }
         when (keyCode) {
-            KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> {
-                toggleWidgetEditMode()
-                return true
-            }
+            KeyEvent.KEYCODE_MENU -> { openLauncherSettings(); return true }
+            KeyEvent.KEYCODE_SETTINGS -> { toggleWidgetEditMode(); return true }
             KeyEvent.KEYCODE_DPAD_UP -> { isDrawerOpen = true; drawerIndex = 0; invalidate(); return true }
             KeyEvent.KEYCODE_DPAD_LEFT -> { if (favorites.isNotEmpty()) homeIndex = (homeIndex - 1).coerceAtLeast(0); invalidate(); return true }
             KeyEvent.KEYCODE_DPAD_RIGHT -> { if (favorites.isNotEmpty()) homeIndex = (homeIndex + 1).coerceAtMost(favorites.lastIndex); invalidate(); return true }
