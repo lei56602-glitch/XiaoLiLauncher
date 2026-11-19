@@ -107,6 +107,11 @@ class LauncherView(context: Context) : View(context) {
         }
     }
 
+    private fun updateClockTick() {
+        handler.removeCallbacks(clockTick)
+        handler.post(clockTick)
+    }
+
     private fun updateAnimationLoop() {
         if (dynamicWallpaperEnabled && !animationStarted) {
             animationStarted = true
@@ -1010,7 +1015,7 @@ class LauncherView(context: Context) : View(context) {
                             2 -> toggleHomeComponent(11)
                             3 -> toggleHomeComponent(12)
                             4 -> { use24HourClock = !use24HourClock; prefs.edit().putBoolean("clock_24_hour", use24HourClock).apply() }
-                            5 -> { showClockSeconds = !showClockSeconds; prefs.edit().putBoolean("clock_seconds", showClockSeconds).apply() }
+                            5 -> { showClockSeconds = !showClockSeconds; prefs.edit().putBoolean("clock_seconds", showClockSeconds).apply(); updateClockTick() }
                         }
                     } else if (event.y in (height * .515f)..(height * .575f)) {
                         val gap = width * .025f
@@ -1164,8 +1169,9 @@ class LauncherView(context: Context) : View(context) {
                     } else if (settingsFocus == 16) {
                         showClockSeconds = !showClockSeconds
                         prefs.edit().putBoolean("clock_seconds", showClockSeconds).apply()
+                        updateClockTick()
                     } else if (settingsFocus == 8) openWeatherCityDialog()
-                    else if (settingsFocus in 0..2) setDrawerColumns(settingsFocus + 3)
+                    else if (settingsFocus in 0..2) setDrawerColumns(settingsFocus + 4)
                     else if (settingsFocus == 3) onChooseWallpaper?.invoke()
                     else if (settingsFocus == 4) toggleDynamicWallpaper()
                     else if (settingsFocus == 5) clearWallpaper()
