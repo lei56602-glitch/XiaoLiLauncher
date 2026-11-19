@@ -68,7 +68,7 @@ class LauncherView(context: Context) : View(context) {
     private var resizeStartScale = 1f
     private var activeWidgetDrag = -1
     private var widgetDragStarted = false
-    var onChooseWallpaper: (() -> Unit)? = null
+    var onChooseWallpaper: (() -> Unit)? = null\n    var onRequestDefaultHome: (() -> Unit)? = null
     private val apps = mutableListOf<AppEntry>()
     private val favorites = mutableListOf<AppEntry>()
     private var drawerIndex = 0
@@ -649,13 +649,13 @@ class LauncherView(context: Context) : View(context) {
     private fun moveSettingsFocus(direction: Int) {
         val rows = listOf(
             listOf(8), listOf(9, 10, 11, 12), listOf(0, 1, 2),
-            listOf(3, 4, 5), listOf(6), listOf(7, 13)
+            listOf(3, 4, 5), listOf(6), listOf(7, 14, 13)
         )
         val x = mapOf(
             8 to .50f, 9 to .22f, 10 to .44f, 11 to .66f, 12 to .83f,
             0 to .16f, 1 to .41f, 2 to .66f,
             3 to .24f, 4 to .50f, 5 to .76f, 6 to .50f,
-            7 to .30f, 13 to .72f
+            7 to .22f, 14 to .52f, 13 to .82f
         )
         val rowIndex = rows.indexOfFirst { settingsFocus in it }.coerceAtLeast(0)
         val row = rows[rowIndex]
@@ -773,15 +773,19 @@ class LauncherView(context: Context) : View(context) {
         text(c, "⇄  小李全联 · 快传", w * .17f, h * .755f, h * .03f, -1, true)
         text(c, "局域网高速互传  ·  发送、接收与传输记录", w * .17f, h * .805f, h * .021f, 0xFFDDEEFF.toInt())
 
-        val sys = RectF(w * .13f, h * .865f, w * .48f, h * .945f)
+        val sys = RectF(w * .13f, h * .865f, w * .36f, h * .945f)
         paint.color = if (settingsFocus == 7) 0xFF31B9FF.toInt() else 0x44FFFFFF
         c.drawRoundRect(sys, 16f, 16f, paint)
-        text(c, "打开系统设置", sys.centerX() - w * .11f, h * .92f, h * .024f, -1, true)
-        val exit = RectF(w * .60f, h * .865f, w * .87f, h * .945f)
+        paint.textAlign = Paint.Align.CENTER
+        text(c, "系统设置", sys.centerX(), h * .92f, h * .024f, -1, true)
+        val home = RectF(w * .385f, h * .865f, w * .64f, h * .945f)
+        paint.color = if (settingsFocus == 14) 0xFF31B9FF.toInt() else 0x44FFFFFF
+        c.drawRoundRect(home, 16f, 16f, paint)
+        text(c, "设为默认桌面", home.centerX(), h * .92f, h * .022f, -1, true)
+        val exit = RectF(w * .665f, h * .865f, w * .87f, h * .945f)
         paint.color = if (settingsFocus == 13) 0xFF31B9FF.toInt() else 0x44FFFFFF
         c.drawRoundRect(exit, 16f, 16f, paint)
-        paint.textAlign = Paint.Align.CENTER
-        text(c, "返回桌面", exit.centerX(), h * .92f, h * .024f, -1, true)
+        text(c, "返回", exit.centerX(), h * .92f, h * .024f, -1, true)
         paint.textAlign = Paint.Align.LEFT
     }
 
@@ -988,8 +992,12 @@ class LauncherView(context: Context) : View(context) {
                         clearWallpaper()
                     } else if (event.y in (height * .70f)..(height * .84f)) {
                         context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
-                    } else if (event.y in (height * .87f)..(height * .95f) && event.x < width * .5f) {
-                        runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    } else if (event.y in (height * .865f)..(height * .945f)) {
+                        when {
+                            event.x < width * .37f -> runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                            event.x < width * .65f -> onRequestDefaultHome?.invoke()
+                            else -> closeLauncherSettings()
+                        }
                     } else {
                         isSettingsOpen = false
                     }
