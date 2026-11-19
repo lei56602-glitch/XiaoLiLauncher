@@ -506,7 +506,7 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun drawHome(c: Canvas, w: Float, h: Float) {
-        drawQuanLianFeatureCard(c, w, h)
+        drawCompactQuanLianShortcut(c, w, h)
         val count = minOf(5, favorites.size)
         if (count > 0) {
             favorites.take(5).forEachIndexed { i, app ->
