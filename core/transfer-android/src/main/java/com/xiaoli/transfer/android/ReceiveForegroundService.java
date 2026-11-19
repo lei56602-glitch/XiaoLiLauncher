@@ -104,7 +104,7 @@ public class ReceiveForegroundService extends Service {
         udpAnnouncing=true;
         udpAnnounceThread=new Thread(()->{
             while(running&&udpAnnouncing){
-                LanDiscovery.announce(DeviceIdentity.id(this),deviceName(),port);
+                LanDiscovery.announce(this,DeviceIdentity.id(this),deviceName(),port);
                 try{Thread.sleep(2000);}catch(InterruptedException e){Thread.currentThread().interrupt();break;}
             }
         },"QuanLian-UDP-Announcer");
