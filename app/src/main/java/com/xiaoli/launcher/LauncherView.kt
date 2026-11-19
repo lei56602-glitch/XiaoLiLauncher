@@ -14,6 +14,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.View
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -27,6 +28,10 @@ class LauncherView(context: Context) : View(context) {
     private val favorites = mutableListOf<AppEntry>()
     private var drawerIndex = 0
     private var homeIndex = 0
+    private var touchDownX = 0f
+    private var touchDownY = 0f
+    private var touchDragging = false
+    private var lastDragIndex = -1
     var isDrawerOpen = false
         private set
     private val handler = Handler(Looper.getMainLooper())
@@ -175,6 +180,127 @@ class LauncherView(context: Context) : View(context) {
         val hint = if (editingFavorites) "确认键添加/移除  ·  最多5个  ·  菜单键完成"
             else "方向键选择  ·  确认键启动  ·  菜单键管理首页应用"
         text(c, hint, w*.25f,h*.86f,h*.022f,0xFFDDEEFF.toInt())
+    }
+
+
+    private fun homeItemIndexAt(x: Float, y: Float): Int {
+        if (favorites.isEmpty() || y < height * .54f || y > height * .76f) return -1
+        val w = width.toFloat()
+        val gap = w * .035f
+        val itemW = w * .13f
+        val total = favorites.size * itemW + (favorites.size - 1) * gap
+        val start = (w - total) / 2f
+        favorites.indices.forEach { i ->
+            val left = start + i * (itemW + gap)
+            if (x >= left && x <= left + itemW) return i
+        }
+        return -1
+    }
+
+    private fun drawerItemIndexAt(x: Float, y: Float): Int {
+        if (y < height * .32f || y > height * .82f) return -1
+        val col = ((x - width * .1f) / (width * .16f)).toInt()
+        val row = ((y - height * .32f) / (height * .15f)).toInt()
+        if (col !in 0..4 || row < 0) return -1
+        val index = row * 5 + col
+        val cellLeft = width * .1f + col * width * .16f
+        val cellTop = height * .32f + row * height * .15f
+        return if (x <= cellLeft + width * .16f * .78f &&
+            y <= cellTop + height * .15f * .72f && index in apps.indices) index else -1
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                touchDownX = event.x
+                touchDownY = event.y
+                touchDragging = false
+                lastDragIndex = homeItemIndexAt(event.x, event.y)
+                return true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = event.x - touchDownX
+                val dy = event.y - touchDownY
+                if (!isDrawerOpen && lastDragIndex >= 0 &&
+                    event.eventTime - event.downTime > android.view.ViewConfiguration.getLongPressTimeout() &&
+                    kotlin.math.abs(dx) > width * .015f && kotlin.math.abs(dx) > kotlin.math.abs(dy)) {
+                    touchDragging = true
+                    val target = homeItemIndexAt(event.x, event.y)
+                    if (target >= 0 && target != lastDragIndex && target in favorites.indices) {
+                        val item = favorites.removeAt(lastDragIndex)
+                        favorites.add(target, item)
+                        homeIndex = target
+                        lastDragIndex = target
+                        saveFavorites()
+                        invalidate()
+                    }
+                }
+                return true
+            }
+            MotionEvent.ACTION_UP -> {
+                val dx = event.x - touchDownX
+                val dy = event.y - touchDownY
+                if (touchDragging) {
+                    touchDragging = false
+                    performClick()
+                    return true
+                }
+                if (isDrawerOpen) {
+                    if (event.y in (height * .19f)..(height * .29f) && event.x > width * .68f) {
+                        editingFavorites = !editingFavorites
+                    } else if (event.y in (height * .82f)..(height * .9f) && event.x > width * .62f) {
+                        editingFavorites = !editingFavorites
+                    } else {
+                        val index = drawerItemIndexAt(event.x, event.y)
+                        if (index >= 0) {
+                            drawerIndex = index
+                            val app = apps[index]
+                            if (editingFavorites) {
+                                val exists = favorites.any { it.packageName == app.packageName }
+                                if (exists || favorites.size < 5) toggleFavorite(app)
+                            } else {
+                                runCatching { context.startActivity(app.intent) }
+                            }
+                        } else if (event.x < width * .06f || event.x > width * .94f ||
+                            event.y < height * .18f || event.y > height * .9f) {
+                            closeDrawer()
+                        }
+                    }
+                } else if (dy < -height * .06f) {
+                    isDrawerOpen = true
+                    drawerIndex = 0
+                } else if (kotlin.math.abs(dx) > width * .08f && kotlin.math.abs(dx) > kotlin.math.abs(dy)) {
+                    if (favorites.isNotEmpty()) {
+                        homeIndex = if (dx < 0) (homeIndex + 1).coerceAtMost(favorites.lastIndex)
+                            else (homeIndex - 1).coerceAtLeast(0)
+                    }
+                } else {
+                    val index = homeItemIndexAt(event.x, event.y)
+                    if (index >= 0) {
+                        homeIndex = index
+                        favorites.getOrNull(index)?.let { runCatching { context.startActivity(it.intent) } }
+                    } else if (event.y > height * .78f && event.x < width * .42f) {
+                        isDrawerOpen = true
+                        drawerIndex = 0
+                    } else if (event.y < height * .16f && event.x < width * .28f) {
+                        runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    }
+                }
+                invalidate()
+                performClick()
+                return true
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                touchDragging = false
+                return true
+            }
+        }
+        return true
+    }
+
+    override fun performClick(): Boolean {
+        super.performClick()
+        return true
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
