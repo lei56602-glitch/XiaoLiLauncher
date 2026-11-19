@@ -764,6 +764,15 @@ class LauncherView(context: Context) : View(context) {
         }
     }
 
+    private fun isDefaultHomeLauncher(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            context.getSystemService(RoleManager::class.java)?.isRoleHeld(RoleManager.ROLE_HOME) == true
+        } else {
+            val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+            context.packageManager.resolveActivity(homeIntent, PackageManager.MATCH_DEFAULT_ONLY)
+                ?.activityInfo?.packageName == context.packageName
+        }
+    }
     private fun drawLauncherSettings(c: Canvas, w: Float, h: Float) {
         paint.color = 0xE6052B68.toInt()
         c.drawRoundRect(RectF(w * .08f, h * .14f, w * .92f, h * .97f), 30f, 30f, paint)
@@ -860,8 +869,7 @@ class LauncherView(context: Context) : View(context) {
         val home = RectF(w * .385f, h * .865f, w * .64f, h * .945f)
         paint.color = if (settingsFocus == 14) 0xFF31B9FF.toInt() else 0x44FFFFFF
         c.drawRoundRect(home, 16f, 16f, paint)
-        val isDefaultHome = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-            context.getSystemService(RoleManager::class.java)?.isRoleHeld(RoleManager.ROLE_HOME) == true
+        val isDefaultHome = isDefaultHomeLauncher()
         text(c, if (isDefaultHome) "当前默认桌面" else "设为默认桌面",
             home.centerX(), h * .92f, h * .022f, -1, true)
         val exit = RectF(w * .665f, h * .865f, w * .87f, h * .945f)
