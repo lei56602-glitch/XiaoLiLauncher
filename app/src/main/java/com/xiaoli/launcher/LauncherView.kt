@@ -128,6 +128,7 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun drawHome(c: Canvas, w: Float, h: Float) {
+        drawQuanLianFeatureCard(c, w, h)
         val count = minOf(5, favorites.size)
         if (count > 0) {
             favorites.take(5).forEachIndexed { i, app ->
@@ -159,6 +160,53 @@ class LauncherView(context: Context) : View(context) {
         paint.textAlign = Paint.Align.RIGHT
         text(c, (if (connected) "● 网络已连接" else "○ 网络未连接") + "    小李设备", w * .965f, h * .94f, h * .024f, -1)
         paint.textAlign = Paint.Align.LEFT
+    }
+
+    private fun quanLianFeatureRect(w: Float, h: Float) =
+        RectF(w * .12f, h * .25f, w * .88f, h * .49f)
+
+    private fun drawQuanLianFeatureCard(c: Canvas, w: Float, h: Float) {
+        val card = quanLianFeatureRect(w, h)
+        paint.shader = LinearGradient(
+            card.left, card.top, card.right, card.bottom,
+            intArrayOf(0xEE087CE8.toInt(), 0xE9158FFF.toInt(), 0xDD0754B8.toInt()),
+            null, Shader.TileMode.CLAMP
+        )
+        c.drawRoundRect(card, h * .025f, h * .025f, paint)
+        paint.shader = null
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = h * .002f
+        paint.color = 0x887FE3FF.toInt()
+        c.drawRoundRect(card, h * .025f, h * .025f, paint)
+        paint.style = Paint.Style.FILL
+
+        val mark = RectF(card.left + w * .025f, card.top + h * .045f,
+            card.left + w * .115f, card.bottom - h * .045f)
+        paint.shader = LinearGradient(mark.left, mark.top, mark.right, mark.bottom,
+            intArrayOf(0xFF12C9F2.toInt(), 0xFF0759D9.toInt()), null, Shader.TileMode.CLAMP)
+        c.drawRoundRect(mark, h * .018f, h * .018f, paint)
+        paint.shader = null
+        text(c, "⇄", mark.left + w * .018f, mark.centerY() + h * .035f,
+            h * .075f, -1, true)
+
+        text(c, "小李全联 · 快传", card.left + w * .145f, card.top + h * .085f,
+            h * .039f, -1, true)
+        text(c, "让手机、电视与电脑轻松互传文件", card.left + w * .145f,
+            card.top + h * .135f, h * .025f, 0xFFE5F4FF.toInt())
+        text(c, "局域网设备发现已接入", card.left + w * .145f,
+            card.top + h * .185f, h * .020f, 0xFFC9E8FF.toInt())
+
+        val action = RectF(card.right - w * .205f, card.top + h * .075f,
+            card.right - w * .035f, card.top + h * .165f)
+        paint.color = 0x5537C7FF
+        c.drawRoundRect(action, h * .025f, h * .025f, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = h * .0018f
+        paint.color = 0xFF75DFFF.toInt()
+        c.drawRoundRect(action, h * .025f, h * .025f, paint)
+        paint.style = Paint.Style.FILL
+        text(c, "立即打开  ›", action.left + w * .025f,
+            action.centerY() + h * .009f, h * .022f, -1, true)
     }
 
     private fun drawDrawer(c: Canvas, w: Float, h: Float) {
@@ -367,7 +415,11 @@ class LauncherView(context: Context) : View(context) {
                     }
                 } else {
                     val index = homeItemIndexAt(event.x, event.y)
-                    if (index >= 0) {
+                    if (quanLianFeatureRect(width.toFloat(), height.toFloat()).contains(event.x, event.y)) {
+                        runCatching {
+                            context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
+                        }
+                    } else if (index >= 0) {
                         homeIndex = index
                         favorites.getOrNull(index)?.let { runCatching { context.startActivity(it.intent) } }
                     } else if (event.y > height * .78f && event.x < width * .42f) {
