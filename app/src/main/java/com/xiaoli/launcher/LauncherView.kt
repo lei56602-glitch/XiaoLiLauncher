@@ -34,6 +34,8 @@ class LauncherView(context: Context) : View(context) {
     private var lastDragIndex = -1
     var isDrawerOpen = false
         private set
+    private var isSettingsOpen = false
+    private var settingsFocus = 0
     private val handler = Handler(Looper.getMainLooper())
     private val clockTick = object : Runnable {
         override fun run() { invalidate(); handler.postDelayed(this, 30_000L) }
@@ -92,6 +94,7 @@ class LauncherView(context: Context) : View(context) {
     }
 
     fun closeDrawer() { isDrawerOpen = false; editingFavorites = false; invalidate() }
+    fun closeLauncherSettings() { isSettingsOpen = false; invalidate() }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
@@ -99,7 +102,11 @@ class LauncherView(context: Context) : View(context) {
         paint.shader = LinearGradient(0f, 0f, w, h, intArrayOf(0xFF0878E8.toInt(), 0xFF0754B9.toInt(), 0xFF032D79.toInt()), null, Shader.TileMode.CLAMP)
         canvas.drawRect(0f, 0f, w, h, paint); paint.shader = null
         drawTop(canvas, w)
-        if (isDrawerOpen) drawDrawer(canvas, w, h) else drawHome(canvas, w, h)
+        when {
+            isSettingsOpen -> drawLauncherSettings(canvas, w, h)
+            isDrawerOpen -> drawDrawer(canvas, w, h)
+            else -> drawHome(canvas, w, h)
+        }
     }
 
     private fun text(c: Canvas, value: String, x: Float, y: Float, size: Float, color: Int, bold: Boolean = false) {
@@ -184,10 +191,46 @@ class LauncherView(context: Context) : View(context) {
 
     private fun isCompactLayout(): Boolean = width < height
 
-    private fun drawerColumns(): Int = when {
-        width < height -> 3
-        width < height * 1.45f -> 4
-        else -> 5
+    private fun drawerColumns(): Int =
+        prefs.getInt("drawer_columns", 5).coerceIn(3, 5)
+
+    private fun openLauncherSettings() {
+        isDrawerOpen = false
+        isSettingsOpen = true
+        settingsFocus = (drawerColumns() - 3).coerceIn(0, 2)
+        invalidate()
+    }
+
+    private fun setDrawerColumns(columns: Int) {
+        prefs.edit().putInt("drawer_columns", columns.coerceIn(3, 5)).apply()
+        settingsFocus = columns - 3
+        invalidate()
+    }
+
+    private fun drawLauncherSettings(c: Canvas, w: Float, h: Float) {
+        paint.color = 0xE6052B68.toInt()
+        c.drawRoundRect(RectF(w * .08f, h * .16f, w * .92f, h * .86f), 30f, 30f, paint)
+        text(c, "小李桌面设置", w * .13f, h * .27f, h * .045f, -1, true)
+        text(c, "应用抽屉列数", w * .13f, h * .39f, h * .03f, 0xFFDDEEFF.toInt())
+        val gap = w * .025f
+        val buttonW = w * .18f
+        val start = w * .13f
+        for (i in 0..2) {
+            val columns = i + 3
+            val left = start + i * (buttonW + gap)
+            val rect = RectF(left, h * .44f, left + buttonW, h * .57f)
+            paint.color = if (drawerColumns() == columns) 0xFF31B9FF.toInt() else 0x44FFFFFF
+            c.drawRoundRect(rect, 18f, 18f, paint)
+            paint.textAlign = Paint.Align.CENTER
+            text(c, "${columns}列", rect.centerX(), h * .52f, h * .032f, -1, true)
+            paint.textAlign = Paint.Align.LEFT
+        }
+        text(c, "默认五列，可根据习惯选择三列、四列或五列。", w * .13f, h * .66f, h * .024f, 0xFFDDEEFF.toInt())
+        val sys = RectF(w * .13f, h * .72f, w * .48f, h * .81f)
+        paint.color = if (settingsFocus == 3) 0xFF31B9FF.toInt() else 0x44FFFFFF
+        c.drawRoundRect(sys, 16f, 16f, paint)
+        text(c, "打开系统设置", sys.centerX() - w * .11f, h * .775f, h * .024f, -1, true)
+        text(c, "返回桌面", w * .72f, h * .775f, h * .024f, -1, true)
     }
 
     private fun homeItemRect(index: Int, w: Float, h: Float): RectF {
@@ -271,7 +314,19 @@ class LauncherView(context: Context) : View(context) {
                     performClick()
                     return true
                 }
-                if (isDrawerOpen) {
+                if (isSettingsOpen) {
+                    if (event.y in (height * .44f)..(height * .57f)) {
+                        val gap = width * .025f
+                        val buttonW = width * .18f
+                        val start = width * .13f
+                        val selected = ((event.x - start) / (buttonW + gap)).toInt()
+                        if (selected in 0..2) setDrawerColumns(selected + 3)
+                    } else if (event.y in (height * .72f)..(height * .81f) && event.x < width * .5f) {
+                        runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    } else {
+                        isSettingsOpen = false
+                    }
+                } else if (isDrawerOpen) {
                     if (event.y in (height * .19f)..(height * .29f) && event.x > width * .68f) {
                         editingFavorites = !editingFavorites
                     } else if (event.y in (height * .82f)..(height * .9f) && event.x > width * .62f) {
@@ -309,7 +364,7 @@ class LauncherView(context: Context) : View(context) {
                         isDrawerOpen = true
                         drawerIndex = 0
                     } else if (event.y < height * .16f && event.x < width * .28f) {
-                        runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                        openLauncherSettings()
                     }
                 }
                 invalidate()
@@ -330,6 +385,18 @@ class LauncherView(context: Context) : View(context) {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (isSettingsOpen) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_BACK -> { closeLauncherSettings(); return true }
+                KeyEvent.KEYCODE_DPAD_LEFT -> settingsFocus = (settingsFocus - 1).coerceAtLeast(0)
+                KeyEvent.KEYCODE_DPAD_RIGHT -> settingsFocus = (settingsFocus + 1).coerceAtMost(3)
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                    if (settingsFocus in 0..2) setDrawerColumns(settingsFocus + 3)
+                    else runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                }
+            }
+            invalidate(); return true
+        }
         if (isDrawerOpen) {
             when (keyCode) {
                 KeyEvent.KEYCODE_BACK -> { closeDrawer(); return true }
@@ -355,10 +422,7 @@ class LauncherView(context: Context) : View(context) {
             KeyEvent.KEYCODE_DPAD_UP -> { isDrawerOpen = true; drawerIndex = 0; invalidate(); return true }
             KeyEvent.KEYCODE_DPAD_LEFT -> { if (favorites.isNotEmpty()) homeIndex = (homeIndex - 1).coerceAtLeast(0); invalidate(); return true }
             KeyEvent.KEYCODE_DPAD_RIGHT -> { if (favorites.isNotEmpty()) homeIndex = (homeIndex + 1).coerceAtMost(favorites.lastIndex); invalidate(); return true }
-            KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> {
-                runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                return true
-            }
+            KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> { openLauncherSettings(); return true }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                 favorites.getOrNull(homeIndex)?.let { runCatching { context.startActivity(it.intent) } }
                 return true
