@@ -17,6 +17,13 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.os.Build
+import android.app.AlertDialog
+import android.text.InputType
+import android.widget.EditText
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 import android.provider.Settings
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -24,6 +31,7 @@ import android.view.View
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.concurrent.thread
 
 class LauncherView(context: Context) : View(context) {
     private data class AppEntry(val label: String, val packageName: String, val intent: Intent)
@@ -32,6 +40,10 @@ class LauncherView(context: Context) : View(context) {
     private var wallpaperBitmap: Bitmap? = null
     private var dynamicWallpaperEnabled = prefs.getBoolean("dynamic_wallpaper", false)
     private var animationStarted = false
+    private var weatherCity = prefs.getString("weather_city", "") ?: ""
+    private var weatherSummary = prefs.getString("weather_summary", "尚未设置城市") ?: "尚未设置城市"
+    private var weatherUpdatedAt = prefs.getLong("weather_updated_at", 0L)
+    private var weatherLoading = false
     var onChooseWallpaper: (() -> Unit)? = null
     private val apps = mutableListOf<AppEntry>()
     private val favorites = mutableListOf<AppEntry>()
@@ -48,7 +60,11 @@ class LauncherView(context: Context) : View(context) {
     private var settingsFocus = 0
     private val handler = Handler(Looper.getMainLooper())
     private val clockTick = object : Runnable {
-        override fun run() { invalidate(); handler.postDelayed(this, 30_000L) }
+        override fun run() {
+            invalidate()
+            if (weatherCity.isNotBlank() && System.currentTimeMillis() - weatherUpdatedAt > 30 * 60 * 1000L) refreshWeather()
+            handler.postDelayed(this, 30_000L)
+        }
     }
     private val animationTick = object : Runnable {
         override fun run() {
@@ -83,6 +99,7 @@ class LauncherView(context: Context) : View(context) {
         isFocusableInTouchMode = true
         loadApps()
         loadSavedWallpaper()
+        if (weatherCity.isNotBlank() && System.currentTimeMillis() - weatherUpdatedAt > 30 * 60 * 1000L) refreshWeather()
         handler.post(clockTick)
         updateAnimationLoop()
     }
@@ -266,7 +283,104 @@ class LauncherView(context: Context) : View(context) {
         lunarDateLabel(now.time)?.let {
             text(c, it, w * .965f, height * .16f, height * .019f, 0xFFBDEBFF.toInt())
         }
+        text(c, "天气  $weatherSummary", w * .965f, height * .195f, height * .019f,
+            if (weatherCity.isBlank()) 0xFFFFE7B0.toInt() else 0xFFD9F5FF.toInt())
         paint.textAlign = Paint.Align.LEFT
+    }
+
+    private fun openWeatherCityDialog() {
+        val field = EditText(context).apply {
+            setSingleLine(true)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
+            hint = "例如：Singapore"
+            setText(weatherCity)
+            setSelection(text.length)
+        }
+        AlertDialog.Builder(context)
+            .setTitle("设置天气城市")
+            .setMessage("输入城市名称，天气数据将通过网络获取。")
+            .setView(field)
+            .setNegativeButton("取消", null)
+            .setPositiveButton("保存") { _, _ ->
+                val city = field.text.toString().trim()
+                if (city.isNotEmpty()) {
+                    weatherCity = city
+                    weatherSummary = "正在获取天气…"
+                    weatherUpdatedAt = 0L
+                    prefs.edit().putString("weather_city", city).putString("weather_summary", weatherSummary).apply()
+                    invalidate()
+                    refreshWeather()
+                }
+            }
+            .show()
+    }
+
+    private fun refreshWeather() {
+        if (weatherLoading || weatherCity.isBlank()) return
+        weatherLoading = true
+        val requestedCity = weatherCity
+        thread(name = "launcher-weather") {
+            var result = "天气暂不可用"
+            try {
+                val encoded = URLEncoder.encode(requestedCity, "UTF-8")
+                val geo = readWeatherJson("https://geocoding-api.open-meteo.com/v1/search?name=$encoded&count=1&language=zh&format=json")
+                val first = geo.optJSONArray("results")?.optJSONObject(0)
+                if (first != null) {
+                    val lat = first.getDouble("latitude")
+                    val lon = first.getDouble("longitude")
+                    val forecast = readWeatherJson("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code&timezone=auto")
+                    val current = forecast.getJSONObject("current")
+                    val temperature = current.getDouble("temperature_2m")
+                    val code = current.getInt("weather_code")
+                    result = String.format(Locale.getDefault(), "%s  %.0f°C", weatherDescription(code), temperature)
+                } else {
+                    result = "找不到该城市"
+                }
+            } catch (_: Exception) {
+                result = "天气获取失败"
+            }
+            val finalResult = result
+            handler.post {
+                if (weatherCity == requestedCity) {
+                    weatherSummary = finalResult
+                    weatherUpdatedAt = System.currentTimeMillis()
+                    prefs.edit().putString("weather_summary", weatherSummary)
+                        .putLong("weather_updated_at", weatherUpdatedAt).apply()
+                    weatherLoading = false
+                    invalidate()
+                } else {
+                    weatherLoading = false
+                }
+            }
+        }
+    }
+
+    private fun readWeatherJson(address: String): JSONObject {
+        val connection = (URL(address).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 8000
+            readTimeout = 8000
+            requestMethod = "GET"
+            setRequestProperty("Accept", "application/json")
+        }
+        return try {
+            connection.inputStream.bufferedReader(Charsets.UTF_8).use { JSONObject(it.readText()) }
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun weatherDescription(code: Int): String = when (code) {
+        0 -> "晴"
+        1, 2 -> "晴间多云"
+        3 -> "阴"
+        45, 48 -> "有雾"
+        51, 53, 55, 56, 57 -> "毛毛雨"
+        61, 63, 65, 66, 67 -> "下雨"
+        71, 73, 75, 77 -> "下雪"
+        80, 81, 82 -> "阵雨"
+        85, 86 -> "阵雪"
+        95, 96, 99 -> "雷雨"
+        else -> "天气状况未知"
     }
 
     private fun drawHome(c: Canvas, w: Float, h: Float) {
@@ -430,22 +544,28 @@ class LauncherView(context: Context) : View(context) {
     private fun drawLauncherSettings(c: Canvas, w: Float, h: Float) {
         paint.color = 0xE6052B68.toInt()
         c.drawRoundRect(RectF(w * .08f, h * .16f, w * .92f, h * .86f), 30f, 30f, paint)
-        text(c, "小李桌面设置", w * .13f, h * .27f, h * .045f, -1, true)
-        text(c, "应用抽屉列数", w * .13f, h * .39f, h * .03f, 0xFFDDEEFF.toInt())
+        text(c, "小李桌面设置", w * .13f, h * .235f, h * .04f, -1, true)
+        val weatherSetting = RectF(w * .13f, h * .275f, w * .87f, h * .37f)
+        paint.color = if (settingsFocus == 8) 0xFF31B9FF.toInt() else 0x5544BFFF
+        c.drawRoundRect(weatherSetting, 16f, 16f, paint)
+        text(c, "天气城市：${if (weatherCity.isBlank()) "尚未设置" else weatherCity}",
+            w * .16f, h * .335f, h * .025f, -1, true)
+        text(c, "设置城市后，首页自动显示天气与温度", w * .13f, h * .415f, h * .022f, 0xFFDDEEFF.toInt())
+        text(c, "应用抽屉列数", w * .13f, h * .455f, h * .03f, 0xFFDDEEFF.toInt())
         val gap = w * .025f
         val buttonW = w * .18f
         val start = w * .13f
         for (i in 0..2) {
             val columns = i + 3
             val left = start + i * (buttonW + gap)
-            val rect = RectF(left, h * .44f, left + buttonW, h * .57f)
+            val rect = RectF(left, h * .49f, left + buttonW, h * .58f)
             paint.color = if (drawerColumns() == columns) 0xFF31B9FF.toInt() else 0x44FFFFFF
             c.drawRoundRect(rect, 18f, 18f, paint)
             paint.textAlign = Paint.Align.CENTER
-            text(c, "${columns}列", rect.centerX(), h * .52f, h * .032f, -1, true)
+            text(c, "${columns}列", rect.centerX(), h * .55f, h * .028f, -1, true)
             paint.textAlign = Paint.Align.LEFT
         }
-        text(c, "默认五列，可根据习惯选择三列、四列或五列。", w * .13f, h * .66f, h * .024f, 0xFFDDEEFF.toInt())
+        text(c, "默认五列，可根据习惯选择三列、四列或五列。", w * .13f, h * .665f, h * .020f, 0xFFDDEEFF.toInt())
 
         val wallpaper = RectF(w * .13f, h * .59f, w * .35f, h * .68f)
         paint.color = if (settingsFocus == 3) 0xFF31B9FF.toInt() else 0x5544BFFF
@@ -563,7 +683,9 @@ class LauncherView(context: Context) : View(context) {
                     return true
                 }
                 if (isSettingsOpen) {
-                    if (event.y in (height * .44f)..(height * .57f)) {
+                    if (event.y in (height * .275f)..(height * .37f)) {
+                        openWeatherCityDialog()
+                    } else if (event.y in (height * .49f)..(height * .58f)) {
                         val gap = width * .025f
                         val buttonW = width * .18f
                         val start = width * .13f
@@ -649,9 +771,10 @@ class LauncherView(context: Context) : View(context) {
             when (keyCode) {
                 KeyEvent.KEYCODE_BACK -> { closeLauncherSettings(); return true }
                 KeyEvent.KEYCODE_DPAD_LEFT -> settingsFocus = (settingsFocus - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> settingsFocus = (settingsFocus + 1).coerceAtMost(7)
+                KeyEvent.KEYCODE_DPAD_RIGHT -> settingsFocus = (settingsFocus + 1).coerceAtMost(8)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                    if (settingsFocus in 0..2) setDrawerColumns(settingsFocus + 3)
+                    if (settingsFocus == 8) openWeatherCityDialog()
+                    else if (settingsFocus in 0..2) setDrawerColumns(settingsFocus + 3)
                     else if (settingsFocus == 3) onChooseWallpaper?.invoke()
                     else if (settingsFocus == 4) toggleDynamicWallpaper()
                     else if (settingsFocus == 5) clearWallpaper()
