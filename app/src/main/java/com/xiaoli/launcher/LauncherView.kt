@@ -93,7 +93,7 @@ class LauncherView(context: Context) : View(context) {
         override fun run() {
             invalidate()
             if (weatherCity.isNotBlank() && System.currentTimeMillis() - weatherUpdatedAt > 30 * 60 * 1000L) refreshWeather()
-            handler.postDelayed(this, 30_000L)
+            handler.postDelayed(this, if (showClockSeconds) 1_000L else 30_000L)
         }
     }
     private val animationTick = object : Runnable {
