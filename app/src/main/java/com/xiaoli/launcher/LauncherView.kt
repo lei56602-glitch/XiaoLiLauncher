@@ -625,16 +625,17 @@ class LauncherView(context: Context) : View(context) {
         text(c, if (editingFavorites) "完成" else "管理", w * .925f, h * .215f, h * .027f, 0xFFBDEBFF.toInt(), true)
         paint.textAlign = Paint.Align.LEFT
 
-        val cols = drawerColumns()
-        val gridLeft = w * .065f
-        val gridRight = w * .935f
-        val cellW = (gridRight - gridLeft) / cols
-        val cellH = h * .58f / drawerRows()
-        val contentTop = h * .265f
-        val contentBottom = h * .845f
-        val visibleRows = drawerRows()
-        val totalRows = (apps.size + cols - 1) / cols
-        val maxScroll = (totalRows - visibleRows).coerceAtLeast(0)
+        val metrics = drawerMetrics()
+        val cols = metrics.columns
+        val gridLeft = metrics.gridLeft
+        val gridRight = metrics.gridRight
+        val cellW = metrics.cellWidth
+        val cellH = metrics.cellHeight
+        val contentTop = metrics.contentTop
+        val contentBottom = metrics.contentBottom
+        val visibleRows = metrics.rows
+        val totalRows = metrics.totalRows(apps.size)
+        val maxScroll = metrics.maxScroll(apps.size)
         drawerScrollRow = drawerScrollRow.coerceIn(0, maxScroll)
         val clipSave = c.save()
         c.clipRect(gridLeft, contentTop, gridRight, contentBottom)
@@ -649,8 +650,8 @@ class LauncherView(context: Context) : View(context) {
             if (i == drawerIndex) paint.setShadowLayer(h * .018f, 0f, 0f, 0xAA39C8FF.toInt())
             c.drawRoundRect(cell, h * .025f, h * .025f, paint)
             paint.clearShadowLayer()
-            val iconSize = minOf(cellH * .76f, cell.width() * .72f)
-            val iconTop = cell.top + cellH * .045f
+            val iconSize = metrics.iconSize(cell.width())
+            val iconTop = metrics.iconTop(cell.top)
             val iconRect = RectF(cell.centerX() - iconSize / 2f, iconTop,
                 cell.centerX() + iconSize / 2f, iconTop + iconSize)
             drawUnifiedAppIcon(c, app, iconRect, i == drawerIndex)
@@ -714,6 +715,9 @@ class LauncherView(context: Context) : View(context) {
             settingsFocus = rows[targetRow].minByOrNull { kotlin.math.abs((x[it] ?: .5f) - currentX) } ?: settingsFocus
         }
     }
+
+    private fun drawerMetrics(): DrawerGridMetrics =
+        DrawerGridMetrics(width.toFloat(), height.toFloat(), drawerColumns(), drawerRows())
 
     private fun drawerRows(): Int = prefs.getInt("drawer_rows", 2).coerceIn(2, 4)
 
@@ -981,23 +985,8 @@ class LauncherView(context: Context) : View(context) {
         return -1
     }
 
-    private fun drawerItemIndexAt(x: Float, y: Float): Int {
-        if (y < height * .265f || y > height * .845f) return -1
-        val cols = drawerColumns()
-        val gridLeft = width * .065f
-        val cellW = width * .87f / cols
-        val cellH = height * .58f / drawerRows()
-        val col = ((x - gridLeft) / cellW).toInt()
-        val visibleRow = ((y - height * .265f) / cellH).toInt()
-        if (col !in 0 until cols || visibleRow < 0) return -1
-        val row = visibleRow + drawerScrollRow
-        val index = row * cols + col
-        val cellLeft = gridLeft + col * cellW
-        val cellTop = height * .265f + visibleRow * cellH
-        return if (x in (cellLeft + cellW * .035f)..(cellLeft + cellW * .965f) &&
-            y in (cellTop + cellH * .025f)..(cellTop + cellH * .965f) &&
-            index in apps.indices) index else -1
-    }
+    private fun drawerItemIndexAt(x: Float, y: Float): Int =
+        drawerMetrics().indexAt(x, y, drawerScrollRow, apps.size)
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
@@ -1289,10 +1278,10 @@ class LauncherView(context: Context) : View(context) {
                     }
                 }
             }
-            val cols = drawerColumns()
-            val visibleRows = drawerRows()
-            val totalRows = (apps.size + cols - 1) / cols
-            val maxScroll = (totalRows - visibleRows).coerceAtLeast(0)
+            val metrics = drawerMetrics()
+            val cols = metrics.columns
+            val visibleRows = metrics.rows
+            val maxScroll = metrics.maxScroll(apps.size)
             drawerScrollRow = (drawerIndex / cols - visibleRows + 1).coerceIn(0, maxScroll)
             invalidate(); return true
         }
