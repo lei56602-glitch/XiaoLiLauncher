@@ -303,6 +303,7 @@ class QuanLianActivity : Activity() {
     private fun openPage(target: Page) {
         page = target
         focus = 0
+        if(target==Page.HISTORY)historyScrollOffset=0
         if (target == Page.RECEIVE && !receiveEnabled) startReceive()
         screen.invalidate()
     }
