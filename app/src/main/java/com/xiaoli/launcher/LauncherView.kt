@@ -56,6 +56,13 @@ class LauncherView(context: Context) : View(context) {
     private var lunarY = prefs.getFloat("widget_lunar_y", .16f)
     private var weatherX = prefs.getFloat("widget_weather_x", .965f)
     private var weatherY = prefs.getFloat("widget_weather_y", .195f)
+    private var clockScale = prefs.getFloat("widget_clock_scale", 1f).coerceIn(.7f, 1.8f)
+    private var dateScale = prefs.getFloat("widget_date_scale", 1f).coerceIn(.7f, 1.8f)
+    private var lunarScale = prefs.getFloat("widget_lunar_scale", 1f).coerceIn(.7f, 1.8f)
+    private var weatherScale = prefs.getFloat("widget_weather_scale", 1f).coerceIn(.7f, 1.8f)
+    private var activeWidgetResize = -1
+    private var resizeStartSpan = 0f
+    private var resizeStartScale = 1f
     private var activeWidgetDrag = -1
     private var widgetDragStarted = false
     var onChooseWallpaper: (() -> Unit)? = null
@@ -292,12 +299,12 @@ class LauncherView(context: Context) : View(context) {
         val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
         val date = SimpleDateFormat("MM月dd日  EEEE", Locale.CHINA).format(now)
         paint.textAlign = Paint.Align.RIGHT
-        if (showClock) text(c, time, w * clockX, height * clockY, height * .052f, -1, true)
-        if (showDate) text(c, date, w * dateX, height * dateY, height * .021f, 0xFFE2F1FF.toInt())
+        if (showClock) text(c, time, w * clockX, height * clockY, height * .052f * clockScale, -1, true)
+        if (showDate) text(c, date, w * dateX, height * dateY, height * .021f * dateScale, 0xFFE2F1FF.toInt())
         if (showLunar) lunarDateLabel(now.time)?.let {
-            text(c, it, w * lunarX, height * lunarY, height * .019f, 0xFFBDEBFF.toInt())
+            text(c, it, w * lunarX, height * lunarY, height * .019f * lunarScale, 0xFFBDEBFF.toInt())
         }
-        if (showWeather) text(c, "天气  $weatherSummary", w * weatherX, height * weatherY, height * .019f,
+        if (showWeather) text(c, "天气  $weatherSummary", w * weatherX, height * weatherY, height * .019f * weatherScale,
             if (weatherCity.isBlank()) 0xFFFFE7B0.toInt() else 0xFFD9F5FF.toInt())
         paint.textAlign = Paint.Align.LEFT
     }
@@ -689,12 +696,35 @@ class LauncherView(context: Context) : View(context) {
         invalidate()
     }
 
+    private fun widgetScale(index: Int): Float = when (index) {
+        0 -> clockScale
+        1 -> dateScale
+        2 -> lunarScale
+        3 -> weatherScale
+        else -> 1f
+    }
+
+    private fun setWidgetScale(index: Int, value: Float) {
+        val scale = value.coerceIn(.7f, 1.8f)
+        when (index) {
+            0 -> clockScale = scale
+            1 -> dateScale = scale
+            2 -> lunarScale = scale
+            3 -> weatherScale = scale
+        }
+        invalidate()
+    }
+
     private fun saveWidgetPositions() {
         prefs.edit()
             .putFloat("widget_clock_x", clockX).putFloat("widget_clock_y", clockY)
             .putFloat("widget_date_x", dateX).putFloat("widget_date_y", dateY)
             .putFloat("widget_lunar_x", lunarX).putFloat("widget_lunar_y", lunarY)
             .putFloat("widget_weather_x", weatherX).putFloat("widget_weather_y", weatherY)
+            .putFloat("widget_clock_scale", clockScale)
+            .putFloat("widget_date_scale", dateScale)
+            .putFloat("widget_lunar_scale", lunarScale)
+            .putFloat("widget_weather_scale", weatherScale)
             .apply()
     }
 
@@ -731,7 +761,31 @@ class LauncherView(context: Context) : View(context) {
                 lastDragIndex = if (activeWidgetDrag < 0) homeItemIndexAt(event.x, event.y) else -1
                 return true
             }
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                if (activeWidgetDrag >= 0 && event.pointerCount >= 2) {
+                    val x2 = event.getX(1)
+                    val y2 = event.getY(1)
+                    val nearFirstFinger = kotlin.math.abs(x2 - event.getX(0)) <= width * .22f &&
+                        kotlin.math.abs(y2 - event.getY(0)) <= height * .12f
+                    if (nearFirstFinger) {
+                        activeWidgetResize = activeWidgetDrag
+                        val dx = event.getX(1) - event.getX(0)
+                        val dy = event.getY(1) - event.getY(0)
+                        resizeStartSpan = kotlin.math.sqrt(dx * dx + dy * dy).coerceAtLeast(1f)
+                        resizeStartScale = widgetScale(activeWidgetResize)
+                        widgetDragStarted = false
+                    }
+                }
+                return true
+            }
             MotionEvent.ACTION_MOVE -> {
+                if (activeWidgetResize >= 0 && event.pointerCount >= 2) {
+                    val dx = event.getX(1) - event.getX(0)
+                    val dy = event.getY(1) - event.getY(0)
+                    val span = kotlin.math.sqrt(dx * dx + dy * dy)
+                    setWidgetScale(activeWidgetResize, resizeStartScale * span / resizeStartSpan)
+                    return true
+                }
                 val dx = event.x - touchDownX
                 val dy = event.y - touchDownY
                 if (activeWidgetDrag >= 0 && event.eventTime - event.downTime > android.view.ViewConfiguration.getLongPressTimeout()) {
@@ -758,6 +812,13 @@ class LauncherView(context: Context) : View(context) {
             MotionEvent.ACTION_UP -> {
                 val dx = event.x - touchDownX
                 val dy = event.y - touchDownY
+                if (activeWidgetResize >= 0) {
+                    saveWidgetPositions()
+                    activeWidgetResize = -1
+                    activeWidgetDrag = -1
+                    performClick()
+                    return true
+                }
                 if (widgetDragStarted) {
                     saveWidgetPositions()
                     activeWidgetDrag = -1
@@ -842,8 +903,17 @@ class LauncherView(context: Context) : View(context) {
                 performClick()
                 return true
             }
+            MotionEvent.ACTION_POINTER_UP -> {
+                if (activeWidgetResize >= 0) {
+                    saveWidgetPositions()
+                    activeWidgetResize = -1
+                    activeWidgetDrag = -1
+                }
+                return true
+            }
             MotionEvent.ACTION_CANCEL -> {
                 touchDragging = false
+                activeWidgetResize = -1
                 return true
             }
         }
