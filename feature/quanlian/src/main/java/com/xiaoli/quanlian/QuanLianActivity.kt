@@ -11,15 +11,46 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import com.xiaoli.quanlian.discovery.AndroidLanDiscovery
+import com.xiaoli.transfer.api.DeviceInfo
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 
 class QuanLianActivity : Activity() {
     private lateinit var screen: QuanLianScreen
+    private val discovery = AndroidLanDiscovery()
+    private val screenScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var discoveryJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         screen = QuanLianScreen()
         setContentView(screen)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        discovery.start()
+        discoveryJob = screenScope.launch {
+            discovery.devices.collect { devices -> screen.updateDevices(devices) }
+        }
+    }
+
+    override fun onStop() {
+        discoveryJob?.cancel()
+        discoveryJob = null
+        discovery.stop()
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        screenScope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
+        super.onDestroy()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
@@ -38,15 +69,21 @@ class QuanLianActivity : Activity() {
         private val p = Paint(Paint.ANTI_ALIAS_FLAG)
         private var focus = 0
         private var selected = -1
+        private var devices: List<DeviceInfo> = emptyList()
         private val titles = listOf("发送文件", "接收文件", "附近设备", "传输记录")
         private val descriptions = listOf(
             "选择文件并发送到附近设备",
             "等待其他设备发起文件传输",
-            "发现同一网络中的小李设备",
+            "正在搜索局域网设备",
             "查看已完成和进行中的传输"
         )
 
         init { isFocusable = true; isFocusableInTouchMode = true }
+
+        fun updateDevices(value: List<DeviceInfo>) {
+            devices = value
+            invalidate()
+        }
 
         fun moveFocus(delta: Int) {
             focus = (focus + delta).coerceIn(0, 3)
@@ -73,7 +110,6 @@ class QuanLianActivity : Activity() {
             drawText(c, "跨设备文件互传", w * .07f, h * .245f, h * .026f, 0xFFDDEEFF.toInt())
 
             val cols = if (w >= h) 4 else 2
-            val rows = if (w >= h) 1 else 2
             val gap = w * if (cols == 4) .018f else .035f
             val left = w * .07f
             val top = h * .34f
@@ -98,7 +134,8 @@ class QuanLianActivity : Activity() {
                     rect.top + cardH * .43f, cardH * .25f, -1, true)
                 drawText(c, titles[i], rect.left + cardW * .12f,
                     rect.top + cardH * .69f, cardH * .12f, -1, true)
-                drawText(c, descriptions[i], rect.left + cardW * .12f,
+                val detail = if (i == 2) "已发现 ${devices.size} 台设备" else descriptions[i]
+                drawText(c, detail, rect.left + cardW * .12f,
                     rect.top + cardH * .86f, cardH * .075f, 0xFFDDEEFF.toInt())
             }
 
@@ -106,9 +143,14 @@ class QuanLianActivity : Activity() {
             val notice = RectF(w * .07f, noticeTop, w * .93f, noticeTop + h * .16f)
             p.color = 0xCC052B68.toInt()
             c.drawRoundRect(notice, 22f, 22f, p)
-            drawText(c, if (selected >= 0) titles[selected] + "：功能正在接入真实传输服务"
-                else "功能建设中", w * .10f, noticeTop + h * .065f, h * .029f, -1, true)
-            drawText(c, "当前为界面预览，设备发现与文件传输尚未启用。", w * .10f,
+            val headline = if (selected == 2) {
+                if (devices.isEmpty()) "暂未发现设备，请确认双方处于同一局域网"
+                else "附近设备：${devices.take(3).joinToString("、") { it.name }}"
+            } else {
+                "局域网发现运行中 · 已发现 ${devices.size} 台设备"
+            }
+            drawText(c, headline, w * .10f, noticeTop + h * .065f, h * .025f, -1, true)
+            drawText(c, "文件发送、接收及安全传输服务正在接入。", w * .10f,
                 noticeTop + h * .115f, h * .021f, 0xFFDDEEFF.toInt())
             drawText(c, "按返回键回到小李桌面", w * .07f, h * .95f, h * .021f, 0xFFDDEEFF.toInt())
         }
