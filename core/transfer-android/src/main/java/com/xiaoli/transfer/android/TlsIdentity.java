@@ -167,12 +167,6 @@ public final class TlsIdentity {
         for (int i=0;i<out.length;i++) out[i]=(byte)Integer.parseInt(value.substring(i*2,i*2+2),16);
         return out;
     }
-    private static void disableHostnameVerification(SSLSocket socket) {
-        SSLParameters parameters = socket.getSSLParameters();
-        parameters.setEndpointIdentificationAlgorithm(null);
-        socket.setSSLParameters(parameters);
-        android.util.Log.d("QuanLianTLS", "Hostname verification disabled; peer identity is checked by pinned SHA-256 certificate");
-    }
     public static Socket connect(Context context,String host,int port,String expectedFingerprint) throws Exception {
         InetAddress peer=InetAddress.getByName(host);
         final long connectStarted=android.os.SystemClock.elapsedRealtime();
@@ -199,7 +193,6 @@ public final class TlsIdentity {
             socket.setSendBufferSize(4*1024*1024);
             socket.setReceiveBufferSize(4*1024*1024);
             android.util.Log.i("QuanLianSocket","Requested TCP buffers send="+socket.getSendBufferSize()+", receive="+socket.getReceiveBufferSize());
-            disableHostnameVerification(socket);
             android.util.Log.d("QuanLianSocket","TLS socket created; target="+peer.getHostAddress()+":"+port);
             stage="TCP_BIND";
             bindToPeerNetwork(context,socket,peer);
@@ -240,7 +233,7 @@ public final class TlsIdentity {
         };
         SSLContext ctx=SSLContext.getInstance("TLSv1.2");ctx.init(null,new TrustManager[]{trustAll},new SecureRandom());
         try(SSLSocket socket=(SSLSocket)ctx.getSocketFactory().createSocket()){
-            InetAddress peer=InetAddress.getByName(host);disableHostnameVerification(socket);bindToPeerNetwork(context,socket,peer);socket.connect(new InetSocketAddress(peer,port),2500);socket.setSoTimeout(4000);enableTls12(socket);socket.startHandshake();
+            InetAddress peer=InetAddress.getByName(host);bindToPeerNetwork(context,socket,peer);socket.connect(new InetSocketAddress(peer,port),2500);socket.setSoTimeout(4000);enableTls12(socket);socket.startHandshake();
             java.security.cert.Certificate[] chain=socket.getSession().getPeerCertificates();return hex(MessageDigest.getInstance("SHA-256").digest(chain[0].getEncoded()));
         }
     }
