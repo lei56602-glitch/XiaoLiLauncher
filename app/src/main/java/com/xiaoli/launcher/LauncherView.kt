@@ -1115,6 +1115,7 @@ class LauncherView(context: Context) : View(context) {
                             if (editingFavorites) {
                                 val exists = favorites.any { it.packageName == app.packageName }
                                 if (exists || favorites.size < 5) toggleFavorite(app)
+                                else android.widget.Toast.makeText(context, "首页最多固定 5 个应用，请先移除一个", android.widget.Toast.LENGTH_SHORT).show()
                             } else {
                                 runCatching { context.startActivity(app.intent) }
                             }
