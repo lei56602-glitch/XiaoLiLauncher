@@ -21,9 +21,9 @@ android {
     kotlinOptions { jvmTarget = "17" }
     packaging {
         resources {
-            // BouncyCastle publishes the same OSGi metadata in several JARs;
-            // it is not used by Android at runtime.
+            // Duplicate metadata from Bouncy Castle JARs is not needed at runtime.
             excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            pickFirsts += "META-INF/LICENSE.md"
         }
     }
 }
