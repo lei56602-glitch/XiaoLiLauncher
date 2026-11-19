@@ -736,7 +736,7 @@ class LauncherView(context: Context) : View(context) {
         val buttonW = w * .18f
         val start = w * .13f
         for (i in 0..2) {
-            val columns = i + 3
+            val columns = i + 4
             val left = start + i * (buttonW + gap)
             val rect = RectF(left, h * .515f, left + buttonW, h * .575f)
             paint.color = if (drawerColumns() == columns) 0xFF31B9FF.toInt() else 0x44FFFFFF
@@ -979,7 +979,7 @@ class LauncherView(context: Context) : View(context) {
                         val buttonW = width * .18f
                         val start = width * .13f
                         val selected = ((event.x - start) / (buttonW + gap)).toInt()
-                        if (selected in 0..2) setDrawerColumns(selected + 3)
+                        if (selected in 0..2) setDrawerColumns(selected + 4)
                     } else if (event.y in (height * .59f)..(height * .68f) && event.x < width * .36f) {
                         onChooseWallpaper?.invoke()
                     } else if (event.y in (height * .59f)..(height * .68f) && event.x in (width * .38f)..(width * .62f)) {
