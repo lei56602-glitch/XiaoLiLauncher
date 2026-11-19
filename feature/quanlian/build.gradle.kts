@@ -18,5 +18,6 @@ android {
 
 dependencies {
     implementation(project(":core:transfer-api"))
+    implementation(project(":core:transfer-android"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 }
