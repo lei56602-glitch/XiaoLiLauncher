@@ -84,12 +84,12 @@ class QuanLianActivity : Activity() {
         discoveryJob?.cancel()
         discoveryJob = null
         discovery.stop()
-        eventReceiver?.let { runCatching { unregisterReceiver(it) } }
-        eventReceiver = null
         super.onStop()
     }
 
     override fun onDestroy() {
+        eventReceiver?.let { runCatching { unregisterReceiver(it) } }
+        eventReceiver = null
         screenScope.cancel()
         super.onDestroy()
     }
