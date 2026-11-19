@@ -729,10 +729,17 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun clearWallpaper() {
-        wallpaperBitmap?.recycle()
-        wallpaperBitmap = null
-        prefs.edit().remove("wallpaper_uri").apply()
-        invalidate()
+        AlertDialog.Builder(context)
+            .setTitle("恢复默认壁纸")
+            .setMessage("将移除当前选择的图片壁纸，恢复小李桌面的默认背景。")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("恢复") { _, _ ->
+                wallpaperBitmap?.recycle()
+                wallpaperBitmap = null
+                prefs.edit().remove("wallpaper_uri").apply()
+                invalidate()
+            }
+            .show()
     }
 
     private fun drawWallpaperPreview(c: Canvas, rect: RectF) {
@@ -821,6 +828,11 @@ class LauncherView(context: Context) : View(context) {
 
         val preview = RectF(w * .65f, h * .59f, w * .87f, h * .68f)
         drawWallpaperPreview(c, preview)
+        paint.color = 0xB8052B68.toInt()
+        c.drawRoundRect(RectF(preview.left, preview.bottom - h * .035f, preview.right, preview.bottom), 10f, 10f, paint)
+        paint.textAlign = Paint.Align.CENTER
+        text(c, "恢复默认壁纸", preview.centerX(), preview.bottom - h * .011f, h * .016f, -1, true)
+        paint.textAlign = Paint.Align.LEFT
         if (settingsFocus == 5) {
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = h * .003f
