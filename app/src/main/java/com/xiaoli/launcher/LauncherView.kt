@@ -292,7 +292,17 @@ class LauncherView(context: Context) : View(context) {
         paint.textAlign = Paint.Align.LEFT
     }
 
-    private fun toggleHomeComponent(index: Int) {\n        when (index) {\n            9 -> { showClock = !showClock; prefs.edit().putBoolean("show_clock", showClock).apply() }\n            10 -> { showDate = !showDate; prefs.edit().putBoolean("show_date", showDate).apply() }\n            11 -> { showLunar = !showLunar; prefs.edit().putBoolean("show_lunar", showLunar).apply() }\n            12 -> { showWeather = !showWeather; prefs.edit().putBoolean("show_weather", showWeather).apply() }\n        }\n        invalidate()\n    }\n\n    private fun openWeatherCityDialog() {
+    private fun toggleHomeComponent(index: Int) {
+        when (index) {
+            9 -> { showClock = !showClock; prefs.edit().putBoolean("show_clock", showClock).apply() }
+            10 -> { showDate = !showDate; prefs.edit().putBoolean("show_date", showDate).apply() }
+            11 -> { showLunar = !showLunar; prefs.edit().putBoolean("show_lunar", showLunar).apply() }
+            12 -> { showWeather = !showWeather; prefs.edit().putBoolean("show_weather", showWeather).apply() }
+        }
+        invalidate()
+    }
+
+    private fun openWeatherCityDialog() {
         val field = EditText(context).apply {
             setSingleLine(true)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
@@ -792,7 +802,8 @@ class LauncherView(context: Context) : View(context) {
                 KeyEvent.KEYCODE_DPAD_LEFT -> settingsFocus = (settingsFocus - 1).coerceAtLeast(0)
                 KeyEvent.KEYCODE_DPAD_RIGHT -> settingsFocus = (settingsFocus + 1).coerceAtMost(12)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                    if (settingsFocus in 9..12) toggleHomeComponent(settingsFocus)\n                    else if (settingsFocus == 8) openWeatherCityDialog()
+                    if (settingsFocus in 9..12) toggleHomeComponent(settingsFocus)
+                    else if (settingsFocus == 8) openWeatherCityDialog()
                     else if (settingsFocus in 0..2) setDrawerColumns(settingsFocus + 3)
                     else if (settingsFocus == 3) onChooseWallpaper?.invoke()
                     else if (settingsFocus == 4) toggleDynamicWallpaper()
