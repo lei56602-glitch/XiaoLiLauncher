@@ -670,8 +670,8 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun setDrawerColumns(columns: Int) {
-        prefs.edit().putInt("drawer_columns", columns.coerceIn(3, 5)).apply()
-        settingsFocus = columns - 3
+        prefs.edit().putInt("drawer_columns", columns.coerceIn(4, 6)).apply()
+        settingsFocus = columns - 4
         invalidate()
     }
 
@@ -878,19 +878,21 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun drawerItemIndexAt(x: Float, y: Float): Int {
-        if (y < height * .31f || y > height * .81f) return -1
+        if (y < height * .265f || y > height * .845f) return -1
         val cols = drawerColumns()
-        val cellW = width * .8f / cols
-        val cellH = if (width < height) height * .105f else height * .15f
-        val col = ((x - width * .1f) / cellW).toInt()
-        val visibleRow = ((y - height * .31f) / cellH).toInt()
+        val gridLeft = width * .065f
+        val cellW = width * .87f / cols
+        val cellH = height * .275f
+        val col = ((x - gridLeft) / cellW).toInt()
+        val visibleRow = ((y - height * .265f) / cellH).toInt()
         if (col !in 0 until cols || visibleRow < 0) return -1
         val row = visibleRow + drawerScrollRow
         val index = row * cols + col
-        val cellLeft = width * .1f + col * cellW
-        val cellTop = height * .31f + visibleRow * cellH
-        return if (x <= cellLeft + cellW * .88f &&
-            y <= cellTop + cellH * .78f && index in apps.indices) index else -1
+        val cellLeft = gridLeft + col * cellW
+        val cellTop = height * .265f + visibleRow * cellH
+        return if (x in (cellLeft + cellW * .035f)..(cellLeft + cellW * .965f) &&
+            y in (cellTop + cellH * .025f)..(cellTop + cellH * .965f) &&
+            index in apps.indices) index else -1
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
