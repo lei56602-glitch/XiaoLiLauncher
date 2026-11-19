@@ -4,12 +4,15 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Canvas
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.net.ConnectivityManager
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -24,6 +27,8 @@ class LauncherView(context: Context) : View(context) {
     private data class AppEntry(val label: String, val packageName: String, val intent: Intent)
     private val prefs = context.getSharedPreferences("launcher", Context.MODE_PRIVATE)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var wallpaperBitmap: Bitmap? = null
+    var onChooseWallpaper: (() -> Unit)? = null
     private val apps = mutableListOf<AppEntry>()
     private val favorites = mutableListOf<AppEntry>()
     private var drawerIndex = 0
@@ -46,6 +51,7 @@ class LauncherView(context: Context) : View(context) {
         isFocusable = true
         isFocusableInTouchMode = true
         loadApps()
+        loadSavedWallpaper()
         handler.post(clockTick)
     }
 
@@ -95,13 +101,49 @@ class LauncherView(context: Context) : View(context) {
     }
 
     fun closeDrawer() { isDrawerOpen = false; editingFavorites = false; invalidate() }
+
+    fun setWallpaper(uri: Uri) {
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        val bitmap = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+        }.getOrNull() ?: return
+        wallpaperBitmap?.recycle()
+        wallpaperBitmap = bitmap
+        prefs.edit().putString("wallpaper_uri", uri.toString()).apply()
+        invalidate()
+    }
+
+    private fun loadSavedWallpaper() {
+        val value = prefs.getString("wallpaper_uri", null) ?: return
+        val uri = runCatching { Uri.parse(value) }.getOrNull() ?: return
+        wallpaperBitmap = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+        }.getOrNull()
+    }
+
+    private fun drawWallpaper(c: Canvas, w: Float, h: Float): Boolean {
+        val bitmap = wallpaperBitmap ?: return false
+        val scale = maxOf(w / bitmap.width, h / bitmap.height)
+        val dw = bitmap.width * scale
+        val dh = bitmap.height * scale
+        val dst = RectF((w - dw) / 2f, (h - dh) / 2f, (w + dw) / 2f, (h + dh) / 2f)
+        paint.color = android.graphics.Color.WHITE
+        c.drawBitmap(bitmap, null, dst, paint)
+        paint.color = 0x44052F70
+        c.drawRect(0f, 0f, w, h, paint)
+        return true
+    }
     fun closeLauncherSettings() { isSettingsOpen = false; invalidate() }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val w = width.toFloat(); val h = height.toFloat()
-        paint.shader = LinearGradient(0f, 0f, w, h, intArrayOf(0xFF0878E8.toInt(), 0xFF0754B9.toInt(), 0xFF032D79.toInt()), null, Shader.TileMode.CLAMP)
-        canvas.drawRect(0f, 0f, w, h, paint); paint.shader = null
+        if (!drawWallpaper(canvas, w, h)) {
+            paint.shader = LinearGradient(0f, 0f, w, h, intArrayOf(0xFF0878E8.toInt(), 0xFF0754B9.toInt(), 0xFF032D79.toInt()), null, Shader.TileMode.CLAMP)
+            canvas.drawRect(0f, 0f, w, h, paint); paint.shader = null
+        }
         drawTop(canvas, w)
         when {
             isSettingsOpen -> drawLauncherSettings(canvas, w, h)
@@ -276,14 +318,19 @@ class LauncherView(context: Context) : View(context) {
         }
         text(c, "默认五列，可根据习惯选择三列、四列或五列。", w * .13f, h * .66f, h * .024f, 0xFFDDEEFF.toInt())
 
+        val wallpaper = RectF(w * .52f, h * .59f, w * .87f, h * .68f)
+        paint.color = if (settingsFocus == 3) 0xFF31B9FF.toInt() else 0x5544BFFF
+        c.drawRoundRect(wallpaper, 16f, 16f, paint)
+        text(c, "更换桌面壁纸", w * .56f, h * .647f, h * .023f, -1, true)
+
         val card = RectF(w * .13f, h * .70f, w * .87f, h * .84f)
-        paint.color = if (settingsFocus == 3) 0xFF167FD8.toInt() else 0x553AAFFF
+        paint.color = if (settingsFocus == 4) 0xFF167FD8.toInt() else 0x553AAFFF
         c.drawRoundRect(card, 20f, 20f, paint)
         text(c, "⇄  小李全联 · 快传", w * .17f, h * .755f, h * .03f, -1, true)
         text(c, "桌面内置设备互传功能  ·  核心模块接入中", w * .17f, h * .805f, h * .021f, 0xFFDDEEFF.toInt())
 
         val sys = RectF(w * .13f, h * .87f, w * .48f, h * .95f)
-        paint.color = if (settingsFocus == 4) 0xFF31B9FF.toInt() else 0x44FFFFFF
+        paint.color = if (settingsFocus == 5) 0xFF31B9FF.toInt() else 0x44FFFFFF
         c.drawRoundRect(sys, 16f, 16f, paint)
         text(c, "打开系统设置", sys.centerX() - w * .11f, h * .92f, h * .024f, -1, true)
         text(c, "返回桌面", w * .72f, h * .92f, h * .024f, -1, true)
@@ -377,6 +424,8 @@ class LauncherView(context: Context) : View(context) {
                         val start = width * .13f
                         val selected = ((event.x - start) / (buttonW + gap)).toInt()
                         if (selected in 0..2) setDrawerColumns(selected + 3)
+                    } else if (event.y in (height * .59f)..(height * .68f) && event.x > width * .5f) {
+                        onChooseWallpaper?.invoke()
                     } else if (event.y in (height * .70f)..(height * .84f)) {
                         context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
                     } else if (event.y in (height * .87f)..(height * .95f) && event.x < width * .5f) {
@@ -451,10 +500,11 @@ class LauncherView(context: Context) : View(context) {
             when (keyCode) {
                 KeyEvent.KEYCODE_BACK -> { closeLauncherSettings(); return true }
                 KeyEvent.KEYCODE_DPAD_LEFT -> settingsFocus = (settingsFocus - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> settingsFocus = (settingsFocus + 1).coerceAtMost(4)
+                KeyEvent.KEYCODE_DPAD_RIGHT -> settingsFocus = (settingsFocus + 1).coerceAtMost(5)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     if (settingsFocus in 0..2) setDrawerColumns(settingsFocus + 3)
-                    else if (settingsFocus == 3) context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
+                    else if (settingsFocus == 3) onChooseWallpaper?.invoke()
+                    else if (settingsFocus == 4) context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
                     else runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                 }
             }
