@@ -51,7 +51,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          APP_VERSION="$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)".*/\\1/p' app/build.gradle.kts | head -n 1)"
+          APP_VERSION="$(grep -E '^[[:space:]]*versionName = "' app/build.gradle.kts | head -n 1 | cut -d '"' -f 2)"
           test -n "$APP_VERSION"
           test "$GITHUB_REF_NAME" = "v$APP_VERSION" || {
             echo "::error::Tag $GITHUB_REF_NAME must match app version v$APP_VERSION"
