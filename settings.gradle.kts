@@ -3,4 +3,5 @@ dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_P
 rootProject.name = "XiaoLiLauncher"
 include(":app")
 include(":core:transfer-api")
+include(":core:transfer-android")
 include(":feature:quanlian")
