@@ -39,7 +39,7 @@
 - [x] GitHub Actions 执行 lintDebug、testDebugUnitTest、assembleDebug。
 - [x] 自动上传 Debug APK 与 Lint 报告。
 - [x] CI 作业设置 30 分钟超时。
-- [ ] 对最终提交重新确认所有步骤成功，并检查最新 Lint 报告。
+- [x] 已对当前交付提交确认 Debug lint、单元测试、Debug APK、临时密钥 Release 构建与签名校验全部通过；最新 Lint 报告共 10 项警告，均已复核。
 
 ## 7. 发布与交付
 - [x] 已加入 release 签名配置与 tag 发布工作流；等待仓库管理员配置四项受保护 Secrets。
