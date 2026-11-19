@@ -1070,11 +1070,14 @@ class LauncherView(context: Context) : View(context) {
                 }
                 if (isSettingsOpen) {
                     if (event.y in (height * .275f)..(height * .37f)) {
+                        settingsFocus = 8
                         openWeatherCityDialog()
                     } else if (event.y in (height * .415f)..(height * .465f)) {
                         val componentGap = width * .009f
                         val componentW = (width * .74f - componentGap * 5f) / 6f
                         val selected = ((event.x - width * .13f) / (componentW + componentGap)).toInt()
+                        val componentKeys = listOf(9, 10, 11, 12, 15, 16)
+                        if (selected in componentKeys.indices) settingsFocus = componentKeys[selected]
                         when (selected) {
                             0 -> toggleHomeComponent(9)
                             1 -> toggleHomeComponent(10)
@@ -1095,20 +1098,25 @@ class LauncherView(context: Context) : View(context) {
                             }
                         }
                     } else if (event.y in (height * .59f)..(height * .68f) && event.x < width * .36f) {
+                        settingsFocus = 3
                         onChooseWallpaper?.invoke()
                     } else if (event.y in (height * .59f)..(height * .68f) && event.x in (width * .38f)..(width * .62f)) {
+                        settingsFocus = 4
                         toggleDynamicWallpaper()
                     } else if (event.y in (height * .59f)..(height * .68f) && event.x > width * .64f) {
+                        settingsFocus = 5
                         clearWallpaper()
                     } else if (event.y in (height * .70f)..(height * .84f) && event.x < width * .50f) {
+                        settingsFocus = 6
                         context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
                     } else if (event.y in (height * .70f)..(height * .84f)) {
+                        settingsFocus = 21
                         isSettingsOpen = false; isDrawerOpen = true; editingFavorites = true; drawerIndex = 0; drawerScrollRow = 0
                     } else if (event.y in (height * .865f)..(height * .945f)) {
                         when {
-                            event.x < width * .37f -> runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                            event.x < width * .65f -> onRequestDefaultHome?.invoke()
-                            else -> closeLauncherSettings()
+                            event.x < width * .37f -> { settingsFocus = 7; runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
+                            event.x < width * .65f -> { settingsFocus = 14; onRequestDefaultHome?.invoke() }
+                            else -> { settingsFocus = 13; closeLauncherSettings() }
                         }
                     }
                 } else if (isDrawerOpen) {
