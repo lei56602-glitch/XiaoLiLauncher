@@ -507,7 +507,6 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun drawHome(c: Canvas, w: Float, h: Float) {
-        drawCompactQuanLianShortcut(c, w, h)
         val count = minOf(5, favorites.size)
         if (count > 0) {
             favorites.take(5).forEachIndexed { i, app ->
@@ -520,8 +519,6 @@ class LauncherView(context: Context) : View(context) {
                 text(c, app.label.take(8), rect.centerX(), iconRect.bottom + h * .045f, h * .025f, -1, true)
                 paint.textAlign = Paint.Align.LEFT
             }
-        } else {
-            text(c, "按上键打开应用抽屉，选择常用应用", w * .34f, h * .68f, h * .03f, -1)
         }
         drawCompactQuanLianShortcut(c,w,h)
         val cm=context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -543,19 +540,19 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun quanLianFeatureRect(w: Float,h: Float)=
-        RectF(w*.035f,h*.805f,w*.205f,h*.895f)
+        RectF(w*.425f,h*.425f,w*.575f,h*.505f)
 
     private fun drawCompactQuanLianShortcut(c: Canvas,w: Float,h: Float){
         val rect=quanLianFeatureRect(w,h)
         paint.shader=LinearGradient(rect.left,rect.top,rect.right,rect.bottom,
-            intArrayOf(0xEE087CE8.toInt(),0xDD0754B8.toInt()),null,Shader.TileMode.CLAMP)
-        c.drawRoundRect(rect,h*.018f,h*.018f,paint);paint.shader=null
-        paint.style=Paint.Style.STROKE
-        paint.strokeWidth=if(homeQuickTransferFocused)h*.004f else h*.0018f
-        paint.color=if(homeQuickTransferFocused)0xFF9CEBFF.toInt() else 0x887FE3FF.toInt()
-        c.drawRoundRect(rect,h*.018f,h*.018f,paint);paint.style=Paint.Style.FILL
-        text(c,"⇄",rect.left+rect.width()*.10f,rect.centerY()+h*.018f,h*.045f,-1,true)
-        text(c,"快传",rect.left+rect.width()*.38f,rect.centerY()+h*.009f,h*.025f,-1,true)
+            intArrayOf(0xF20A8CFA.toInt(),0xE50655BD.toInt()),null,Shader.TileMode.CLAMP)
+        if(homeQuickTransferFocused)paint.setShadowLayer(h*.025f,0f,0f,0xCC36C8FF.toInt())
+        c.drawRoundRect(rect,h*.035f,h*.035f,paint)
+        paint.clearShadowLayer();paint.shader=null
+        paint.color=0x337FEAFF
+        c.drawRoundRect(RectF(rect.left+2f,rect.top+2f,rect.right-2f,rect.bottom-2f),h*.03f,h*.03f,paint)
+        text(c,"⇄",rect.left+rect.width()*.16f,rect.centerY()+h*.015f,h*.043f,-1,true)
+        text(c,"快传",rect.left+rect.width()*.43f,rect.centerY()+h*.009f,h*.024f,-1,true)
     }
 
     private fun drawUnifiedAppIcon(c: Canvas, app: AppEntry, rect: RectF, focused: Boolean) {
