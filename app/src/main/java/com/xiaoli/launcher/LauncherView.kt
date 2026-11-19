@@ -567,17 +567,16 @@ class LauncherView(context: Context) : View(context) {
                 paint.color = if (focused) 0xCC7DE5FF.toInt() else 0x557FC9FF
                 c.drawRoundRect(rect, h * .035f, h * .035f, paint)
                 paint.style = Paint.Style.FILL
-                val iconSize = (h * .165f).coerceAtMost(rect.width() * .78f).coerceAtLeast(52f)
+                val iconSize = minOf(rect.width() * .90f, rect.height() * .76f).coerceAtLeast(52f)
                 val iconTop = rect.top + rect.height() * .025f
                 val iconRect = RectF(rect.centerX() - iconSize / 2f, iconTop,
                     rect.centerX() + iconSize / 2f, iconTop + iconSize)
                 drawUnifiedAppIcon(c, app, iconRect, focused)
                 paint.textAlign = Paint.Align.CENTER
-                text(c, app.label.take(10), rect.centerX(), iconRect.bottom + h * .03f, h * .026f, -1, true)
+                text(c, app.label.take(10), rect.centerX(), rect.bottom - h * .018f, h * .026f, -1, true)
                 paint.textAlign = Paint.Align.LEFT
             }
         }
-        drawCompactQuanLianShortcut(c,w,h)
         val cm=context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val connected=cm.activeNetworkInfo?.isConnected==true
         paint.color=if(connected) 0xFFFFFFFF.toInt() else 0xFF9CB9D8.toInt()
@@ -587,29 +586,7 @@ class LauncherView(context: Context) : View(context) {
         c.drawArc(RectF(cx-h*.026f,cy-h*.040f,cx+h*.026f,cy+h*.012f),220f,100f,false,paint)
         c.drawArc(RectF(cx-h*.018f,cy-h*.028f,cx+h*.018f,cy+h*.008f),220f,100f,false,paint)
         c.drawCircle(cx,cy+h*.004f,h*.004f,paint)
-        val bx=w*.955f;val by=h*.91f
-        val bt=android.graphics.Path().apply{
-            moveTo(bx,by-h*.035f);lineTo(bx,by+h*.035f)
-            moveTo(bx,by-h*.035f);lineTo(bx+h*.020f,by-h*.018f);lineTo(bx-h*.020f,by+h*.018f)
-            moveTo(bx,by+h*.035f);lineTo(bx+h*.020f,by+h*.018f);lineTo(bx-h*.020f,by-h*.018f)
-        }
-        c.drawPath(bt,paint);paint.style=Paint.Style.FILL;paint.textAlign=Paint.Align.LEFT
-    }
-
-    private fun quanLianFeatureRect(w: Float,h: Float)=
-        RectF(w*.425f,h*.425f,w*.575f,h*.505f)
-
-    private fun drawCompactQuanLianShortcut(c: Canvas,w: Float,h: Float){
-        val rect=quanLianFeatureRect(w,h)
-        paint.shader=LinearGradient(rect.left,rect.top,rect.right,rect.bottom,
-            intArrayOf(0xF20A8CFA.toInt(),0xE50655BD.toInt()),null,Shader.TileMode.CLAMP)
-        if(homeQuickTransferFocused)paint.setShadowLayer(h*.025f,0f,0f,0xCC36C8FF.toInt())
-        c.drawRoundRect(rect,h*.035f,h*.035f,paint)
-        paint.clearShadowLayer();paint.shader=null
-        paint.color=0x337FEAFF
-        c.drawRoundRect(RectF(rect.left+2f,rect.top+2f,rect.right-2f,rect.bottom-2f),h*.03f,h*.03f,paint)
-        text(c,"⇄",rect.left+rect.width()*.16f,rect.centerY()+h*.015f,h*.043f,-1,true)
-        text(c,"快传",rect.left+rect.width()*.43f,rect.centerY()+h*.009f,h*.024f,-1,true)
+paint.style=Paint.Style.FILL;paint.textAlign=Paint.Align.LEFT
     }
 
     private fun drawUnifiedAppIcon(c: Canvas, app: AppEntry, rect: RectF, focused: Boolean) {
