@@ -631,7 +631,7 @@ class LauncherView(context: Context) : View(context) {
         val cellH = h * .58f / drawerRows()
         val contentTop = h * .265f
         val contentBottom = h * .845f
-        val visibleRows = ((contentBottom - contentTop) / cellH).toInt().coerceAtLeast(1)
+        val visibleRows = drawerRows()
         val totalRows = (apps.size + cols - 1) / cols
         val maxScroll = (totalRows - visibleRows).coerceAtLeast(0)
         drawerScrollRow = drawerScrollRow.coerceIn(0, maxScroll)
