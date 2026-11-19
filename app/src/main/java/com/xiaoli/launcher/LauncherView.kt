@@ -71,6 +71,7 @@ class LauncherView(context: Context) : View(context) {
     var onChooseWallpaper: (() -> Unit)? = null\n    var onRequestDefaultHome: (() -> Unit)? = null
     private val apps = mutableListOf<AppEntry>()
     private val favorites = mutableListOf<AppEntry>()
+    private val appIconCache = mutableMapOf<String, android.graphics.drawable.Drawable>()
     private var drawerIndex = 0
     private var drawerScrollRow = 0
     private var homeIndex = 0
@@ -569,11 +570,12 @@ class LauncherView(context: Context) : View(context) {
         val save = c.save()
         val clip = Path().apply { addRoundRect(inner, radius*.55f, radius*.55f, Path.Direction.CW) }
         c.clipPath(clip)
-        val drawable = runCatching { context.packageManager.getApplicationIcon(app.packageName) }.getOrNull()
-        drawable?.let {
-            it.setBounds(inner.left.toInt(), inner.top.toInt(), inner.right.toInt(), inner.bottom.toInt())
-            it.draw(c)
+        val drawable = appIconCache.getOrPut(app.packageName) {
+            runCatching { context.packageManager.getApplicationIcon(app.packageName) }
+                .getOrNull() ?: android.graphics.drawable.ColorDrawable(0xFF1B74C8.toInt())
         }
+        drawable.setBounds(inner.left.toInt(), inner.top.toInt(), inner.right.toInt(), inner.bottom.toInt())
+        drawable.draw(c)
         c.restoreToCount(save)
     }
 
@@ -636,8 +638,15 @@ class LauncherView(context: Context) : View(context) {
 
     private fun isCompactLayout(): Boolean = width < height
 
-    private fun drawerColumns(): Int =
-        prefs.getInt("drawer_columns", 5).coerceIn(4, 6)
+    private fun drawerColumns(): Int {
+        val saved = prefs.getInt("drawer_columns", 0)
+        if (saved in 4..6) return saved
+        return when {
+            width >= 3000 -> 6
+            width >= 1800 -> 5
+            else -> 4
+        }
+    }
 
     private fun openLauncherSettings() {
         isDrawerOpen = false
