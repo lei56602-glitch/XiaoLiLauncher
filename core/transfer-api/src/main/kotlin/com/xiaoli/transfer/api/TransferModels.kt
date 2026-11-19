@@ -5,7 +5,8 @@ data class DeviceInfo(
     val name: String,
     val host: String,
     val port: Int,
-    val lastSeenEpochMillis: Long
+    val lastSeenEpochMillis: Long,
+    val fingerprint: String = ""
 )
 
 data class TransferFile(
