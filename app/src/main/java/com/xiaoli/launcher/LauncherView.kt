@@ -1,6 +1,7 @@
 package com.xiaoli.launcher
 
 import android.content.Context
+import android.app.role.RoleManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Canvas
@@ -842,7 +843,10 @@ class LauncherView(context: Context) : View(context) {
         val home = RectF(w * .385f, h * .865f, w * .64f, h * .945f)
         paint.color = if (settingsFocus == 14) 0xFF31B9FF.toInt() else 0x44FFFFFF
         c.drawRoundRect(home, 16f, 16f, paint)
-        text(c, "设为默认桌面", home.centerX(), h * .92f, h * .022f, -1, true)
+        val isDefaultHome = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            context.getSystemService(RoleManager::class.java)?.isRoleHeld(RoleManager.ROLE_HOME) == true
+        text(c, if (isDefaultHome) "当前默认桌面" else "设为默认桌面",
+            home.centerX(), h * .92f, h * .022f, -1, true)
         val exit = RectF(w * .665f, h * .865f, w * .87f, h * .945f)
         paint.color = if (settingsFocus == 13) 0xFF31B9FF.toInt() else 0x44FFFFFF
         c.drawRoundRect(exit, 16f, 16f, paint)
