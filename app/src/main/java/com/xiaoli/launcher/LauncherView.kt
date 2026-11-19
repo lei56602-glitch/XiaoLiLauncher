@@ -162,6 +162,9 @@ class LauncherView(context: Context) : View(context) {
     private fun drawDrawer(c: Canvas, w: Float, h: Float) {
         paint.color = 0xCC052B68.toInt(); c.drawRoundRect(RectF(w*.06f,h*.18f,w*.94f,h*.9f),32f,32f,paint)
         text(c, if (editingFavorites) "选择首页常用应用（最多5个）" else "应用抽屉", w*.09f, h*.25f, h*.04f, -1, true)
+        paint.textAlign = Paint.Align.RIGHT
+        text(c, if (editingFavorites) "完成管理" else "管理首页应用", w*.9f, h*.25f, h*.025f, 0xFFBDEBFF.toInt(), true)
+        paint.textAlign = Paint.Align.LEFT
         val cols = 5; val cellW = w*.16f; val cellH = h*.15f
         apps.forEachIndexed { i, app ->
             val row = i / cols; val col = i % cols
@@ -177,8 +180,8 @@ class LauncherView(context: Context) : View(context) {
             text(c, (if (selected) "✓ " else "") + app.label.take(8), x+12f, y+cellH*.48f, h*.022f, -1, i==drawerIndex)
         }
         if (apps.isEmpty()) text(c, "暂未发现可启动的应用", w*.38f,h*.55f,h*.03f,-1)
-        val hint = if (editingFavorites) "确认键添加/移除  ·  最多5个  ·  菜单键完成"
-            else "方向键选择  ·  确认键启动  ·  菜单键管理首页应用"
+        val hint = if (editingFavorites) "触摸点按添加/移除  ·  遥控器确认键操作  ·  最多5个"
+            else "点按应用启动  ·  上滑打开抽屉  ·  点右上角管理首页应用"
         text(c, hint, w*.25f,h*.86f,h*.022f,0xFFDDEEFF.toInt())
     }
 
