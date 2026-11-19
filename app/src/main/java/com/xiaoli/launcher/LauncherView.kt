@@ -857,16 +857,17 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun drawerItemIndexAt(x: Float, y: Float): Int {
-        if (y < height * .32f || y > height * .82f) return -1
+        if (y < height * .31f || y > height * .81f) return -1
         val cols = drawerColumns()
         val cellW = width * .8f / cols
         val cellH = if (width < height) height * .105f else height * .15f
         val col = ((x - width * .1f) / cellW).toInt()
-        val row = ((y - height * .32f) / cellH).toInt()
-        if (col !in 0 until cols || row < 0) return -1
+        val visibleRow = ((y - height * .31f) / cellH).toInt()
+        if (col !in 0 until cols || visibleRow < 0) return -1
+        val row = visibleRow + drawerScrollRow
         val index = row * cols + col
         val cellLeft = width * .1f + col * cellW
-        val cellTop = height * .32f + row * cellH
+        val cellTop = height * .31f + visibleRow * cellH
         return if (x <= cellLeft + cellW * .88f &&
             y <= cellTop + cellH * .78f && index in apps.indices) index else -1
     }
