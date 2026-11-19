@@ -138,7 +138,7 @@ public final class TlsIdentity {
         throw new IOException("未找到与对方 "+peer.getHostAddress()+" 同网段的热点/Wi-Fi 接口；为避免误走移动数据，已停止连接");
     }
 
-    private static final class PinnedTrustManager extends X509ExtendedTrustManager {
+    private static final class PinnedTrustManager implements X509TrustManager {
         private final byte[] expected;
         PinnedTrustManager(String fingerprint) throws GeneralSecurityException {
             this.expected = decodeHex(fingerprint.replace(":", ""));
@@ -157,11 +157,7 @@ public final class TlsIdentity {
             catch (GeneralSecurityException e) { throw new CertificateException("无法验证设备证书指纹", e); }
         }
         @Override public void checkServerTrusted(X509Certificate[] c, String a) throws CertificateException { checkPinned(c); }
-        @Override public void checkServerTrusted(X509Certificate[] c, String a, Socket s) throws CertificateException { checkPinned(c); }
-        @Override public void checkServerTrusted(X509Certificate[] c, String a, javax.net.ssl.SSLEngine e) throws CertificateException { checkPinned(c); }
         @Override public void checkClientTrusted(X509Certificate[] c, String a) throws CertificateException { throw new CertificateException("不启用客户端证书认证"); }
-        @Override public void checkClientTrusted(X509Certificate[] c, String a, Socket s) throws CertificateException { throw new CertificateException("不启用客户端证书认证"); }
-        @Override public void checkClientTrusted(X509Certificate[] c, String a, javax.net.ssl.SSLEngine e) throws CertificateException { throw new CertificateException("不启用客户端证书认证"); }
         @Override public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
     }
     private static byte[] decodeHex(String value) throws GeneralSecurityException {
