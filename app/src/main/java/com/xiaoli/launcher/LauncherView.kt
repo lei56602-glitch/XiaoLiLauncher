@@ -1006,8 +1006,6 @@ class LauncherView(context: Context) : View(context) {
                 } else if (isDrawerOpen) {
                     if (event.y in (height * .19f)..(height * .29f) && event.x > width * .68f) {
                         editingFavorites = !editingFavorites
-                    } else if (event.y in (height * .82f)..(height * .9f) && event.x > width * .62f) {
-                        editingFavorites = !editingFavorites
                     } else {
                         val index = drawerItemIndexAt(event.x, event.y)
                         if (index >= 0) {
