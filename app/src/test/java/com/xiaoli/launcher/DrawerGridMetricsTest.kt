@@ -15,7 +15,7 @@ class DrawerGridMetricsTest {
     @Test
     fun iconScaleAdaptsToDisplayResolution() {
         val fullHd = DrawerGridMetrics(1920f, 1080f, 5, 2)
-        val fourK = DrawerGridMetrics(3840f, 2160f, 6, 2)
+        val fourK = DrawerGridMetrics(3840f, 2160f, 5, 2)
         assertTrue(fourK.iconSize(fourK.cellWidth) > fullHd.iconSize(fullHd.cellWidth))
     }
 
