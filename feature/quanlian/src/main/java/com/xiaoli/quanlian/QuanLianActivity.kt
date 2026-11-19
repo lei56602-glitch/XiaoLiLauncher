@@ -512,35 +512,52 @@ class QuanLianActivity : Activity() {
         }
 
         private fun drawSend(c: Canvas, w: Float, h: Float, u: Float) {
-            drawText(c, "发送文件", w * .07f, h * .18f, u * .055f, -1, true)
-            val pick = RectF(w * .07f, h * .23f, w * .42f, h * .32f)
+            drawText(c, "发送文件", w * .07f, h * .16f, u * .052f, -1, true)
+            val pick = RectF(w * .07f, h * .205f, w * .30f, h * .305f)
             drawButton(c, pick, "＋  添加文件", focus == 0)
-            drawText(c, "已选择 ${selectedUris.size} 个文件 · ${sizeText(selectedSizes.sum())}",
-                w * .46f, h * .285f, u * .022f, pale)
+            drawText(c, "已选 ${selectedUris.size} 个文件", w * .34f, h * .245f, u * .023f, -1, true)
+            drawText(c, "总大小  ${sizeText(selectedSizes.sum())}", w * .34f, h * .285f, u * .019f, pale)
             if (transferRunning) {
-                val cancel = RectF(w * .68f, h * .23f, w * .93f, h * .32f)
-                drawButton(c, cancel, "取消当前传输", focus == 1)
+                val cancel = RectF(w * .72f, h * .205f, w * .93f, h * .305f)
+                drawButton(c, cancel, "取消传输", focus == 1)
             }
-            var y = h * .37f
-            for (i in 0 until minOf(4, selectedNames.size)) {
-                drawText(c, "• ${selectedNames[i].take(42)}  ·  ${sizeText(selectedSizes[i])}",
-                    w * .09f, y, u * .021f, -1)
-                y += h * .045f
-            }
-            drawText(c, "选择目标设备", w * .07f, h * .59f, u * .028f, -1, true)
-            if (devices.isEmpty()) {
-                drawText(c, "暂未发现设备。请让双方打开小李全联并连接同一局域网。",
-                    w * .09f, h * .67f, u * .021f, pale)
+            val filePanel = RectF(w * .07f, h * .335f, w * .93f, h * .475f)
+            p.color = 0x663A9FEA
+            c.drawRoundRect(filePanel, 20f, 20f, p)
+            if (selectedNames.isEmpty()) {
+                drawText(c, "添加文件后将在这里显示文件清单", filePanel.left + w * .025f,
+                    filePanel.centerY() + u * .008f, u * .022f, pale)
             } else {
-                val visible = devices.take(5)
-                visible.forEachIndexed { i, device ->
-                    val row = RectF(w * .07f, h * (.62f + i * .058f), w * .93f, h * (.67f + i * .058f))
+                for (i in 0 until minOf(2, selectedNames.size)) {
+                    val lineY = filePanel.top + h * (.055f + i * .058f)
+                    drawText(c, "文件 ${i + 1}", filePanel.left + w * .025f, lineY, u * .017f, 0xFF9DDAFF.toInt(), true)
+                    drawText(c, selectedNames[i].take(46), filePanel.left + w * .10f, lineY, u * .020f, -1)
+                    drawText(c, sizeText(selectedSizes[i]), w * .89f, lineY, u * .018f, pale)
+                }
+                if (selectedNames.size > 2) drawText(c, "还有 ${selectedNames.size - 2} 个文件…",
+                    filePanel.left + w * .025f, filePanel.bottom - h * .012f, u * .016f, pale)
+            }
+            drawText(c, "选择目标设备  ·  ${devices.size} 台在线设备", w * .07f, h * .535f, u * .028f, -1, true)
+            if (devices.isEmpty()) {
+                val empty = RectF(w * .07f, h * .58f, w * .93f, h * .78f)
+                drawCard(c, empty, false)
+                drawText(c, "正在搜索附近设备，请确认双方处于同一 Wi-Fi 或热点网络",
+                    empty.left + w * .025f, empty.centerY() + u * .008f, u * .021f, pale)
+            } else {
+                devices.take(5).forEachIndexed { i, device ->
+                    val col = i % 2
+                    val rowIndex = i / 2
+                    val left = if (col == 0) w * .07f else w * .515f
+                    val row = RectF(left, h * (.575f + rowIndex * .112f),
+                        left + w * .415f, h * (.675f + rowIndex * .112f))
                     drawCard(c, row, focus == i + if (transferRunning) 2 else 1)
-                    drawText(c, "${device.name}   ·   ${device.host}   ·   发送 ›",
-                        row.left + w * .02f, row.centerY() + u * .008f, u * .021f, -1, true)
+                    drawText(c, device.name.take(20), row.left + w * .018f,
+                        row.top + row.height() * .43f, u * .022f, -1, true)
+                    drawText(c, "${device.host}  ·  选择发送 ›", row.left + w * .018f,
+                        row.top + row.height() * .76f, u * .016f, pale)
                 }
             }
-            drawText(c, status, w * .07f, h * .93f, u * .019f, pale)
+            drawText(c, status, w * .07f, h * .94f, u * .018f, pale)
         }
 
         private fun drawReceive(c: Canvas, w: Float, h: Float, u: Float) {
@@ -666,8 +683,11 @@ class QuanLianActivity : Activity() {
                         }
                     }
                     devices.take(5).forEachIndexed { i, device ->
-                        val row = RectF(width * .07f, height * (.62f + i * .058f),
-                            width * .93f, height * (.67f + i * .058f))
+                        val col = i % 2
+                        val rowIndex = i / 2
+                        val left = if (col == 0) width * .07f else width * .515f
+                        val row = RectF(left, height * (.575f + rowIndex * .112f),
+                            left + width * .415f, height * (.675f + rowIndex * .112f))
                         if (row.contains(x, y)) {
                             focus = i + if (transferRunning) 2 else 1
                             requestSend(device)
