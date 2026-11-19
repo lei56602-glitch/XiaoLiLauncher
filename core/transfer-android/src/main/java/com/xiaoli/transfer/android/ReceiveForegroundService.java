@@ -163,7 +163,7 @@ public class ReceiveForegroundService extends Service {
                 try{((javax.net.ssl.SSLSocket)s).startHandshake();android.util.Log.i("QuanLianTLS","Server-side handshake success peer="+s.getInetAddress().getHostAddress()+":"+s.getPort()+", protocol="+((javax.net.ssl.SSLSocket)s).getSession().getProtocol()+", cipher="+((javax.net.ssl.SSLSocket)s).getSession().getCipherSuite());}
                 catch(Exception handshake){DiagnosticLog.error(this,"SERVER_TLS_HANDSHAKE_FAILED",handshake);android.util.Log.e("QuanLianTLS","Server-side TLS handshake failed peer="+s.getInetAddress().getHostAddress()+":"+s.getPort()+"; "+handshake.getClass().getName()+": "+handshake.getMessage(),handshake);throw handshake;}
             }else android.util.Log.w("QuanLianPlain","Accepted plain TCP session peer="+s.getInetAddress().getHostAddress()+":"+s.getPort()+" WITHOUT ENCRYPTION");
-            String protocol=in.readUTF();DiagnosticLog.info(this,"APPLICATION_PROTOCOL_RECEIVED","protocol="+protocol+", peer="+socket.getInetAddress().getHostAddress());android.util.Log.i("QuanLianReceive","Received application protocol "+protocol+" from "+socket.getInetAddress().getHostAddress());if(LanDiscovery.PROBE.equals(protocol)){out.writeUTF(LanDiscovery.PROBE_OK);out.flush();return;}boolean resumable="QUANLIAN3".equals(protocol);if(!resumable&&!"QUANLIAN2".equals(protocol))throw new IOException("传输协议不匹配");
+            String protocol=in.readUTF();DiagnosticLog.info(this,"APPLICATION_PROTOCOL_RECEIVED","protocol="+protocol+", peer="+socket.getInetAddress().getHostAddress());android.util.Log.i("QuanLianReceive","Received application protocol "+protocol+" from "+socket.getInetAddress().getHostAddress());if(LanDiscovery.PROBE.equals(protocol)){out.writeUTF(LanDiscovery.PROBE_OK);out.flush();return;}boolean batched="QUANLIAN4".equals(protocol);boolean resumable=batched||"QUANLIAN3".equals(protocol);if(!resumable&&!"QUANLIAN2".equals(protocol))throw new IOException("传输协议不匹配");
             String sender=in.readUTF();if(sender==null||sender.length()>128)throw new IOException("发送设备名称无效");String senderId=resumable?in.readUTF():"legacy";if(senderId.length()>128)throw new IOException("发送设备身份无效");int count=in.readInt();if(count<1||count>500)throw new IOException("文件数量无效");
             ArrayList<String> names=new ArrayList<>(),hashes=new ArrayList<>();ArrayList<Long> sizes=new ArrayList<>();long total=0;
             for(int x=0;x<count;x++){String name=in.readUTF();long size=in.readLong();String hash=in.readUTF();if(name==null||name.length()>255||size<0||!hash.matches("(?i)[0-9a-f]{64}")||total>Long.MAX_VALUE-size)throw new IOException("文件信息无效");names.add(name);sizes.add(size);hashes.add(hash);total+=size;}
@@ -192,8 +192,25 @@ public class ReceiveForegroundService extends Service {
                     try(InputStream prior=new FileInputStream(tmp)){byte[] old=new byte[BUF];int n;while((n=prior.read(old))!=-1)digest.update(old,0,n);}catch(FileNotFoundException ignored){}
                     out.writeLong(offset);out.flush();left-=offset;
                     try(FileOutputStream fos=new FileOutputStream(tmp,true)){
-                        byte[] chunk=new byte[1024*1024];
-                        while(left>0){int n=in.readInt();if(n<1||n>chunk.length||n>left)throw new IOException("续传数据块长度无效");in.readFully(chunk,0,n);fos.write(chunk,0,n);digest.update(chunk,0,n);left-=n;fos.getFD().sync();out.writeLong(sizes.get(x)-left);out.flush();}
+                        byte[] chunk=new byte[4*1024*1024];
+                        if(batched){
+                            // QUANLIAN4: durable sync and acknowledgement once per 16 MiB window.
+                            final long ackWindow=16L*1024*1024;
+                            while(left>0){
+                                long batchBytes=0;
+                                while(left>0&&batchBytes<ackWindow){
+                                    int n=in.readInt();
+                                    if(n<1||n>chunk.length||n>left)throw new IOException("续传数据块长度无效");
+                                    in.readFully(chunk,0,n);fos.write(chunk,0,n);digest.update(chunk,0,n);
+                                    left-=n;batchBytes+=n;
+                                }
+                                fos.getFD().sync();
+                                out.writeLong(sizes.get(x)-left);out.flush();
+                            }
+                        }else{
+                            // QUANLIAN3 compatibility: acknowledge every data chunk.
+                            while(left>0){int n=in.readInt();if(n<1||n>chunk.length||n>left)throw new IOException("续传数据块长度无效");in.readFully(chunk,0,n);fos.write(chunk,0,n);digest.update(chunk,0,n);left-=n;fos.getFD().sync();out.writeLong(sizes.get(x)-left);out.flush();}
+                        }
                     }
                 }else{
                     tmp=new File(dir,".quanlian_"+UUID.randomUUID()+".part");

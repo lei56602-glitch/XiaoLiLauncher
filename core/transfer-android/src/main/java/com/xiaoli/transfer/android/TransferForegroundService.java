@@ -190,7 +190,7 @@ public class TransferForegroundService extends Service {
                 updateStatus("已连接设备，正在等待对方确认…", 0);
                 DataOutputStream out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
                 DataInputStream in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
-                out.writeUTF("QUANLIAN3"); out.writeUTF(deviceName()); out.writeUTF(DeviceIdentity.id(this)); out.writeInt(files.size());
+                out.writeUTF("QUANLIAN4"); out.writeUTF(deviceName()); out.writeUTF(DeviceIdentity.id(this)); out.writeInt(files.size());
                 for (SendFile file : files) { out.writeUTF(file.name); out.writeLong(file.size); out.writeUTF(file.hash); }
                 out.flush();
                 if (!in.readBoolean()) throw new IOException("对方拒绝接收或接收确认超时");
@@ -205,15 +205,22 @@ public class TransferForegroundService extends Service {
                     try (InputStream input = new BufferedInputStream(getContentResolver().openInputStream(file.uri))) {
                         if(input==null)throw new IOException("无法重新读取文件："+file.name);
                         long skipped=0;while(skipped<offset){long n=input.skip(offset-skipped);if(n<=0){if(input.read()==-1)throw new EOFException("无法定位续传位置");n=1;}skipped+=n;}
-                        byte[] chunk=new byte[1024*1024];
+                        byte[] chunk=new byte[4*1024*1024];
                         long remainingFile=file.size-offset;
+                        // QUANLIAN4 batches data frames and acknowledges each 16 MiB window.
+                        final long ackWindow=16L*1024*1024;
                         while(remainingFile>0){
                             if(cancelRequested.get())throw new IOException("已取消发送");
-                            int wanted=(int)Math.min(chunk.length,remainingFile),n=0;
-                            while(n<wanted){int read=input.read(chunk,n,wanted-n);if(read<0)throw new EOFException("本地文件读取中断");n+=read;}
-                            out.writeInt(n);out.write(chunk,0,n);out.flush();
-                            long ack=in.readLong();if(ack!=offset+n)throw new IOException("接收端数据块确认不一致");
-                            offset=ack;remainingFile-=n;sent+=n;
+                            long batchBytes=0;
+                            while(remainingFile>0&&batchBytes<ackWindow){
+                                int wanted=(int)Math.min(chunk.length,remainingFile),n=0;
+                                while(n<wanted){int read=input.read(chunk,n,wanted-n);if(read<0)throw new EOFException("本地文件读取中断");n+=read;}
+                                out.writeInt(n);out.write(chunk,0,n);
+                                offset+=n;remainingFile-=n;sent+=n;batchBytes+=n;
+                                if(cancelRequested.get())throw new IOException("已取消发送");
+                            }
+                            out.flush();
+                            long ack=in.readLong();if(ack!=offset)throw new IOException("接收端批量确认位置不一致");
                             long now=System.currentTimeMillis();
                             if(now-lastUi>250||sent==totalBytes){
                                 int progress=totalBytes==0?1000:(int)Math.min(1000,(sent*1000.0/totalBytes));
