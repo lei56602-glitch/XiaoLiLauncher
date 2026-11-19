@@ -616,7 +616,7 @@ class LauncherView(context: Context) : View(context) {
         val gridLeft = w * .065f
         val gridRight = w * .935f
         val cellW = (gridRight - gridLeft) / cols
-        val cellH = h * .275f
+        val cellH = h * .58f / drawerRows()
         val contentTop = h * .265f
         val contentBottom = h * .845f
         val visibleRows = ((contentBottom - contentTop) / cellH).toInt().coerceAtLeast(1)
@@ -681,12 +681,12 @@ class LauncherView(context: Context) : View(context) {
 
     private fun moveSettingsFocus(direction: Int) {
         val rows = listOf(
-            listOf(8), listOf(9, 10, 11, 12, 15, 16), listOf(0, 1, 2),
+            listOf(8), listOf(9, 10, 11, 12, 15, 16), listOf(0, 1, 2, 17, 18, 19),
             listOf(3, 4, 5), listOf(6), listOf(7, 14, 13)
         )
         val x = mapOf(
             8 to .50f, 9 to .18f, 10 to .31f, 11 to .44f, 12 to .57f, 15 to .70f, 16 to .83f,
-            0 to .16f, 1 to .41f, 2 to .66f,
+            0 to .16f, 1 to .25f, 2 to .34f, 17 to .63f, 18 to .73f, 19 to .83f,
             3 to .24f, 4 to .50f, 5 to .76f, 6 to .50f,
             7 to .22f, 14 to .52f, 13 to .82f
         )
@@ -702,6 +702,13 @@ class LauncherView(context: Context) : View(context) {
         }
     }
 
+    private fun drawerRows(): Int = prefs.getInt("drawer_rows", 2).coerceIn(2, 4)
+
+    private fun setDrawerRows(rows: Int) {
+        prefs.edit().putInt("drawer_rows", rows.coerceIn(2, 4)).apply()
+        settingsFocus = rows + 15
+        invalidate()
+    }
     private fun setDrawerColumns(columns: Int) {
         prefs.edit().putInt("drawer_columns", columns.coerceIn(4, 6)).apply()
         settingsFocus = columns - 4
@@ -766,18 +773,25 @@ class LauncherView(context: Context) : View(context) {
             text(c, labels[i], rect.centerX(), h * .447f, h * .018f, -1, true)
             paint.textAlign = Paint.Align.LEFT
         }
-        text(c, "应用抽屉列数", w * .13f, h * .492f, h * .023f, 0xFFDDEEFF.toInt())
-        val gap = w * .025f
-        val buttonW = w * .18f
-        val start = w * .13f
+        text(c, "应用抽屉网格", w * .13f, h * .492f, h * .023f, 0xFFDDEEFF.toInt())
         for (i in 0..2) {
             val columns = i + 4
-            val left = start + i * (buttonW + gap)
-            val rect = RectF(left, h * .515f, left + buttonW, h * .575f)
+            val left = w * (.13f + i * .105f)
+            val rect = RectF(left, h * .515f, left + w * .095f, h * .575f)
             paint.color = if (drawerColumns() == columns) 0xFF31B9FF.toInt() else 0x44FFFFFF
-            c.drawRoundRect(rect, 18f, 18f, paint)
+            c.drawRoundRect(rect, 14f, 14f, paint)
             paint.textAlign = Paint.Align.CENTER
-            text(c, "${columns}列", rect.centerX(), h * .553f, h * .024f, -1, true)
+            text(c, "${columns}列", rect.centerX(), h * .553f, h * .021f, -1, true)
+            paint.textAlign = Paint.Align.LEFT
+        }
+        for (i in 0..2) {
+            val rows = i + 2
+            val left = w * (.55f + i * .105f)
+            val rect = RectF(left, h * .515f, left + w * .095f, h * .575f)
+            paint.color = if (drawerRows() == rows) 0xFF31B9FF.toInt() else 0x44FFFFFF
+            c.drawRoundRect(rect, 14f, 14f, paint)
+            paint.textAlign = Paint.Align.CENTER
+            text(c, "${rows}行", rect.centerX(), h * .553f, h * .021f, -1, true)
             paint.textAlign = Paint.Align.LEFT
         }
 
@@ -917,7 +931,7 @@ class LauncherView(context: Context) : View(context) {
         val cols = drawerColumns()
         val gridLeft = width * .065f
         val cellW = width * .87f / cols
-        val cellH = height * .275f
+        val cellH = height * .58f / drawerRows()
         val col = ((x - gridLeft) / cellW).toInt()
         val visibleRow = ((y - height * .265f) / cellH).toInt()
         if (col !in 0 until cols || visibleRow < 0) return -1
@@ -1028,11 +1042,16 @@ class LauncherView(context: Context) : View(context) {
                             5 -> { showClockSeconds = !showClockSeconds; prefs.edit().putBoolean("clock_seconds", showClockSeconds).apply(); updateClockTick() }
                         }
                     } else if (event.y in (height * .515f)..(height * .575f)) {
-                        val gap = width * .025f
-                        val buttonW = width * .18f
-                        val start = width * .13f
-                        val selected = ((event.x - start) / (buttonW + gap)).toInt()
-                        if (selected in 0..2) setDrawerColumns(selected + 4)
+                        when {
+                            event.x in (width * .13f)..(width * .445f) -> {
+                                val selected = ((event.x - width * .13f) / (width * .105f)).toInt()
+                                if (selected in 0..2) setDrawerColumns(selected + 4)
+                            }
+                            event.x in (width * .55f)..(width * .865f) -> {
+                                val selected = ((event.x - width * .55f) / (width * .105f)).toInt()
+                                if (selected in 0..2) setDrawerRows(selected + 2)
+                            }
+                        }
                     } else if (event.y in (height * .59f)..(height * .68f) && event.x < width * .36f) {
                         onChooseWallpaper?.invoke()
                     } else if (event.y in (height * .59f)..(height * .68f) && event.x in (width * .38f)..(width * .62f)) {
@@ -1182,6 +1201,7 @@ class LauncherView(context: Context) : View(context) {
                         updateClockTick()
                     } else if (settingsFocus == 8) openWeatherCityDialog()
                     else if (settingsFocus in 0..2) setDrawerColumns(settingsFocus + 4)
+                    else if (settingsFocus in 17..19) setDrawerRows(settingsFocus - 15)
                     else if (settingsFocus == 3) onChooseWallpaper?.invoke()
                     else if (settingsFocus == 4) toggleDynamicWallpaper()
                     else if (settingsFocus == 5) clearWallpaper()
@@ -1212,7 +1232,7 @@ class LauncherView(context: Context) : View(context) {
                 }
             }
             val cols = drawerColumns()
-            val visibleRows = ((height * .58f) / (height * .275f)).toInt().coerceAtLeast(1)
+            val visibleRows = drawerRows()
             val totalRows = (apps.size + cols - 1) / cols
             val maxScroll = (totalRows - visibleRows).coerceAtLeast(0)
             drawerScrollRow = (drawerIndex / cols - visibleRows + 1).coerceIn(0, maxScroll)
