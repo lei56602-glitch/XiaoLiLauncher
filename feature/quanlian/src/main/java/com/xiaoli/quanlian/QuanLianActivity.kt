@@ -739,8 +739,11 @@ class QuanLianActivity : Activity() {
             val y = event.y
             val railWidth = width * .17f
             if (x < railWidth) {
-                val selected = ((y - height * .235f) / (height * .125f)).toInt()
-                if (selected in 0..4) openPage(Page.values()[selected])
+                val selected = (0..4).firstOrNull { index ->
+                    val top = height * (.235f + index * .125f)
+                    y >= top && y <= top + height * .09f
+                }
+                if (selected != null) openPage(Page.values()[selected])
                 return true
             }
             x -= railWidth
