@@ -109,7 +109,7 @@ public final class LanDiscovery {
   }
  }
 
- public static void announce(String id,String name,int port){try{announce(id,name,port,TlsIdentity.fingerprint());}catch(Exception e){Log.e(TAG,"TLS identity unavailable for discovery",e);}}
+ public static void announce(Context context,String id,String name,int port){try{announce(id,name,port,TlsIdentity.fingerprint(context));}catch(Exception e){Log.e(TAG,"TLS identity unavailable for discovery",e);}}
 
  public static void announce(String id,String name,int port,String fp){
   if(id==null||id.length()<8||name==null||name.isEmpty()||fp==null||!fp.matches("(?i)[0-9a-f]{64}")||port<1||port>65535)return;
