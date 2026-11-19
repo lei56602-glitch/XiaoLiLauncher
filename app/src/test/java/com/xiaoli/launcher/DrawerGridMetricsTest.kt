@@ -59,4 +59,4 @@ class DrawerGridMetricsTest {
         assertEquals(3, metrics.moveFocus(8, -2, 9))
     }
 }
-}
+
