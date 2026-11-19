@@ -44,6 +44,10 @@ class LauncherView(context: Context) : View(context) {
     private var weatherSummary = prefs.getString("weather_summary", "尚未设置城市") ?: "尚未设置城市"
     private var weatherUpdatedAt = prefs.getLong("weather_updated_at", 0L)
     private var weatherLoading = false
+    private var showClock = prefs.getBoolean("show_clock", true)
+    private var showDate = prefs.getBoolean("show_date", true)
+    private var showLunar = prefs.getBoolean("show_lunar", true)
+    private var showWeather = prefs.getBoolean("show_weather", true)
     var onChooseWallpaper: (() -> Unit)? = null
     private val apps = mutableListOf<AppEntry>()
     private val favorites = mutableListOf<AppEntry>()
@@ -278,17 +282,17 @@ class LauncherView(context: Context) : View(context) {
         val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
         val date = SimpleDateFormat("MM月dd日  EEEE", Locale.CHINA).format(now)
         paint.textAlign = Paint.Align.RIGHT
-        text(c, time, w * .965f, height * .085f, height * .052f, -1, true)
-        text(c, date, w * .965f, height * .125f, height * .021f, 0xFFE2F1FF.toInt())
-        lunarDateLabel(now.time)?.let {
+        if (showClock) text(c, time, w * .965f, height * .085f, height * .052f, -1, true)
+        if (showDate) text(c, date, w * .965f, height * .125f, height * .021f, 0xFFE2F1FF.toInt())
+        if (showLunar) lunarDateLabel(now.time)?.let {
             text(c, it, w * .965f, height * .16f, height * .019f, 0xFFBDEBFF.toInt())
         }
-        text(c, "天气  $weatherSummary", w * .965f, height * .195f, height * .019f,
+        if (showWeather) text(c, "天气  $weatherSummary", w * .965f, height * .195f, height * .019f,
             if (weatherCity.isBlank()) 0xFFFFE7B0.toInt() else 0xFFD9F5FF.toInt())
         paint.textAlign = Paint.Align.LEFT
     }
 
-    private fun openWeatherCityDialog() {
+    private fun toggleHomeComponent(index: Int) {\n        when (index) {\n            9 -> { showClock = !showClock; prefs.edit().putBoolean("show_clock", showClock).apply() }\n            10 -> { showDate = !showDate; prefs.edit().putBoolean("show_date", showDate).apply() }\n            11 -> { showLunar = !showLunar; prefs.edit().putBoolean("show_lunar", showLunar).apply() }\n            12 -> { showWeather = !showWeather; prefs.edit().putBoolean("show_weather", showWeather).apply() }\n        }\n        invalidate()\n    }\n\n    private fun openWeatherCityDialog() {
         val field = EditText(context).apply {
             setSingleLine(true)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
@@ -550,8 +554,24 @@ class LauncherView(context: Context) : View(context) {
         c.drawRoundRect(weatherSetting, 16f, 16f, paint)
         text(c, "天气城市：${if (weatherCity.isBlank()) "尚未设置" else weatherCity}",
             w * .16f, h * .335f, h * .025f, -1, true)
-        text(c, "设置城市后，首页自动显示天气与温度", w * .13f, h * .415f, h * .022f, 0xFFDDEEFF.toInt())
-        text(c, "应用抽屉列数", w * .13f, h * .455f, h * .03f, 0xFFDDEEFF.toInt())
+        text(c, "桌面信息显示", w * .13f, h * .405f, h * .023f, 0xFFDDEEFF.toInt())
+        val labels = listOf(if (showClock) "时间：开" else "时间：关",
+            if (showDate) "日期：开" else "日期：关",
+            if (showLunar) "农历：开" else "农历：关",
+            if (showWeather) "天气：开" else "天气：关")
+        val componentKeys = listOf(9, 10, 11, 12)
+        val componentGap = w * .012f
+        val componentW = (w * .74f - componentGap * 3f) / 4f
+        for (i in 0..3) {
+            val left = w * .13f + i * (componentW + componentGap)
+            val rect = RectF(left, h * .42f, left + componentW, h * .475f)
+            paint.color = if (settingsFocus == componentKeys[i]) 0xFF31B9FF.toInt() else 0x5544BFFF
+            c.drawRoundRect(rect, 12f, 12f, paint)
+            paint.textAlign = Paint.Align.CENTER
+            text(c, labels[i], rect.centerX(), h * .456f, h * .019f, -1, true)
+            paint.textAlign = Paint.Align.LEFT
+        }
+        text(c, "应用抽屉列数", w * .13f, h * .505f, h * .026f, 0xFFDDEEFF.toInt())
         val gap = w * .025f
         val buttonW = w * .18f
         val start = w * .13f
@@ -771,9 +791,9 @@ class LauncherView(context: Context) : View(context) {
             when (keyCode) {
                 KeyEvent.KEYCODE_BACK -> { closeLauncherSettings(); return true }
                 KeyEvent.KEYCODE_DPAD_LEFT -> settingsFocus = (settingsFocus - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> settingsFocus = (settingsFocus + 1).coerceAtMost(8)
+                KeyEvent.KEYCODE_DPAD_RIGHT -> settingsFocus = (settingsFocus + 1).coerceAtMost(12)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                    if (settingsFocus == 8) openWeatherCityDialog()
+                    if (settingsFocus in 9..12) toggleHomeComponent(settingsFocus)\n                    else if (settingsFocus == 8) openWeatherCityDialog()
                     else if (settingsFocus in 0..2) setDrawerColumns(settingsFocus + 3)
                     else if (settingsFocus == 3) onChooseWallpaper?.invoke()
                     else if (settingsFocus == 4) toggleDynamicWallpaper()
