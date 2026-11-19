@@ -308,6 +308,18 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun drawTop(c: Canvas, w: Float) {
+        val brandSize = (height * .058f).coerceAtLeast(36f)
+        val brand = RectF(w * .052f, height * .045f, w * .052f + brandSize, height * .045f + brandSize)
+        paint.shader = LinearGradient(brand.left, brand.top, brand.right, brand.bottom,
+            intArrayOf(0xFF62E5FF.toInt(), 0xFF087DEB.toInt()), null, Shader.TileMode.CLAMP)
+        c.drawRoundRect(brand, brandSize * .24f, brandSize * .24f, paint)
+        paint.shader = null
+        paint.color = android.graphics.Color.WHITE
+        paint.textAlign = Paint.Align.CENTER
+        text(c, "⇄", brand.centerX(), brand.centerY() + brandSize * .19f, brandSize * .56f, -1, true)
+        paint.textAlign = Paint.Align.LEFT
+        text(c, "小李桌面", brand.right + height * .016f, brand.centerY() + height * .012f,
+            height * .028f, -1, true)
         val now = Date()
         val timePattern = when {
             use24HourClock && showClockSeconds -> "HH:mm:ss"
