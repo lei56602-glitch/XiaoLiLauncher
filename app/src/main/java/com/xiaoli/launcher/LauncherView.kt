@@ -102,13 +102,35 @@ class LauncherView(context: Context) : View(context) {
 
     fun closeDrawer() { isDrawerOpen = false; editingFavorites = false; invalidate() }
 
+    private fun decodeWallpaper(uri: Uri): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        runCatching {
+            context.contentResolver.openInputStream(uri)?.use {
+                BitmapFactory.decodeStream(it, null, bounds)
+            }
+        }.getOrElse { return null }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+        // Keep 4K displays sharp while avoiding full-resolution camera images exhausting TV memory.
+        val maxDimension = 4096
+        var sampleSize = 1
+        while (bounds.outWidth / sampleSize > maxDimension ||
+            bounds.outHeight / sampleSize > maxDimension) {
+            sampleSize *= 2
+        }
+        val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+        return runCatching {
+            context.contentResolver.openInputStream(uri)?.use {
+                BitmapFactory.decodeStream(it, null, options)
+            }
+        }.getOrNull()
+    }
+
     fun setWallpaper(uri: Uri) {
         runCatching {
             context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        val bitmap = runCatching {
-            context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
-        }.getOrNull() ?: return
+        val bitmap = decodeWallpaper(uri) ?: return
         wallpaperBitmap?.recycle()
         wallpaperBitmap = bitmap
         prefs.edit().putString("wallpaper_uri", uri.toString()).apply()
@@ -118,9 +140,7 @@ class LauncherView(context: Context) : View(context) {
     private fun loadSavedWallpaper() {
         val value = prefs.getString("wallpaper_uri", null) ?: return
         val uri = runCatching { Uri.parse(value) }.getOrNull() ?: return
-        wallpaperBitmap = runCatching {
-            context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
-        }.getOrNull()
+        wallpaperBitmap = decodeWallpaper(uri)
     }
 
     private fun drawWallpaper(c: Canvas, w: Float, h: Float): Boolean {
@@ -313,6 +333,7 @@ class LauncherView(context: Context) : View(context) {
             val save = c.save()
             val inner = RectF(rect.left + 5f, rect.top + 5f, rect.right - 5f, rect.bottom - 5f)
             c.clipRect(inner)
+            paint.color = android.graphics.Color.WHITE
             val scale = maxOf(inner.width() / bitmap.width, inner.height() / bitmap.height)
             val dw = bitmap.width * scale
             val dh = bitmap.height * scale
