@@ -321,8 +321,8 @@ class LauncherView(context: Context) : View(context) {
             c.drawBitmap(bitmap, null, dst, paint)
             c.restoreToCount(save)
         } else {
-            text(c, "当前使用默认蓝色壁纸", rect.left + 12f, rect.centerY() + h * .008f,
-                h * .018f, 0xFFDDEEFF.toInt())
+            text(c, "当前使用默认蓝色壁纸", rect.left + 12f, rect.centerY() + rect.height() * .08f,
+                rect.height() * .20f, 0xFFDDEEFF.toInt())
         }
     }
 
