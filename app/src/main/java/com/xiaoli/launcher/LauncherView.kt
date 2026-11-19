@@ -61,6 +61,8 @@ class LauncherView(context: Context) : View(context) {
     private var lunarScale = prefs.getFloat("widget_lunar_scale", 1f).coerceIn(.7f, 1.8f)
     private var weatherScale = prefs.getFloat("widget_weather_scale", 1f).coerceIn(.7f, 1.8f)
     private var activeWidgetResize = -1
+    private var widgetEditMode = false
+    private var selectedEditWidget = 0
     private var resizeStartSpan = 0f
     private var resizeStartScale = 1f
     private var activeWidgetDrag = -1
@@ -307,6 +309,70 @@ class LauncherView(context: Context) : View(context) {
         if (showWeather) text(c, "天气  $weatherSummary", w * weatherX, height * weatherY, height * .019f * weatherScale,
             if (weatherCity.isBlank()) 0xFFFFE7B0.toInt() else 0xFFD9F5FF.toInt())
         paint.textAlign = Paint.Align.LEFT
+        if (widgetEditMode) drawSelectedWidgetOutline(c)
+    }
+
+    private fun drawSelectedWidgetOutline(c: Canvas) {
+        val visible = listOf(showClock, showDate, showLunar, showWeather)
+        if (selectedEditWidget !in visible.indices || !visible[selectedEditWidget]) return
+        val positions = listOf(
+            Pair(clockX, clockY), Pair(dateX, dateY),
+            Pair(lunarX, lunarY), Pair(weatherX, weatherY)
+        )
+        val p = positions[selectedEditWidget]
+        val rect = RectF(width * (p.first - .39f), height * (p.second - .045f),
+            width * (p.first + .012f), height * (p.second + .012f))
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = (height * .0035f).coerceAtLeast(2f)
+        paint.color = 0xFF55D9FF.toInt()
+        c.drawRoundRect(rect, 12f, 12f, paint)
+        paint.style = Paint.Style.FILL
+        paint.color = 0xFF55D9FF.toInt()
+        c.drawCircle(rect.left + 8f, rect.top + 8f, (height * .008f).coerceAtLeast(5f), paint)
+    }
+
+    private fun toggleWidgetEditMode() {
+        widgetEditMode = !widgetEditMode
+        if (!widgetEditMode) saveWidgetPositions()
+        selectedEditWidget = selectedEditWidget.coerceIn(0, 3)
+        invalidate()
+    }
+
+    private fun cycleEditableWidget() {
+        repeat(4) {
+            selectedEditWidget = (selectedEditWidget + 1) % 4
+            val visible = when (selectedEditWidget) {
+                0 -> showClock
+                1 -> showDate
+                2 -> showLunar
+                else -> showWeather
+            }
+            if (visible) return
+        }
+    }
+
+    private fun adjustSelectedWidgetPosition(dx: Float, dy: Float) {
+        val stepX = .008f
+        val stepY = .012f
+        val x = when (selectedEditWidget) {
+            0 -> clockX
+            1 -> dateX
+            2 -> lunarX
+            else -> weatherX
+        }
+        val y = when (selectedEditWidget) {
+            0 -> clockY
+            1 -> dateY
+            2 -> lunarY
+            else -> weatherY
+        }
+        moveWidget(selectedEditWidget, (x + dx * stepX) * width, (y + dy * stepY) * height)
+        saveWidgetPositions()
+    }
+
+    private fun adjustSelectedWidgetScale(delta: Float) {
+        setWidgetScale(selectedEditWidget, widgetScale(selectedEditWidget) + delta)
+        saveWidgetPositions()
     }
 
     private fun toggleHomeComponent(index: Int) {
@@ -926,6 +992,34 @@ class LauncherView(context: Context) : View(context) {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (widgetEditMode && !isSettingsOpen && !isDrawerOpen) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> {
+                    toggleWidgetEditMode()
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                    cycleEditableWidget()
+                    invalidate()
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_LEFT -> { adjustSelectedWidgetPosition(-1f, 0f); return true }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> { adjustSelectedWidgetPosition(1f, 0f); return true }
+                KeyEvent.KEYCODE_DPAD_UP -> { adjustSelectedWidgetPosition(0f, -1f); return true }
+                KeyEvent.KEYCODE_DPAD_DOWN -> { adjustSelectedWidgetPosition(0f, 1f); return true }
+                KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_PLUS, KeyEvent.KEYCODE_EQUALS -> {
+                    adjustSelectedWidgetScale(.05f); return true
+                }
+                KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_MINUS -> {
+                    adjustSelectedWidgetScale(-.05f); return true
+                }
+                KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> {
+                    toggleWidgetEditMode()
+                    return true
+                }
+            }
+            return true
+        }
         if (isSettingsOpen) {
             when (keyCode) {
                 KeyEvent.KEYCODE_BACK -> { closeLauncherSettings(); return true }
@@ -966,6 +1060,10 @@ class LauncherView(context: Context) : View(context) {
             invalidate(); return true
         }
         when (keyCode) {
+            KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> {
+                toggleWidgetEditMode()
+                return true
+            }
             KeyEvent.KEYCODE_DPAD_UP -> { isDrawerOpen = true; drawerIndex = 0; invalidate(); return true }
             KeyEvent.KEYCODE_DPAD_LEFT -> { if (favorites.isNotEmpty()) homeIndex = (homeIndex - 1).coerceAtLeast(0); invalidate(); return true }
             KeyEvent.KEYCODE_DPAD_RIGHT -> { if (favorites.isNotEmpty()) homeIndex = (homeIndex + 1).coerceAtMost(favorites.lastIndex); invalidate(); return true }
