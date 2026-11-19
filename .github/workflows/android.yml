@@ -38,6 +38,23 @@ jobs:
       - name: Validate Kotlin and Android sources
         run: gradle --no-daemon lintDebug testDebugUnitTest assembleDebug
 
+      - name: Validate signed release variant with a temporary CI-only key
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/xiaoli-ci-release.jks
+          ANDROID_STORE_PASSWORD: ci-only-store-password
+          ANDROID_KEY_ALIAS: xiaoli-ci
+          ANDROID_KEY_PASSWORD: ci-only-key-password
+        run: |
+          keytool -genkeypair -v \
+            -keystore "$ANDROID_KEYSTORE_PATH" \
+            -storetype JKS \
+            -storepass "$ANDROID_STORE_PASSWORD" \
+            -keypass "$ANDROID_KEY_PASSWORD" \
+            -alias "$ANDROID_KEY_ALIAS" \
+            -keyalg RSA -keysize 2048 -validity 2 \
+            -dname "CN=XiaoLi CI Only,O=XiaoLi,C=SG" -noprompt
+          gradle --no-daemon lintRelease testReleaseUnitTest assembleRelease
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
