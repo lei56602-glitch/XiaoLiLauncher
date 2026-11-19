@@ -48,6 +48,16 @@ class LauncherView(context: Context) : View(context) {
     private var showDate = prefs.getBoolean("show_date", true)
     private var showLunar = prefs.getBoolean("show_lunar", true)
     private var showWeather = prefs.getBoolean("show_weather", true)
+    private var clockX = prefs.getFloat("widget_clock_x", .965f)
+    private var clockY = prefs.getFloat("widget_clock_y", .085f)
+    private var dateX = prefs.getFloat("widget_date_x", .965f)
+    private var dateY = prefs.getFloat("widget_date_y", .125f)
+    private var lunarX = prefs.getFloat("widget_lunar_x", .965f)
+    private var lunarY = prefs.getFloat("widget_lunar_y", .16f)
+    private var weatherX = prefs.getFloat("widget_weather_x", .965f)
+    private var weatherY = prefs.getFloat("widget_weather_y", .195f)
+    private var activeWidgetDrag = -1
+    private var widgetDragStarted = false
     var onChooseWallpaper: (() -> Unit)? = null
     private val apps = mutableListOf<AppEntry>()
     private val favorites = mutableListOf<AppEntry>()
@@ -282,12 +292,12 @@ class LauncherView(context: Context) : View(context) {
         val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
         val date = SimpleDateFormat("MM月dd日  EEEE", Locale.CHINA).format(now)
         paint.textAlign = Paint.Align.RIGHT
-        if (showClock) text(c, time, w * .965f, height * .085f, height * .052f, -1, true)
-        if (showDate) text(c, date, w * .965f, height * .125f, height * .021f, 0xFFE2F1FF.toInt())
+        if (showClock) text(c, time, w * clockX, height * clockY, height * .052f, -1, true)
+        if (showDate) text(c, date, w * dateX, height * dateY, height * .021f, 0xFFE2F1FF.toInt())
         if (showLunar) lunarDateLabel(now.time)?.let {
-            text(c, it, w * .965f, height * .16f, height * .019f, 0xFFBDEBFF.toInt())
+            text(c, it, w * lunarX, height * lunarY, height * .019f, 0xFFBDEBFF.toInt())
         }
-        if (showWeather) text(c, "天气  $weatherSummary", w * .965f, height * .195f, height * .019f,
+        if (showWeather) text(c, "天气  $weatherSummary", w * weatherX, height * weatherY, height * .019f,
             if (weatherCity.isBlank()) 0xFFFFE7B0.toInt() else 0xFFD9F5FF.toInt())
         paint.textAlign = Paint.Align.LEFT
     }
@@ -653,6 +663,41 @@ class LauncherView(context: Context) : View(context) {
         return RectF(left, top, left + itemW, top + itemH)
     }
 
+    private fun widgetIndexAt(x: Float, y: Float): Int {
+        val rows = listOf(
+            Triple(showClock, clockX, clockY),
+            Triple(showDate, dateX, dateY),
+            Triple(showLunar, lunarX, lunarY),
+            Triple(showWeather, weatherX, weatherY)
+        )
+        rows.forEachIndexed { index, item ->
+            if (item.first && x in (width * (item.second - .38f))..(width * item.second + width * .015f) &&
+                kotlin.math.abs(y - height * item.third) <= height * .035f) return index
+        }
+        return -1
+    }
+
+    private fun moveWidget(index: Int, x: Float, y: Float) {
+        val nx = (x / width).coerceIn(.30f, .985f)
+        val ny = (y / height).coerceIn(.045f, .29f)
+        when (index) {
+            0 -> { clockX = nx; clockY = ny }
+            1 -> { dateX = nx; dateY = ny }
+            2 -> { lunarX = nx; lunarY = ny }
+            3 -> { weatherX = nx; weatherY = ny }
+        }
+        invalidate()
+    }
+
+    private fun saveWidgetPositions() {
+        prefs.edit()
+            .putFloat("widget_clock_x", clockX).putFloat("widget_clock_y", clockY)
+            .putFloat("widget_date_x", dateX).putFloat("widget_date_y", dateY)
+            .putFloat("widget_lunar_x", lunarX).putFloat("widget_lunar_y", lunarY)
+            .putFloat("widget_weather_x", weatherX).putFloat("widget_weather_y", weatherY)
+            .apply()
+    }
+
     private fun homeItemIndexAt(x: Float, y: Float): Int {
         favorites.indices.forEach { i ->
             if (homeItemRect(i, width.toFloat(), height.toFloat()).contains(x, y)) return i
@@ -681,12 +726,19 @@ class LauncherView(context: Context) : View(context) {
                 touchDownX = event.x
                 touchDownY = event.y
                 touchDragging = false
-                lastDragIndex = homeItemIndexAt(event.x, event.y)
+                activeWidgetDrag = if (!isSettingsOpen && !isDrawerOpen) widgetIndexAt(event.x, event.y) else -1
+                widgetDragStarted = false
+                lastDragIndex = if (activeWidgetDrag < 0) homeItemIndexAt(event.x, event.y) else -1
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
                 val dx = event.x - touchDownX
                 val dy = event.y - touchDownY
+                if (activeWidgetDrag >= 0 && event.eventTime - event.downTime > android.view.ViewConfiguration.getLongPressTimeout()) {
+                    widgetDragStarted = true
+                    moveWidget(activeWidgetDrag, event.x, event.y)
+                    return true
+                }
                 if (!isDrawerOpen && lastDragIndex >= 0 &&
                     event.eventTime - event.downTime > android.view.ViewConfiguration.getLongPressTimeout() &&
                     kotlin.math.abs(dx) > width * .015f && kotlin.math.abs(dx) > kotlin.math.abs(dy)) {
@@ -706,6 +758,14 @@ class LauncherView(context: Context) : View(context) {
             MotionEvent.ACTION_UP -> {
                 val dx = event.x - touchDownX
                 val dy = event.y - touchDownY
+                if (widgetDragStarted) {
+                    saveWidgetPositions()
+                    activeWidgetDrag = -1
+                    widgetDragStarted = false
+                    performClick()
+                    return true
+                }
+                activeWidgetDrag = -1
                 if (touchDragging) {
                     touchDragging = false
                     performClick()
