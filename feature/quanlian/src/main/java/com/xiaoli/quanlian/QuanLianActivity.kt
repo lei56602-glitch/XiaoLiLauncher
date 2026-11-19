@@ -407,6 +407,33 @@ class QuanLianActivity : Activity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (page == Page.SEND) {
+            val deviceStart = if (transferRunning) 2 else 1
+            val deviceIndex = focus - deviceStart
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    if (focus < deviceStart) focus = (focus - 1).coerceAtLeast(0)
+                    else if (deviceIndex >= 0 && deviceIndex % 2 == 1) focus--
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (focus < deviceStart) focus = if (transferRunning) 1 else 0
+                    else if (deviceIndex >= 0 && deviceIndex % 2 == 0 && deviceIndex + 1 < devices.size) focus++
+                }
+                KeyEvent.KEYCODE_DPAD_UP -> {
+                    if (deviceIndex >= 0) focus = (focus - 2).coerceAtLeast(deviceStart)
+                }
+                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                    if (focus < deviceStart) {
+                        if (devices.isNotEmpty()) focus = deviceStart
+                    } else if (deviceIndex >= 0 && deviceIndex + 2 < devices.size) focus += 2
+                }
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> activateFocused()
+                KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> { goBack(); return true }
+                else -> return super.onKeyDown(keyCode, event)
+            }
+            screen.invalidate()
+            return true
+        }
         if(page==Page.HISTORY){
             val count=readHistoryItems().length()
             when(keyCode){
