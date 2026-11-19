@@ -70,7 +70,8 @@ class LauncherView(context: Context) : View(context) {
     private var resizeStartScale = 1f
     private var activeWidgetDrag = -1
     private var widgetDragStarted = false
-    var onChooseWallpaper: (() -> Unit)? = null\n    var onRequestDefaultHome: (() -> Unit)? = null
+    var onChooseWallpaper: (() -> Unit)? = null
+    var onRequestDefaultHome: (() -> Unit)? = null
     private val apps = mutableListOf<AppEntry>()
     private val favorites = mutableListOf<AppEntry>()
     private val appIconCache = mutableMapOf<String, android.graphics.drawable.Drawable>()
