@@ -588,7 +588,7 @@ class LauncherView(context: Context) : View(context) {
             val row = i / cols; val col = i % cols
             val x = w*.1f + col*cellW; val y = h*.32f + row*cellH
             val cell = RectF(x,y,x+cellW*.88f,y+cellH*.92f)
-            val iconSize = (cellH * .57f).coerceAtMost(cellW * .58f)
+            val iconSize = (if (w >= h) h * .105f else cellH * .57f).coerceAtMost(cellW * .58f)
             val iconRect = RectF(cell.centerX() - iconSize/2f, y + cellH*.035f,
                 cell.centerX() + iconSize/2f, y + cellH*.035f + iconSize)
             drawUnifiedAppIcon(c, app, iconRect, i == drawerIndex)
