@@ -54,7 +54,8 @@ class QuanLianActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         receiveEnabled = getSharedPreferences("quanlian_runtime", MODE_PRIVATE)
-            .getBoolean("receive_enabled", false)
+            .getBoolean("receive_enabled", true)
+        requestNotificationPermissionIfNeeded()
         screen = QuanLianScreen()
         setContentView(screen)
     }
@@ -69,6 +70,14 @@ class QuanLianActivity : Activity() {
             }
         }
         registerTransferEvents()
+        if (receiveEnabled) startReceive()
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
+        }
     }
 
     override fun onStop() {
@@ -640,5 +649,6 @@ class QuanLianActivity : Activity() {
 
     companion object {
         private const val REQUEST_PICK_FILES = 401
+        private const val REQUEST_NOTIFICATIONS = 402
     }
 }
