@@ -44,6 +44,7 @@ class QuanLianActivity : Activity() {
     private var page = Page.HOME
     private var focus = 0
     private var historyScrollOffset = 0
+    private var sendDeviceScrollRow = 0
     private var devices: List<DeviceInfo> = emptyList()
     private val selectedUris = arrayListOf<Uri>()
     private val selectedNames = arrayListOf<String>()
@@ -431,6 +432,12 @@ class QuanLianActivity : Activity() {
                 KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> { goBack(); return true }
                 else -> return super.onKeyDown(keyCode, event)
             }
+            val visibleRows = 3
+            val maxScroll = ((devices.size + 1) / 2 - visibleRows).coerceAtLeast(0)
+            val selectedDevice = focus - deviceStart
+            if (selectedDevice >= 0) {
+                sendDeviceScrollRow = (selectedDevice / 2 - visibleRows + 1).coerceIn(0, maxScroll)
+            } else sendDeviceScrollRow = sendDeviceScrollRow.coerceIn(0, maxScroll)
             screen.invalidate()
             return true
         }
@@ -573,9 +580,11 @@ class QuanLianActivity : Activity() {
                 drawText(c, "正在搜索附近设备，请确认双方处于同一 Wi-Fi 或热点网络",
                     empty.left + w * .025f, empty.centerY() + u * .008f, u * .021f, pale)
             } else {
-                devices.take(5).forEachIndexed { i, device ->
+                val firstDevice = sendDeviceScrollRow * 2
+                for (i in firstDevice until minOf(devices.size, firstDevice + 6)) {
+                    val device = devices[i]
                     val col = i % 2
-                    val rowIndex = i / 2
+                    val rowIndex = i / 2 - sendDeviceScrollRow
                     val left = if (col == 0) w * .07f else w * .515f
                     val row = RectF(left, h * (.575f + rowIndex * .112f),
                         left + w * .415f, h * (.675f + rowIndex * .112f))
@@ -584,6 +593,10 @@ class QuanLianActivity : Activity() {
                         row.top + row.height() * .43f, u * .022f, -1, true)
                     drawText(c, "${device.host}  ·  选择发送 ›", row.left + w * .018f,
                         row.top + row.height() * .76f, u * .016f, pale)
+                }
+                if (devices.size > 6) {
+                    drawText(c, "设备列表  " + (sendDeviceScrollRow + 1) + "/" + (((devices.size + 1) / 2 - 2).coerceAtLeast(1)),
+                        w * .75f, h * .90f, u * .016f, pale)
                 }
             }
             drawText(c, status, w * .07f, h * .94f, u * .018f, pale)
