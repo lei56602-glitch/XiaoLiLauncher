@@ -96,7 +96,6 @@ class LauncherView(context: Context) : View(context) {
     private var drawerIndex = 0
     private var drawerScrollRow = 0
     private var homeIndex = 0
-    private var homeQuickTransferFocused = false
     private var touchDownX = 0f
     private var touchDownY = 0f
     private var touchDragging = false
@@ -1340,27 +1339,24 @@ paint.style=Paint.Style.FILL;paint.textAlign=Paint.Align.LEFT
             KeyEvent.KEYCODE_MENU -> { openLauncherSettings(); return true }
             KeyEvent.KEYCODE_SETTINGS -> { toggleWidgetEditMode(); return true }
             KeyEvent.KEYCODE_DPAD_UP -> {
-                if(homeQuickTransferFocused)homeQuickTransferFocused=false
-                else{isDrawerOpen=true;drawerIndex=0;drawerScrollRow=0}
-                invalidate();return true
+                isDrawerOpen = true
+                drawerIndex = 0
+                drawerScrollRow = 0
+                invalidate()
+                return true
             }
-            KeyEvent.KEYCODE_DPAD_DOWN -> {homeQuickTransferFocused=true;invalidate();return true}
             KeyEvent.KEYCODE_DPAD_LEFT -> {
-                if(homeQuickTransferFocused)homeQuickTransferFocused=false
-                else if(favorites.isNotEmpty())homeIndex=(homeIndex-1).coerceAtLeast(0)
-                invalidate();return true
+                if (favorites.isNotEmpty()) homeIndex = (homeIndex - 1).coerceAtLeast(0)
+                invalidate()
+                return true
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if(!homeQuickTransferFocused&&favorites.isNotEmpty()&&homeIndex< favorites.lastIndex)homeIndex++
-                else homeQuickTransferFocused=true
-                invalidate();return true
+                if (favorites.isNotEmpty()) homeIndex = (homeIndex + 1).coerceAtMost(favorites.lastIndex)
+                invalidate()
+                return true
             }
-            KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> { openLauncherSettings(); return true }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                if(homeQuickTransferFocused||favorites.isEmpty()){
-                    homeQuickTransferFocused=false
-                    runCatching{context.startActivity(Intent(context,com.xiaoli.quanlian.QuanLianActivity::class.java))}
-                }else favorites.getOrNull(homeIndex)?.let{runCatching{context.startActivity(it.intent)}}
+                favorites.getOrNull(homeIndex)?.let { runCatching { context.startActivity(it.intent) } }
                 return true
             }
         }
