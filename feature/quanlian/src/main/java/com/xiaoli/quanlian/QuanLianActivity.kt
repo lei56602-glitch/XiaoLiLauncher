@@ -744,8 +744,8 @@ class QuanLianActivity : Activity() {
                 return true
             }
             x -= railWidth
-            val contentWidth = contentWidth.toFloat() - railWidth
-            if (y < height * .12f && x < (contentWidth - railWidth) * .28f) {
+            val contentWidth = width.toFloat() - railWidth
+            if (y < height * .12f && x < contentWidth * .28f) {
                 goBack()
                 return true
             }
