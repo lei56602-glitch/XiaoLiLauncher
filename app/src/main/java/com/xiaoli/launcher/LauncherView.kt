@@ -695,12 +695,12 @@ class LauncherView(context: Context) : View(context) {
     private fun moveSettingsFocus(direction: Int) {
         val rows = listOf(
             listOf(8), listOf(9, 10, 11, 12, 15, 16), listOf(0, 1, 2, 17, 18, 19),
-            listOf(3, 4, 5), listOf(6), listOf(7, 14, 13)
+            listOf(3, 4, 5), listOf(6, 21), listOf(7, 14, 13)
         )
         val x = mapOf(
             8 to .50f, 9 to .18f, 10 to .31f, 11 to .44f, 12 to .57f, 15 to .70f, 16 to .83f,
             0 to .16f, 1 to .25f, 2 to .34f, 17 to .63f, 18 to .73f, 19 to .83f,
-            3 to .24f, 4 to .50f, 5 to .76f, 6 to .50f,
+            3 to .24f, 4 to .50f, 5 to .76f, 6 to .31f, 21 to .70f,
             7 to .22f, 14 to .52f, 13 to .82f
         )
         val rowIndex = rows.indexOfFirst { settingsFocus in it }.coerceAtLeast(0)
@@ -841,11 +841,16 @@ class LauncherView(context: Context) : View(context) {
             paint.style = Paint.Style.FILL
         }
 
-        val card = RectF(w * .13f, h * .70f, w * .87f, h * .84f)
+        val card = RectF(w * .13f, h * .70f, w * .49f, h * .84f)
         paint.color = if (settingsFocus == 6) 0xFF167FD8.toInt() else 0x553AAFFF
         c.drawRoundRect(card, 20f, 20f, paint)
-        text(c, "⇄  小李全联 · 快传", w * .17f, h * .755f, h * .03f, -1, true)
-        text(c, "局域网高速互传  ·  发送、接收与传输记录", w * .17f, h * .805f, h * .021f, 0xFFDDEEFF.toInt())
+        text(c, "⇄  小李全联 · 快传", w * .16f, h * .755f, h * .027f, -1, true)
+        text(c, "局域网高速互传", w * .16f, h * .805f, h * .019f, 0xFFDDEEFF.toInt())
+        val appsCard = RectF(w * .52f, h * .70f, w * .87f, h * .84f)
+        paint.color = if (settingsFocus == 21) 0xFF167FD8.toInt() else 0x553AAFFF
+        c.drawRoundRect(appsCard, 20f, 20f, paint)
+        text(c, "▦  应用管理", w * .56f, h * .755f, h * .027f, -1, true)
+        text(c, "选择首页常用应用", w * .56f, h * .805f, h * .019f, 0xFFDDEEFF.toInt())
 
         val sys = RectF(w * .13f, h * .865f, w * .36f, h * .945f)
         paint.color = if (settingsFocus == 7) 0xFF31B9FF.toInt() else 0x44FFFFFF
@@ -1086,8 +1091,10 @@ class LauncherView(context: Context) : View(context) {
                         toggleDynamicWallpaper()
                     } else if (event.y in (height * .59f)..(height * .68f) && event.x > width * .64f) {
                         clearWallpaper()
-                    } else if (event.y in (height * .70f)..(height * .84f)) {
+                    } else if (event.y in (height * .70f)..(height * .84f) && event.x < width * .50f) {
                         context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
+                    } else if (event.y in (height * .70f)..(height * .84f)) {
+                        isSettingsOpen = false; isDrawerOpen = true; editingFavorites = true; drawerIndex = 0; drawerScrollRow = 0
                     } else if (event.y in (height * .865f)..(height * .945f)) {
                         when {
                             event.x < width * .37f -> runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
@@ -1234,6 +1241,7 @@ class LauncherView(context: Context) : View(context) {
                     else if (settingsFocus == 4) toggleDynamicWallpaper()
                     else if (settingsFocus == 5) clearWallpaper()
                     else if (settingsFocus == 6) context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
+                    else if (settingsFocus == 21) { isSettingsOpen = false; isDrawerOpen = true; editingFavorites = true; drawerIndex = 0; drawerScrollRow = 0 }
                     else if (settingsFocus == 13) closeLauncherSettings()
                     else if (settingsFocus == 7) runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                 }
