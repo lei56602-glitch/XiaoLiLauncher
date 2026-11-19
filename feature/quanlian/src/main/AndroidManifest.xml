@@ -7,7 +7,6 @@
         <activity
             android:name=".QuanLianActivity"
             android:exported="false"
-            android:screenOrientation="unspecified"
             android:theme="@android:style/Theme.Material.Light.NoActionBar" />
     </application>
 </manifest>
