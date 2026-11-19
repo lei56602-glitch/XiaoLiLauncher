@@ -114,7 +114,7 @@ public class ReceiveForegroundService extends Service {
 
     private String deviceName(){return DeviceIdentity.name(this);}
     private void publish(int port){
-        try{NsdServiceInfo info=new NsdServiceInfo();info.setServiceName(deviceName());info.setServiceType(TYPE);info.setPort(port);info.setAttribute("id",DeviceIdentity.id(this));info.setAttribute("fp",TlsIdentity.fingerprint());
+        try{NsdServiceInfo info=new NsdServiceInfo();info.setServiceName(deviceName());info.setServiceType(TYPE);info.setPort(port);info.setAttribute("id",DeviceIdentity.id(this));info.setAttribute("fp",TlsIdentity.fingerprint(this));
             registration=new NsdManager.RegistrationListener(){public void onServiceRegistered(NsdServiceInfo s){broadcastStatus("局域网设备广播已启动："+s.getServiceName(),port());}public void onRegistrationFailed(NsdServiceInfo s,int e){broadcastStatus("设备广播失败（"+e+"），正在重试",-1);main.postDelayed(()->{if(running)publish(port());},2500);}public void onServiceUnregistered(NsdServiceInfo s){}public void onUnregistrationFailed(NsdServiceInfo s,int e){}};
             nsd.registerService(info,NsdManager.PROTOCOL_DNS_SD,registration);
         }catch(Exception e){broadcastStatus("设备广播启动失败",-1);}
