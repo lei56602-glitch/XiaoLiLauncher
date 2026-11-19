@@ -171,7 +171,8 @@ public class ReceiveForegroundService extends Service {
             DiagnosticLog.info(this,"INCOMING_REQUEST_READY","sender="+sender+", files="+count+", bytes="+total );
             android.util.Log.i("QuanLianReceive","Valid transfer request from "+sender+"; files="+count+", bytes="+total+"; waiting for user decision");
             Intent event=new Intent(ACTION_INCOMING).setPackage(getPackageName());event.putExtra(EXTRA_ID,request.id);event.putExtra(EXTRA_SENDER,sender);event.putExtra(EXTRA_COUNT,count);event.putExtra(EXTRA_TOTAL,total);sendBroadcast(event);
-            showIncomingNotification(request,sender,count,total);
+            if(!getSharedPreferences("quanlian_runtime",MODE_PRIVATE).getBoolean("activity_visible",false))
+                showIncomingNotification(request,sender,count,total);
             boolean accepted=request.latch.await(90,TimeUnit.SECONDS)&&request.accepted;
             pendingRequests.remove(request.id);
             NotificationManager requestNotifications=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);if(requestNotifications!=null)requestNotifications.cancel(request.notificationId);
