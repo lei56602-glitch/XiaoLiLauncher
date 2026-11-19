@@ -325,6 +325,58 @@ class LauncherView(context: Context) : View(context) {
         }.getOrNull()
     }
 
+    private fun drawWifiStatus(c: Canvas, w: Float, h: Float) {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val caps = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
+        val connected = caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        val validated = caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+        val x = w * .91f
+        val y = h * .285f
+        paint.color = if (connected && validated) 0xFFFFFFFF.toInt() else 0xFFFFC66D.toInt()
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = (h * .0035f).coerceAtLeast(2f)
+        c.drawArc(RectF(x-h*.027f,y-h*.025f,x+h*.027f,y+h*.029f),220f,100f,false,paint)
+        c.drawArc(RectF(x-h*.017f,y-h*.014f,x+h*.017f,y+h*.020f),220f,100f,false,paint)
+        c.drawCircle(x,y+h*.018f,h*.0045f,paint)
+        paint.style = Paint.Style.FILL
+        paint.textAlign = Paint.Align.RIGHT
+        text(c, if (!connected) "未连接网络" else if (!validated) "网络受限" else "Wi-Fi 已连接",
+            w*.965f,y+h*.055f,h*.016f,if (connected && validated) -1 else 0xFFFFD59A.toInt())
+        paint.textAlign = Paint.Align.LEFT
+    }
+
+    private fun showNetworkDetails() {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = cm.activeNetwork
+        val caps = network?.let { cm.getNetworkCapabilities(it) }
+        val links = network?.let { cm.getLinkProperties(it) }
+        val transport = when {
+            caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true -> "Wi-Fi"
+            caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET) == true -> "以太网"
+            caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "移动网络"
+            else -> "未知或未连接"
+        }
+        val status = when {
+            caps == null -> "未连接"
+            !caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) -> "无互联网能力"
+            !caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED) -> "已连接，但互联网验证失败"
+            else -> "互联网正常"
+        }
+        val details = buildString {
+            append("连接类型：").append(transport).append("\n")
+            append("状态：").append(status).append("\n")
+            append("接口：").append(links?.interfaceName ?: "—").append("\n")
+            append("本机地址：").append(links?.linkAddresses?.joinToString { it.address.hostAddress ?: "" } ?: "—").append("\n")
+            append("网关：").append(links?.routes?.firstOrNull { it.isDefault }?.gateway?.hostAddress ?: "—").append("\n")
+            append("DNS：").append(links?.dnsServers?.joinToString { it.hostAddress ?: "" } ?: "—")
+        }
+        AlertDialog.Builder(context).setTitle("实时网络信息").setMessage(details)
+            .setPositiveButton("确定", null)
+            .setNeutralButton("网络设置") { _, _ ->
+                runCatching { context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            }.show()
+    }
+
     private fun drawTop(c: Canvas, w: Float) {
         val brandSize = (height * .058f).coerceAtLeast(36f)
         val brand = RectF(w * .052f, height * .045f, w * .052f + brandSize, height * .045f + brandSize)
@@ -554,6 +606,7 @@ class LauncherView(context: Context) : View(context) {
 
     private fun drawHome(c: Canvas, w: Float, h: Float) {
         val count = minOf(5, favorites.size)
+        drawWifiStatus(c, w, h)
         if (count > 0) {
             favorites.take(5).forEachIndexed { i, app ->
                 val rect = homeItemRect(i, w, h)
@@ -590,24 +643,23 @@ paint.style=Paint.Style.FILL;paint.textAlign=Paint.Align.LEFT
     }
 
     private fun drawUnifiedAppIcon(c: Canvas, app: AppEntry, rect: RectF, focused: Boolean) {
-        val radius = rect.width() * .23f
-        paint.style = Paint.Style.FILL
-        paint.color = if (focused) 0xFF087DEB.toInt() else 0xFF0759B8.toInt()
-        if (focused) paint.setShadowLayer(rect.width() * .24f, 0f, 0f, 0xAA27BFFF.toInt())
-        c.drawRoundRect(rect, radius, radius, paint)
-        paint.clearShadowLayer()
-        val inner = RectF(rect.left + rect.width()*.17f, rect.top + rect.height()*.17f,
-            rect.right - rect.width()*.17f, rect.bottom - rect.height()*.17f)
-        val save = c.save()
-        val clip = Path().apply { addRoundRect(inner, radius*.55f, radius*.55f, Path.Direction.CW) }
-        c.clipPath(clip)
         val drawable = appIconCache.getOrPut(app.packageName) {
             runCatching { context.packageManager.getApplicationIcon(app.packageName) }
                 .getOrNull() ?: android.graphics.drawable.ColorDrawable(0xFF1B74C8.toInt())
         }
-        drawable.setBounds(inner.left.toInt(), inner.top.toInt(), inner.right.toInt(), inner.bottom.toInt())
+        val inset = rect.width() * .025f
+        val target = RectF(rect.left + inset, rect.top + inset, rect.right - inset, rect.bottom - inset)
+        if (focused) {
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = (rect.width() * .018f).coerceAtLeast(2f)
+            paint.color = 0xCC7DE5FF.toInt()
+            paint.setShadowLayer(rect.width() * .12f, 0f, 0f, 0xAA27BFFF.toInt())
+            c.drawRoundRect(target, rect.width() * .20f, rect.width() * .20f, paint)
+            paint.clearShadowLayer()
+            paint.style = Paint.Style.FILL
+        }
+        drawable.setBounds(target.left.toInt(), target.top.toInt(), target.right.toInt(), target.bottom.toInt())
         drawable.draw(c)
-        c.restoreToCount(save)
     }
 
     private fun drawDrawer(c: Canvas, w: Float, h: Float) {
@@ -1126,6 +1178,7 @@ paint.style=Paint.Style.FILL;paint.textAlign=Paint.Align.LEFT
                             else (homeIndex - 1).coerceAtLeast(0)
                     }
                 } else {
+                    if (event.x > width * .80f && event.y in (height * .245f)..(height * .34f)) { showNetworkDetails(); invalidate(); return true }
                     val index = homeItemIndexAt(event.x, event.y)
                     if (quanLianFeatureRect(width.toFloat(), height.toFloat()).contains(event.x, event.y)) {
                         runCatching {
