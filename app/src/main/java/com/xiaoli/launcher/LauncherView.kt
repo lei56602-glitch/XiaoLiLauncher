@@ -527,13 +527,23 @@ class LauncherView(context: Context) : View(context) {
         if (count > 0) {
             favorites.take(5).forEachIndexed { i, app ->
                 val rect = homeItemRect(i, w, h)
-                val iconSize = (h * .145f).coerceAtMost(rect.width() * .76f).coerceAtLeast(48f)
+                val focused = i == homeIndex
+                paint.color = if (focused) 0xAA0878D8.toInt() else 0x553B8DD0
+                if (focused) paint.setShadowLayer(h * .025f, 0f, h * .008f, 0xAA27BFFF.toInt())
+                c.drawRoundRect(rect, h * .035f, h * .035f, paint)
+                paint.clearShadowLayer()
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = (h * .002f).coerceAtLeast(1.5f)
+                paint.color = if (focused) 0xCC7DE5FF.toInt() else 0x557FC9FF
+                c.drawRoundRect(rect, h * .035f, h * .035f, paint)
+                paint.style = Paint.Style.FILL
+                val iconSize = (h * .165f).coerceAtMost(rect.width() * .78f).coerceAtLeast(52f)
                 val iconTop = rect.top + rect.height() * .025f
                 val iconRect = RectF(rect.centerX() - iconSize / 2f, iconTop,
                     rect.centerX() + iconSize / 2f, iconTop + iconSize)
-                drawUnifiedAppIcon(c, app, iconRect, i == homeIndex)
+                drawUnifiedAppIcon(c, app, iconRect, focused)
                 paint.textAlign = Paint.Align.CENTER
-                text(c, app.label.take(10), rect.centerX(), iconRect.bottom + h * .035f, h * .026f, -1, true)
+                text(c, app.label.take(10), rect.centerX(), iconRect.bottom + h * .03f, h * .026f, -1, true)
                 paint.textAlign = Paint.Align.LEFT
             }
         }
