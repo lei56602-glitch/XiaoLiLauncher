@@ -19,3 +19,6 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 }
+dependencies {
+    implementation(project(":feature:quanlian"))
+}
