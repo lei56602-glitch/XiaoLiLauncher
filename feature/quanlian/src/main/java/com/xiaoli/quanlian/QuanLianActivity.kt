@@ -63,6 +63,7 @@ class QuanLianActivity : Activity() {
 
     override fun onStart() {
         super.onStart()
+        getSharedPreferences("quanlian_runtime", MODE_PRIVATE).edit().putBoolean("activity_visible", true).apply()
         discovery.start()
         discoveryJob = screenScope.launch {
             discovery.devices.collect {
@@ -82,6 +83,7 @@ class QuanLianActivity : Activity() {
     }
 
     override fun onStop() {
+        getSharedPreferences("quanlian_runtime", MODE_PRIVATE).edit().putBoolean("activity_visible", false).apply()
         discoveryJob?.cancel()
         discoveryJob = null
         discovery.stop()
@@ -117,20 +119,37 @@ class QuanLianActivity : Activity() {
                         val sender = intent.getStringExtra(ReceiveForegroundService.EXTRA_SENDER) ?: "附近设备"
                         val count = intent.getIntExtra(ReceiveForegroundService.EXTRA_COUNT, 0)
                         val total = intent.getLongExtra(ReceiveForegroundService.EXTRA_TOTAL, 0L)
-                        val dialog = AlertDialog.Builder(this@QuanLianActivity)
-                            .setTitle("收到文件传输请求")
-                            .setMessage("发送设备：$sender\n文件数量：$count 个\n文件总大小：${sizeText(total)}\n\n是否接收这些文件？")
-                            .setPositiveButton("接收") { _, _ ->
-                                ReceiveForegroundService.decide(this@QuanLianActivity, requestId, true)
+                        if (!isFinishing && !isDestroyed) {
+                            val dialog = AlertDialog.Builder(this@QuanLianActivity)
+                                .setTitle("收到文件传输请求")
+                                .setMessage("发送设备：$sender\n文件数量：$count 个\n文件总大小：${sizeText(total)}\n\n是否接收这些文件？")
+                                .setPositiveButton("接收") { _, _ ->
+                                    ReceiveForegroundService.decide(this@QuanLianActivity, requestId, true)
+                                }
+                                .setNegativeButton("拒绝") { _, _ ->
+                                    ReceiveForegroundService.decide(this@QuanLianActivity, requestId, false)
+                                }
+                                .setOnCancelListener {
+                                    ReceiveForegroundService.decide(this@QuanLianActivity, requestId, false)
+                                }
+                                .create()
+                            dialog.setOnShowListener {
+                                dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.apply { setTextColor(0xFF20C878.toInt()); textSize = 17f }
+                                dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.apply { setTextColor(0xFFFF5B65.toInt()); textSize = 17f }
+                                val gap = (24 * resources.displayMetrics.density).toInt()
+                                dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.let { button ->
+                                    (button.layoutParams as? android.widget.LinearLayout.LayoutParams)?.let { lp ->
+                                        lp.marginStart = gap; button.layoutParams = lp
+                                    }
+                                }
+                                dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.let { button ->
+                                    (button.layoutParams as? android.widget.LinearLayout.LayoutParams)?.let { lp ->
+                                        lp.marginEnd = gap; button.layoutParams = lp
+                                    }
+                                }
                             }
-                            .setNegativeButton("拒绝") { _, _ ->
-                                ReceiveForegroundService.decide(this@QuanLianActivity, requestId, false)
-                            }
-                            .setOnCancelListener {
-                                ReceiveForegroundService.decide(this@QuanLianActivity, requestId, false)
-                            }
-                            .create()
-                        if (!isFinishing) dialog.show()
+                            dialog.show()
+                        }
                     }
                     TransferForegroundService.ACTION_PROGRESS -> {
                         transferRunning = true
@@ -323,6 +342,18 @@ class QuanLianActivity : Activity() {
         JSONArray(getSharedPreferences("transfer_history",MODE_PRIVATE).getString("items","[]"))
     }.getOrDefault(JSONArray())
 
+    private fun openHistoryDirectory() {
+        val directoryUri = Uri.parse("content://com.android.externalstorage.documents/document/primary%3ADownload%2F%E5%B0%8F%E6%9D%8E%E5%85%A8%E8%81%94")
+        val viewIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(directoryUri, "vnd.android.document/directory")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching { startActivity(viewIntent) }.onFailure {
+            runCatching { startActivity(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)) }
+                .onFailure { Toast.makeText(this, "当前设备没有可用的文件管理器，请从下载目录进入“小李全联”文件夹", Toast.LENGTH_LONG).show() }
+        }
+    }
+
     private fun openHistoryItem(item: org.json.JSONObject?) {
         val value=item?.optString("uri").orEmpty()
         if(value.isBlank()){Toast.makeText(this,"这条记录没有可打开的文件地址",Toast.LENGTH_SHORT).show();return}
@@ -363,7 +394,8 @@ class QuanLianActivity : Activity() {
             Page.HISTORY -> {
                 val items=readHistoryItems()
                 if(focus<items.length()) openHistoryItem(items.optJSONObject(focus))
-                else if(focus==items.length()){
+                else if(focus==items.length()) openHistoryDirectory()
+                else if(focus==items.length()+1){
                     getSharedPreferences("transfer_history",MODE_PRIVATE).edit().putString("items","[]").apply()
                     focus=0;status="传输记录已清空"
                 }
@@ -377,7 +409,7 @@ class QuanLianActivity : Activity() {
             val count=readHistoryItems().length()
             when(keyCode){
                 KeyEvent.KEYCODE_DPAD_UP,KeyEvent.KEYCODE_DPAD_LEFT -> focus=(focus-1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_DOWN,KeyEvent.KEYCODE_DPAD_RIGHT -> focus=(focus+1).coerceAtMost(count)
+                KeyEvent.KEYCODE_DPAD_DOWN,KeyEvent.KEYCODE_DPAD_RIGHT -> focus=(focus+1).coerceAtMost(count+1)
                 KeyEvent.KEYCODE_DPAD_CENTER,KeyEvent.KEYCODE_ENTER -> activateFocused()
                 KeyEvent.KEYCODE_BACK,KeyEvent.KEYCODE_ESCAPE -> {goBack();return true}
                 else -> return super.onKeyDown(keyCode,event)
@@ -398,7 +430,7 @@ class QuanLianActivity : Activity() {
             Page.SEND -> devices.size + if (transferRunning) 1 else 0
             Page.DEVICES -> (devices.size - 1).coerceAtLeast(0)
             Page.RECEIVE -> 0
-            Page.HISTORY -> readHistoryItems().length()
+            Page.HISTORY -> readHistoryItems().length()+1
         }
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_UP -> focus = (focus - 1).coerceAtLeast(0)
@@ -556,10 +588,11 @@ class QuanLianActivity : Activity() {
                 drawText(c,item.optString("direction","传输")+"  ·  "+item.optString("name","文件").take(32)+"  ·  "+item.optString("peer","附近设备"),
                     row.left+w*.02f,row.centerY()+u*.008f,u*.019f,-1)
             }
-            val clear=RectF(w*.07f,h*.84f,w*.35f,h*.92f)
-            drawButton(c,clear,"清空记录",focus==items.length())
-            drawText(c,"方向键选择 · 确认打开 · "+(if(items.length()==0)"0" else "${focus.coerceAtMost(items.length())+1}/${items.length()+1}"),
-                w*.42f,h*.89f,u*.018f,pale)
+            val openDir=RectF(w*.07f,h*.82f,w*.39f,h*.91f)
+            val clear=RectF(w*.43f,h*.82f,w*.75f,h*.91f)
+            drawButton(c,openDir,"打开目录",focus==items.length())
+            drawButton(c,clear,"清除历史",focus==items.length()+1)
+            drawText(c,"方向键选择 · 确认执行",w*.77f,h*.875f,u*.016f,pale)
         }
 
         private fun drawCard(c: Canvas, rect: RectF, selected: Boolean) {
@@ -668,8 +701,10 @@ class QuanLianActivity : Activity() {
                         val row=RectF(width*.07f,height*(.27f+visibleIndex*.067f),width*.93f,height*(.325f+visibleIndex*.067f))
                         if(row.contains(x,y)){focus=i;activateFocused();return true}
                     }
-                    val clear=RectF(width*.07f,height*.84f,width*.35f,height*.92f)
-                    if(clear.contains(x,y)){focus=items.length();activateFocused();return true}
+                    val openDir=RectF(width*.07f,height*.82f,width*.39f,height*.91f)
+                    val clear=RectF(width*.43f,height*.82f,width*.75f,height*.91f)
+                    if(openDir.contains(x,y)){focus=items.length();activateFocused();return true}
+                    if(clear.contains(x,y)){focus=items.length()+1;activateFocused();return true}
                 }
             }
             return true
