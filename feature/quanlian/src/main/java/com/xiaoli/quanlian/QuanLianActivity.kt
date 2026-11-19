@@ -43,6 +43,8 @@ class QuanLianActivity : Activity() {
     private var eventReceiver: BroadcastReceiver? = null
     private var page = Page.HOME
     private var focus = 0
+    private var navFocused = false
+    private var navIndex = 0
     private var historyScrollOffset = 0
     private var sendDeviceScrollRow = 0
     private var devices: List<DeviceInfo> = emptyList()
@@ -324,6 +326,8 @@ class QuanLianActivity : Activity() {
 
     private fun openPage(target: Page) {
         page = target
+        navIndex = target.ordinal
+        navFocused = false
         focus = 0
         if(target==Page.HISTORY)historyScrollOffset=0
         if (target == Page.RECEIVE && !receiveEnabled) startReceive()
@@ -408,6 +412,26 @@ class QuanLianActivity : Activity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (navFocused) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_UP -> navIndex = (navIndex - 1).coerceAtLeast(0)
+                KeyEvent.KEYCODE_DPAD_DOWN -> navIndex = (navIndex + 1).coerceAtMost(4)
+                KeyEvent.KEYCODE_DPAD_RIGHT -> navFocused = false
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                    openPage(Page.values()[navIndex])
+                }
+                KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> { navFocused = false; return true }
+                else -> return super.onKeyDown(keyCode, event)
+            }
+            screen.invalidate()
+            return true
+        }
+        if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT && focus == 0) {
+            navFocused = true
+            navIndex = page.ordinal
+            screen.invalidate()
+            return true
+        }
         if (page == Page.SEND) {
             val deviceStart = if (transferRunning) 2 else 1
             val deviceIndex = focus - deviceStart
@@ -499,15 +523,43 @@ class QuanLianActivity : Activity() {
                 null, Shader.TileMode.CLAMP)
             c.drawRect(0f, 0f, w, h, p)
             p.shader = null
-            drawText(c, "‹  返回桌面", w * .045f, h * .075f, unit * .026f, pale)
+            val railWidth = w * .17f
+            drawNavigationRail(c, railWidth, h, unit)
+            c.save()
+            c.translate(railWidth, 0f)
+            val contentWidth = w - railWidth
+            drawText(c, "‹  返回桌面", contentWidth * .045f, h * .075f, unit * .026f, pale)
             when (page) {
-                Page.HOME -> drawHome(c, w, h, unit)
-                Page.SEND -> drawSend(c, w, h, unit)
-                Page.RECEIVE -> drawReceive(c, w, h, unit)
-                Page.DEVICES -> drawDevices(c, w, h, unit)
-                Page.HISTORY -> drawHistory(c, w, h, unit)
+                Page.HOME -> drawHome(c, contentWidth, h, minOf(contentWidth, h))
+                Page.SEND -> drawSend(c, contentWidth, h, minOf(contentWidth, h))
+                Page.RECEIVE -> drawReceive(c, contentWidth, h, minOf(contentWidth, h))
+                Page.DEVICES -> drawDevices(c, contentWidth, h, minOf(contentWidth, h))
+                Page.HISTORY -> drawHistory(c, contentWidth, h, minOf(contentWidth, h))
             }
-            drawText(c, "小李全联  ·  局域网直连  ·  无广告", w * .045f, h * .96f, unit * .018f, pale)
+            drawText(c, "小李全联  ·  局域网直连  ·  无广告", contentWidth * .045f, h * .96f, unit * .018f, pale)
+            c.restore()
+        }
+
+        private fun drawNavigationRail(c: Canvas, railWidth: Float, h: Float, u: Float) {
+            p.color = 0xCC042B68.toInt()
+            c.drawRect(0f, 0f, railWidth, h, p)
+            p.color = 0x557FCBFF
+            c.drawRect(railWidth - 2f, 0f, railWidth, h, p)
+            drawText(c, "小李", railWidth * .16f, h * .12f, u * .038f, -1, true)
+            drawText(c, "全联", railWidth * .16f, h * .16f, u * .024f, pale, true)
+            val labels = listOf("首页", "发送", "接收", "设备", "记录")
+            val icons = listOf("⌂", "↑", "↓", "⌖", "◷")
+            labels.forEachIndexed { index, label ->
+                val top = h * (.235f + index * .125f)
+                val rect = RectF(railWidth * .08f, top, railWidth * .92f, top + h * .09f)
+                val selected = if (navFocused) navIndex == index else page.ordinal == index
+                p.color = if (selected) 0xEE087DEB.toInt() else 0x334C9DD8
+                c.drawRoundRect(rect, h * .018f, h * .018f, p)
+                drawText(c, icons[index], rect.left + railWidth * .12f, rect.centerY() + h * .012f,
+                    u * .032f, -1, true)
+                drawText(c, label, rect.left + railWidth * .38f, rect.centerY() + h * .009f,
+                    u * .021f, -1, selected)
+            }
         }
 
         private fun drawHome(c: Canvas, w: Float, h: Float, u: Float) {
@@ -683,9 +735,16 @@ class QuanLianActivity : Activity() {
 
         override fun onTouchEvent(event: MotionEvent): Boolean {
             if (event.actionMasked != MotionEvent.ACTION_UP) return true
-            val x = event.x
+            var x = event.x
             val y = event.y
-            if (y < height * .12f && x < width * .28f) {
+            val railWidth = width * .17f
+            if (x < railWidth) {
+                val selected = ((y - height * .235f) / (height * .125f)).toInt()
+                if (selected in 0..4) openPage(Page.values()[selected])
+                return true
+            }
+            x -= railWidth
+            if (y < height * .12f && x < (width - railWidth) * .28f) {
                 goBack()
                 return true
             }
