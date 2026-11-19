@@ -49,6 +49,7 @@ class QuanLianActivity : Activity() {
     private val selectedSizes = arrayListOf<Long>()
     private var status = "正在搜索附近设备…"
     private var receiveEnabled = false
+    private var transferRunning = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -122,11 +123,13 @@ class QuanLianActivity : Activity() {
                         if (!isFinishing) dialog.show()
                     }
                     TransferForegroundService.ACTION_PROGRESS -> {
+                        transferRunning = true
                         status = intent.getStringExtra(TransferForegroundService.EXTRA_TEXT)
                             ?: "正在传输文件…"
                         screen.invalidate()
                     }
                     TransferForegroundService.ACTION_RESULT -> {
+                        transferRunning = false
                         val success = intent.getBooleanExtra(TransferForegroundService.EXTRA_SUCCESS, false)
                         val cancelled = intent.getBooleanExtra(TransferForegroundService.EXTRA_CANCELLED, false)
                         val error = intent.getStringExtra(TransferForegroundService.EXTRA_ERROR)
@@ -230,6 +233,10 @@ class QuanLianActivity : Activity() {
     }
 
     private fun requestSend(device: DeviceInfo) {
+        if (transferRunning) {
+            Toast.makeText(this, "当前已有传输任务，请先等待完成或取消", Toast.LENGTH_SHORT).show()
+            return
+        }
         if (selectedUris.isEmpty()) {
             Toast.makeText(this, "请先添加要发送的文件", Toast.LENGTH_SHORT).show()
             page = Page.SEND
@@ -263,6 +270,7 @@ class QuanLianActivity : Activity() {
     }
 
     private fun startTransfer(device: DeviceInfo) {
+        transferRunning = true
         status = "正在准备发送 ${selectedUris.size} 个文件…"
         screen.invalidate()
         runCatching {
@@ -276,6 +284,7 @@ class QuanLianActivity : Activity() {
                 device.fingerprint
             )
         }.onFailure {
+            transferRunning = false
             status = "无法启动传输服务：${it.message}"
             screen.invalidate()
         }
@@ -307,7 +316,15 @@ class QuanLianActivity : Activity() {
                 2 -> openPage(Page.DEVICES)
                 3 -> openPage(Page.HISTORY)
             }
-            Page.SEND -> if (focus == 0) openFilePicker() else devices.getOrNull(focus - 1)?.let(::requestSend)
+            Page.SEND -> when {
+                focus == 0 -> openFilePicker()
+                transferRunning && focus == 1 -> {
+                    TransferForegroundService.cancelTransfer(this)
+                    status = "已请求取消传输…"
+                    screen.invalidate()
+                }
+                else -> devices.getOrNull(focus - if (transferRunning) 2 else 1)?.let(::requestSend)
+            }
             Page.RECEIVE -> if (focus == 0) {
                 if (receiveEnabled) stopReceive() else startReceive()
             }
@@ -331,7 +348,7 @@ class QuanLianActivity : Activity() {
         }
         val max = when (page) {
             Page.HOME -> 3
-            Page.SEND -> devices.size
+            Page.SEND -> devices.size + if (transferRunning) 1 else 0
             Page.DEVICES -> (devices.size - 1).coerceAtLeast(0)
             Page.RECEIVE, Page.HISTORY -> 0
         }
@@ -420,6 +437,10 @@ class QuanLianActivity : Activity() {
             drawButton(c, pick, "＋  添加文件", focus == 0)
             drawText(c, "已选择 ${selectedUris.size} 个文件 · ${sizeText(selectedSizes.sum())}",
                 w * .46f, h * .285f, u * .022f, pale)
+            if (transferRunning) {
+                val cancel = RectF(w * .68f, h * .23f, w * .93f, h * .32f)
+                drawButton(c, cancel, "取消当前传输", focus == 1)
+            }
             var y = h * .37f
             for (i in 0 until minOf(4, selectedNames.size)) {
                 drawText(c, "• ${selectedNames[i].take(42)}  ·  ${sizeText(selectedSizes[i])}",
@@ -434,7 +455,7 @@ class QuanLianActivity : Activity() {
                 val visible = devices.take(5)
                 visible.forEachIndexed { i, device ->
                     val row = RectF(w * .07f, h * (.62f + i * .058f), w * .93f, h * (.67f + i * .058f))
-                    drawCard(c, row, focus == i + 1)
+                    drawCard(c, row, focus == i + if (transferRunning) 2 else 1)
                     drawText(c, "${device.name}   ·   ${device.host}   ·   发送 ›",
                         row.left + w * .02f, row.centerY() + u * .008f, u * .021f, -1, true)
                 }
@@ -558,11 +579,21 @@ class QuanLianActivity : Activity() {
                         openFilePicker()
                         return true
                     }
+                    if (transferRunning) {
+                        val cancel = RectF(width * .68f, height * .23f, width * .93f, height * .32f)
+                        if (cancel.contains(x, y)) {
+                            focus = 1
+                            TransferForegroundService.cancelTransfer(this@QuanLianActivity)
+                            status = "已请求取消传输…"
+                            screen.invalidate()
+                            return true
+                        }
+                    }
                     devices.take(5).forEachIndexed { i, device ->
                         val row = RectF(width * .07f, height * (.62f + i * .058f),
                             width * .93f, height * (.67f + i * .058f))
                         if (row.contains(x, y)) {
-                            focus = i + 1
+                            focus = i + if (transferRunning) 2 else 1
                             requestSend(device)
                             return true
                         }
