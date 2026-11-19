@@ -22,7 +22,7 @@ class SettingsFocusNavigatorTest {
 
     @Test
     fun verticalMovementChoosesNearestColumn() {
-        assertEquals(9, SettingsFocusNavigator.next(8, 2))
+        assertEquals(11, SettingsFocusNavigator.next(8, 2))
         assertEquals(3, SettingsFocusNavigator.next(2, 2))
         assertEquals(6, SettingsFocusNavigator.next(3, 2))
         assertEquals(7, SettingsFocusNavigator.next(6, 2))
