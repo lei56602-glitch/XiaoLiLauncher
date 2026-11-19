@@ -324,38 +324,6 @@ class LauncherView(context: Context) : View(context) {
         }.getOrNull()
     }
 
-    private fun showNetworkDetails() {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val network = cm.activeNetwork
-        val caps = network?.let { cm.getNetworkCapabilities(it) }
-        val links = network?.let { cm.getLinkProperties(it) }
-        val transport = when {
-            caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true -> "Wi-Fi"
-            caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET) == true -> "以太网"
-            caps?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "移动网络"
-            else -> "未知或未连接"
-        }
-        val status = when {
-            caps == null -> "未连接"
-            !caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) -> "无互联网能力"
-            !caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED) -> "已连接，但互联网验证失败"
-            else -> "互联网正常"
-        }
-        val details = buildString {
-            append("连接类型：").append(transport).append("\n")
-            append("状态：").append(status).append("\n")
-            append("接口：").append(links?.interfaceName ?: "—").append("\n")
-            append("本机地址：").append(links?.linkAddresses?.joinToString { it.address.hostAddress ?: "" } ?: "—").append("\n")
-            append("网关：").append(links?.routes?.firstOrNull { it.isDefaultRoute() }?.gateway?.hostAddress ?: "—").append("\n")
-            append("DNS：").append(links?.dnsServers?.joinToString { it.hostAddress ?: "" } ?: "—")
-        }
-        AlertDialog.Builder(context).setTitle("实时网络信息").setMessage(details)
-            .setPositiveButton("确定", null)
-            .setNeutralButton("网络设置") { _, _ ->
-                runCatching { context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-            }.show()
-    }
-
     private fun drawTop(c: Canvas, w: Float) {
         val now = Date()
         val timePattern = when {
