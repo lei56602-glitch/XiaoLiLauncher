@@ -2,6 +2,8 @@ package com.xiaoli.quanlian.discovery
 
 import android.content.Context
 import android.net.wifi.WifiManager
+import android.os.Handler
+import android.os.Looper
 import com.xiaoli.transfer.android.DeviceIdentity
 import com.xiaoli.transfer.android.LanDiscovery
 import com.xiaoli.transfer.api.DeviceDiscovery
@@ -19,6 +21,24 @@ class AndroidLanDiscovery(private val context: Context) : DeviceDiscovery {
     private val running = AtomicBoolean(false)
     private val latest = ConcurrentHashMap<String, DeviceInfo>()
     private val state = MutableStateFlow<List<DeviceInfo>>(emptyList())
+    private val handler = Handler(Looper.getMainLooper())
+    private val pruneDevices = object : Runnable {
+        override fun run() {
+            if (!running.get()) return
+            val cutoff = System.currentTimeMillis() - 15_000L
+            val iterator = latest.entries.iterator()
+            var changed = false
+            while (iterator.hasNext()) {
+                val entry = iterator.next()
+                if (entry.value.lastSeenEpochMillis < cutoff) {
+                    latest.remove(entry.key)
+                    changed = true
+                }
+            }
+            if (changed) state.value = latest.values.sortedBy { it.name.lowercase() }
+            handler.postDelayed(this, 3_000L)
+        }
+    }
     private var listener: LanDiscovery.Listener? = null
     private var multicastLock: WifiManager.MulticastLock? = null
 
@@ -46,6 +66,8 @@ class AndroidLanDiscovery(private val context: Context) : DeviceDiscovery {
                 )
                 state.value = latest.values.sortedBy { it.name.lowercase() }
             }
+            handler.removeCallbacks(pruneDevices)
+            handler.postDelayed(pruneDevices, 3_000L)
         } catch (error: Exception) {
             running.set(false)
             releaseMulticastLock()
@@ -56,6 +78,7 @@ class AndroidLanDiscovery(private val context: Context) : DeviceDiscovery {
     @Synchronized
     override fun stop() {
         running.set(false)
+        handler.removeCallbacks(pruneDevices)
         listener?.close()
         listener = null
         latest.clear()
