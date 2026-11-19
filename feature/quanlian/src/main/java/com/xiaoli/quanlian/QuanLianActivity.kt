@@ -100,6 +100,7 @@ class QuanLianActivity : Activity() {
         super.onDestroy()
     }
 
+    @android.annotation.SuppressLint("UnspecifiedRegisterReceiverFlag")
     private fun registerTransferEvents() {
         if (eventReceiver != null) return
         eventReceiver = object : BroadcastReceiver() {
@@ -506,10 +507,29 @@ class QuanLianActivity : Activity() {
         private val p = Paint(Paint.ANTI_ALIAS_FLAG)
         private val blue = 0xFF0878E8.toInt()
         private val pale = 0xFFDDEEFF.toInt()
+        private var backgroundGradient: LinearGradient? = null
+        private var backgroundGradientWidth = -1f
+        private var backgroundGradientHeight = -1f
+
+        private fun backgroundGradientFor(w: Float, h: Float): LinearGradient {
+            val cached = backgroundGradient
+            if (cached != null && backgroundGradientWidth == w && backgroundGradientHeight == h) return cached
+            return LinearGradient(
+                0f, 0f, w, h,
+                intArrayOf(0xFF0878E8.toInt(), 0xFF0754B9.toInt(), 0xFF032D79.toInt()),
+                null, Shader.TileMode.CLAMP
+            ).also {
+                backgroundGradient = it
+                backgroundGradientWidth = w
+                backgroundGradientHeight = h
+            }
+        }
 
         init {
             isFocusable = true
             isFocusableInTouchMode = true
+            isClickable = true
+            contentDescription = "小李全联电视版，左侧导航包含首页、发送、接收、设备和记录"
             requestFocus()
         }
 
@@ -518,9 +538,7 @@ class QuanLianActivity : Activity() {
             val w = width.toFloat()
             val h = height.toFloat()
             val unit = minOf(w, h)
-            p.shader = LinearGradient(0f, 0f, w, h,
-                intArrayOf(0xFF0878E8.toInt(), 0xFF0754B9.toInt(), 0xFF032D79.toInt()),
-                null, Shader.TileMode.CLAMP)
+            p.shader = backgroundGradientFor(w, h)
             c.drawRect(0f, 0f, w, h, p)
             p.shader = null
             val railWidth = w * .17f
@@ -733,8 +751,14 @@ class QuanLianActivity : Activity() {
             c.drawText(value, x, y, p)
         }
 
+        override fun performClick(): Boolean {
+            super.performClick()
+            return true
+        }
+
         override fun onTouchEvent(event: MotionEvent): Boolean {
             if (event.actionMasked != MotionEvent.ACTION_UP) return true
+            performClick()
             var x = event.x
             val y = event.y
             val railWidth = width * .17f

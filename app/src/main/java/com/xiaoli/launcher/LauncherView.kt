@@ -39,6 +39,23 @@ class LauncherView(context: Context) : View(context) {
     private data class AppEntry(val label: String, val packageName: String, val intent: Intent)
     private val prefs = context.getSharedPreferences("launcher", Context.MODE_PRIVATE)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var fallbackGradient: LinearGradient? = null
+    private var fallbackGradientWidth = -1f
+    private var fallbackGradientHeight = -1f
+
+    private fun fallbackGradientFor(w: Float, h: Float): LinearGradient {
+        val cached = fallbackGradient
+        if (cached != null && fallbackGradientWidth == w && fallbackGradientHeight == h) return cached
+        return LinearGradient(
+            0f, 0f, w, h,
+            intArrayOf(0xFF0878E8.toInt(), 0xFF0754B9.toInt(), 0xFF032D79.toInt()),
+            null, Shader.TileMode.CLAMP
+        ).also {
+            fallbackGradient = it
+            fallbackGradientWidth = w
+            fallbackGradientHeight = h
+        }
+    }
     private var wallpaperBitmap: Bitmap? = null
     private var dynamicWallpaperEnabled = prefs.getBoolean("dynamic_wallpaper", false)
     private var animationStarted = false
@@ -273,7 +290,7 @@ class LauncherView(context: Context) : View(context) {
         super.onDraw(canvas)
         val w = width.toFloat(); val h = height.toFloat()
         if (!drawWallpaper(canvas, w, h)) {
-            paint.shader = LinearGradient(0f, 0f, w, h, intArrayOf(0xFF0878E8.toInt(), 0xFF0754B9.toInt(), 0xFF032D79.toInt()), null, Shader.TileMode.CLAMP)
+            paint.shader = fallbackGradientFor(w, h)
             canvas.drawRect(0f, 0f, w, h, paint); paint.shader = null
         }
         drawDynamicAurora(canvas, w, h)

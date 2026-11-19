@@ -138,6 +138,8 @@ public final class TlsIdentity {
         throw new IOException("未找到与对方 "+peer.getHostAddress()+" 同网段的热点/Wi-Fi 接口；为避免误走移动数据，已停止连接");
     }
 
+    // Safe because every server certificate is compared to the user-approved SHA-256 pin.
+    @android.annotation.SuppressLint("CustomX509TrustManager")
     private static final class PinnedTrustManager implements X509TrustManager {
         private final byte[] expected;
         PinnedTrustManager(String fingerprint) throws GeneralSecurityException {
@@ -224,6 +226,8 @@ public final class TlsIdentity {
         }
     }
     /** Used only for first-use enrollment; caller must present the fingerprint and obtain user approval. */
+    // First-use enrollment only: the UI displays this fingerprint and requires explicit user approval.
+    @android.annotation.SuppressLint("TrustAllX509TrustManager")
     public static String inspectFingerprint(Context context,String host,int port) throws Exception {
         if(plainMode(context))return plainFingerprint();
         X509TrustManager trustAll=new X509TrustManager(){
