@@ -625,8 +625,31 @@ class LauncherView(context: Context) : View(context) {
     private fun openLauncherSettings() {
         isDrawerOpen = false
         isSettingsOpen = true
-        settingsFocus = (drawerColumns() - 3).coerceIn(0, 2)
+        settingsFocus = 8
         invalidate()
+    }
+
+    private fun moveSettingsFocus(direction: Int) {
+        val rows = listOf(
+            listOf(8), listOf(9, 10, 11, 12), listOf(0, 1, 2),
+            listOf(3, 4, 5), listOf(6), listOf(7, 13)
+        )
+        val x = mapOf(
+            8 to .50f, 9 to .22f, 10 to .44f, 11 to .66f, 12 to .83f,
+            0 to .16f, 1 to .41f, 2 to .66f,
+            3 to .24f, 4 to .50f, 5 to .76f, 6 to .50f,
+            7 to .30f, 13 to .72f
+        )
+        val rowIndex = rows.indexOfFirst { settingsFocus in it }.coerceAtLeast(0)
+        val row = rows[rowIndex]
+        if (direction == -1 || direction == 1) {
+            val index = row.indexOf(settingsFocus)
+            settingsFocus = row[(index + direction).coerceIn(0, row.lastIndex)]
+        } else {
+            val targetRow = (rowIndex + direction / 2).coerceIn(0, rows.lastIndex)
+            val currentX = x[settingsFocus] ?: .5f
+            settingsFocus = rows[targetRow].minByOrNull { kotlin.math.abs((x[it] ?: .5f) - currentX) } ?: settingsFocus
+        }
     }
 
     private fun setDrawerColumns(columns: Int) {
@@ -737,7 +760,12 @@ class LauncherView(context: Context) : View(context) {
         paint.color = if (settingsFocus == 7) 0xFF31B9FF.toInt() else 0x44FFFFFF
         c.drawRoundRect(sys, 16f, 16f, paint)
         text(c, "打开系统设置", sys.centerX() - w * .11f, h * .92f, h * .024f, -1, true)
-        text(c, "返回桌面", w * .72f, h * .92f, h * .024f, -1, true)
+        val exit = RectF(w * .60f, h * .865f, w * .87f, h * .945f)
+        paint.color = if (settingsFocus == 13) 0xFF31B9FF.toInt() else 0x44FFFFFF
+        c.drawRoundRect(exit, 16f, 16f, paint)
+        paint.textAlign = Paint.Align.CENTER
+        text(c, "返回桌面", exit.centerX(), h * .92f, h * .024f, -1, true)
+        paint.textAlign = Paint.Align.LEFT
     }
 
     private fun homeItemRect(index: Int, w: Float, h: Float): RectF {
@@ -1064,8 +1092,10 @@ class LauncherView(context: Context) : View(context) {
         if (isSettingsOpen) {
             when (keyCode) {
                 KeyEvent.KEYCODE_BACK -> { closeLauncherSettings(); return true }
-                KeyEvent.KEYCODE_DPAD_LEFT -> settingsFocus = (settingsFocus - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> settingsFocus = (settingsFocus + 1).coerceAtMost(12)
+                KeyEvent.KEYCODE_DPAD_LEFT -> moveSettingsFocus(-1)
+                KeyEvent.KEYCODE_DPAD_RIGHT -> moveSettingsFocus(1)
+                KeyEvent.KEYCODE_DPAD_UP -> moveSettingsFocus(-2)
+                KeyEvent.KEYCODE_DPAD_DOWN -> moveSettingsFocus(2)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     if (settingsFocus in 9..12) toggleHomeComponent(settingsFocus)
                     else if (settingsFocus == 8) openWeatherCityDialog()
@@ -1074,7 +1104,8 @@ class LauncherView(context: Context) : View(context) {
                     else if (settingsFocus == 4) toggleDynamicWallpaper()
                     else if (settingsFocus == 5) clearWallpaper()
                     else if (settingsFocus == 6) context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
-                    else runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    else if (settingsFocus == 13) closeLauncherSettings()
+                    else if (settingsFocus == 7) runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                 }
             }
             invalidate(); return true
