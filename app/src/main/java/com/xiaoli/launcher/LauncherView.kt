@@ -512,12 +512,13 @@ class LauncherView(context: Context) : View(context) {
         if (count > 0) {
             favorites.take(5).forEachIndexed { i, app ->
                 val rect = homeItemRect(i, w, h)
-                val iconSize = (h * .105f).coerceAtMost(rect.width() * .72f).coerceAtLeast(34f)
-                val iconRect = RectF(rect.centerX() - iconSize / 2f, rect.top + rect.height() * .04f,
-                    rect.centerX() + iconSize / 2f, rect.top + rect.height() * .04f + iconSize)
+                val iconSize = (h * .145f).coerceAtMost(rect.width() * .76f).coerceAtLeast(48f)
+                val iconTop = rect.top + rect.height() * .025f
+                val iconRect = RectF(rect.centerX() - iconSize / 2f, iconTop,
+                    rect.centerX() + iconSize / 2f, iconTop + iconSize)
                 drawUnifiedAppIcon(c, app, iconRect, i == homeIndex)
                 paint.textAlign = Paint.Align.CENTER
-                text(c, app.label.take(8), rect.centerX(), iconRect.bottom + h * .045f, h * .025f, -1, true)
+                text(c, app.label.take(10), rect.centerX(), iconRect.bottom + h * .035f, h * .026f, -1, true)
                 paint.textAlign = Paint.Align.LEFT
             }
         }
@@ -577,50 +578,66 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun drawDrawer(c: Canvas, w: Float, h: Float) {
-        paint.color = 0xCC052B68.toInt(); c.drawRoundRect(RectF(w*.06f,h*.18f,w*.94f,h*.9f),32f,32f,paint)
-        text(c, if (editingFavorites) "选择首页常用应用（最多5个）" else "应用抽屉", w*.09f, h*.25f, h*.04f, -1, true)
+        val panel = RectF(w * .035f, h * .12f, w * .965f, h * .94f)
+        paint.color = 0xE6052B68.toInt()
+        c.drawRoundRect(panel, h * .035f, h * .035f, paint)
+        text(c, if (editingFavorites) "首页常用应用" else "应用", w * .075f, h * .215f, h * .042f, -1, true)
         paint.textAlign = Paint.Align.RIGHT
-        text(c, if (editingFavorites) "完成管理" else "管理首页应用", w*.9f, h*.25f, h*.025f, 0xFFBDEBFF.toInt(), true)
+        text(c, if (editingFavorites) "完成" else "管理", w * .925f, h * .215f, h * .027f, 0xFFBDEBFF.toInt(), true)
         paint.textAlign = Paint.Align.LEFT
+
         val cols = drawerColumns()
-        val cellW = w * .8f / cols
-        val cellH = if (w < h) h * .105f else h * .15f
-        val contentTop = h * .31f
-        val contentBottom = h * .81f
+        val gridLeft = w * .065f
+        val gridRight = w * .935f
+        val cellW = (gridRight - gridLeft) / cols
+        val cellH = h * .275f
+        val contentTop = h * .265f
+        val contentBottom = h * .845f
         val visibleRows = ((contentBottom - contentTop) / cellH).toInt().coerceAtLeast(1)
         val totalRows = (apps.size + cols - 1) / cols
         val maxScroll = (totalRows - visibleRows).coerceAtLeast(0)
         drawerScrollRow = drawerScrollRow.coerceIn(0, maxScroll)
         val clipSave = c.save()
-        c.clipRect(w * .085f, contentTop, w * .915f, contentBottom)
+        c.clipRect(gridLeft, contentTop, gridRight, contentBottom)
         apps.forEachIndexed { i, app ->
-            val row = i / cols; val col = i % cols
-            val x = w*.1f + col*cellW; val y = contentTop + (row - drawerScrollRow)*cellH
-            val cell = RectF(x,y,x+cellW*.88f,y+cellH*.92f)
-            val iconSize = (if (w >= h) h * .105f else cellH * .57f).coerceAtMost(cellW * .58f)
-            val iconRect = RectF(cell.centerX() - iconSize/2f, y + cellH*.035f,
-                cell.centerX() + iconSize/2f, y + cellH*.035f + iconSize)
+            val row = i / cols
+            val col = i % cols
+            val left = gridLeft + col * cellW
+            val top = contentTop + (row - drawerScrollRow) * cellH
+            val cell = RectF(left + cellW * .035f, top + cellH * .025f,
+                left + cellW * .965f, top + cellH * .965f)
+            paint.color = if (i == drawerIndex) 0xAA1686E8.toInt() else 0x553D8DD8
+            if (i == drawerIndex) paint.setShadowLayer(h * .018f, 0f, 0f, 0xAA39C8FF.toInt())
+            c.drawRoundRect(cell, h * .025f, h * .025f, paint)
+            paint.clearShadowLayer()
+            val iconSize = minOf(cellH * .62f, cell.width() * .60f)
+            val iconTop = cell.top + cellH * .075f
+            val iconRect = RectF(cell.centerX() - iconSize / 2f, iconTop,
+                cell.centerX() + iconSize / 2f, iconTop + iconSize)
             drawUnifiedAppIcon(c, app, iconRect, i == drawerIndex)
             paint.textAlign = Paint.Align.CENTER
-            text(c, app.label.take(8), cell.centerX(), iconRect.bottom + cellH*.22f,
-                h*.019f, -1, i==drawerIndex)
+            text(c, app.label.take(12), cell.centerX(), cell.bottom - cellH * .105f,
+                h * .023f, -1, i == drawerIndex)
             paint.textAlign = Paint.Align.LEFT
         }
         c.restoreToCount(clipSave)
         if (totalRows > visibleRows) {
-            text(c, "${drawerScrollRow + 1}/$maxScroll", w*.86f, h*.835f, h*.016f, 0xFFBDEBFF.toInt())
+            paint.textAlign = Paint.Align.CENTER
+            text(c, "${drawerScrollRow + 1}/${maxScroll + 1}", w * .5f, h * .91f, h * .018f, 0xFFBDEBFF.toInt())
+            paint.textAlign = Paint.Align.LEFT
         }
-        if (apps.isEmpty()) text(c, "暂未发现可启动的应用", w*.38f,h*.55f,h*.03f,-1)
-        val hint = if (editingFavorites) "触摸点按添加/移除  ·  遥控器确认键操作  ·  最多5个"
-            else "点按应用启动  ·  上滑打开抽屉  ·  点右上角管理首页应用"
-        text(c, hint, w*.25f,h*.86f,h*.022f,0xFFDDEEFF.toInt())
+        if (apps.isEmpty()) {
+            paint.textAlign = Paint.Align.CENTER
+            text(c, "暂无可启动的应用", w * .5f, h * .55f, h * .03f, -1)
+            paint.textAlign = Paint.Align.LEFT
+        }
     }
 
 
     private fun isCompactLayout(): Boolean = width < height
 
     private fun drawerColumns(): Int =
-        prefs.getInt("drawer_columns", 5).coerceIn(3, 5)
+        prefs.getInt("drawer_columns", 5).coerceIn(4, 6)
 
     private fun openLauncherSettings() {
         isDrawerOpen = false
@@ -774,7 +791,7 @@ class LauncherView(context: Context) : View(context) {
             val itemW = w * .13f
             val total = favorites.size * itemW + (favorites.size - 1).coerceAtLeast(0) * gap
             val left = (w - total) / 2f + index * (itemW + gap)
-            return RectF(left, h * .57f, left + itemW, h * .73f)
+            return RectF(left, h * .55f, left + itemW, h * .79f)
         }
         val cols = 3
         val itemW = w * .27f
@@ -1133,7 +1150,7 @@ class LauncherView(context: Context) : View(context) {
                 }
             }
             val cols = drawerColumns()
-            val visibleRows = ((height * .50f) / (if (width < height) height * .105f else height * .15f)).toInt().coerceAtLeast(1)
+            val visibleRows = ((height * .58f) / (height * .275f)).toInt().coerceAtLeast(1)
             val totalRows = (apps.size + cols - 1) / cols
             val maxScroll = (totalRows - visibleRows).coerceAtLeast(0)
             drawerScrollRow = (drawerIndex / cols - visibleRows + 1).coerceIn(0, maxScroll)
