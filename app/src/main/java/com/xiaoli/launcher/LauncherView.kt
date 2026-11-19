@@ -49,6 +49,8 @@ class LauncherView(context: Context) : View(context) {
     private var showDate = prefs.getBoolean("show_date", true)
     private var showLunar = prefs.getBoolean("show_lunar", true)
     private var showWeather = prefs.getBoolean("show_weather", true)
+    private var use24HourClock = prefs.getBoolean("clock_24_hour", true)
+    private var showClockSeconds = prefs.getBoolean("clock_seconds", false)
     private var clockX = prefs.getFloat("widget_clock_x", .965f)
     private var clockY = prefs.getFloat("widget_clock_y", .085f)
     private var dateX = prefs.getFloat("widget_date_x", .965f)
@@ -301,7 +303,13 @@ class LauncherView(context: Context) : View(context) {
 
     private fun drawTop(c: Canvas, w: Float) {
         val now = Date()
-        val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
+        val timePattern = when {
+            use24HourClock && showClockSeconds -> "HH:mm:ss"
+            use24HourClock -> "HH:mm"
+            showClockSeconds -> "hh:mm:ss a"
+            else -> "hh:mm a"
+        }
+        val time = SimpleDateFormat(timePattern, Locale.getDefault()).format(now)
         val date = SimpleDateFormat("MM月dd日  EEEE", Locale.CHINA).format(now)
         paint.textAlign = Paint.Align.RIGHT
         if (showClock) text(c, time, w * clockX, height * clockY, height * .052f * clockScale, -1, true)
@@ -657,11 +665,11 @@ class LauncherView(context: Context) : View(context) {
 
     private fun moveSettingsFocus(direction: Int) {
         val rows = listOf(
-            listOf(8), listOf(9, 10, 11, 12), listOf(0, 1, 2),
+            listOf(8), listOf(9, 10, 11, 12, 15, 16), listOf(0, 1, 2),
             listOf(3, 4, 5), listOf(6), listOf(7, 14, 13)
         )
         val x = mapOf(
-            8 to .50f, 9 to .22f, 10 to .44f, 11 to .66f, 12 to .83f,
+            8 to .50f, 9 to .18f, 10 to .31f, 11 to .44f, 12 to .57f, 15 to .70f, 16 to .83f,
             0 to .16f, 1 to .41f, 2 to .66f,
             3 to .24f, 4 to .50f, 5 to .76f, 6 to .50f,
             7 to .22f, 14 to .52f, 13 to .82f
@@ -727,11 +735,13 @@ class LauncherView(context: Context) : View(context) {
         val labels = listOf(if (showClock) "时间：开" else "时间：关",
             if (showDate) "日期：开" else "日期：关",
             if (showLunar) "农历：开" else "农历：关",
-            if (showWeather) "天气：开" else "天气：关")
-        val componentKeys = listOf(9, 10, 11, 12)
-        val componentGap = w * .012f
-        val componentW = (w * .74f - componentGap * 3f) / 4f
-        for (i in 0..3) {
+            if (showWeather) "天气：开" else "天气：关",
+            if (use24HourClock) "24小时制" else "12小时制",
+            if (showClockSeconds) "显示秒数" else "隐藏秒数")
+        val componentKeys = listOf(9, 10, 11, 12, 15, 16)
+        val componentGap = w * .009f
+        val componentW = (w * .74f - componentGap * 5f) / 6f
+        for (i in 0..5) {
             val left = w * .13f + i * (componentW + componentGap)
             val rect = RectF(left, h * .415f, left + componentW, h * .465f)
             paint.color = if (settingsFocus == componentKeys[i]) 0xFF31B9FF.toInt() else 0x5544BFFF
@@ -989,6 +999,18 @@ class LauncherView(context: Context) : View(context) {
                 if (isSettingsOpen) {
                     if (event.y in (height * .275f)..(height * .37f)) {
                         openWeatherCityDialog()
+                    } else if (event.y in (height * .415f)..(height * .465f)) {
+                        val componentGap = width * .009f
+                        val componentW = (width * .74f - componentGap * 5f) / 6f
+                        val selected = ((event.x - width * .13f) / (componentW + componentGap)).toInt()
+                        when (selected) {
+                            0 -> toggleHomeComponent(9)
+                            1 -> toggleHomeComponent(10)
+                            2 -> toggleHomeComponent(11)
+                            3 -> toggleHomeComponent(12)
+                            4 -> { use24HourClock = !use24HourClock; prefs.edit().putBoolean("clock_24_hour", use24HourClock).apply() }
+                            5 -> { showClockSeconds = !showClockSeconds; prefs.edit().putBoolean("clock_seconds", showClockSeconds).apply() }
+                        }
                     } else if (event.y in (height * .515f)..(height * .575f)) {
                         val gap = width * .025f
                         val buttonW = width * .18f
@@ -1135,7 +1157,13 @@ class LauncherView(context: Context) : View(context) {
                 KeyEvent.KEYCODE_DPAD_DOWN -> moveSettingsFocus(2)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     if (settingsFocus in 9..12) toggleHomeComponent(settingsFocus)
-                    else if (settingsFocus == 8) openWeatherCityDialog()
+                    else if (settingsFocus == 15) {
+                        use24HourClock = !use24HourClock
+                        prefs.edit().putBoolean("clock_24_hour", use24HourClock).apply()
+                    } else if (settingsFocus == 16) {
+                        showClockSeconds = !showClockSeconds
+                        prefs.edit().putBoolean("clock_seconds", showClockSeconds).apply()
+                    } else if (settingsFocus == 8) openWeatherCityDialog()
                     else if (settingsFocus in 0..2) setDrawerColumns(settingsFocus + 3)
                     else if (settingsFocus == 3) onChooseWallpaper?.invoke()
                     else if (settingsFocus == 4) toggleDynamicWallpaper()
