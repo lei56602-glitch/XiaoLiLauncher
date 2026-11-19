@@ -86,6 +86,13 @@ class LauncherView(context: Context) : View(context) {
         updateAnimationLoop()
     }
 
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        handler.removeCallbacks(clockTick)
+        handler.post(clockTick)
+        updateAnimationLoop()
+    }
+
     override fun onDetachedFromWindow() {
         handler.removeCallbacks(clockTick)
         handler.removeCallbacks(animationTick)
