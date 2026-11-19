@@ -26,7 +26,7 @@ public class ReceiveForegroundService extends Service {
     private static final int NOTIFICATION_ID=2102, BUF=65536;
     public static final int DEFAULT_PORT=38890;
     private final ExecutorService clients=Executors.newCachedThreadPool();
-    private final Set<Socket> activeSockets=ConcurrentHashMap.newKeySet();
+    private final Set<Socket> activeSockets=java.util.Collections.newSetFromMap(new ConcurrentHashMap<Socket, Boolean>());
     private PowerManager.WakeLock receiveWakeLock;
     private final Handler main=new Handler(Looper.getMainLooper());
     private volatile boolean running=true;
