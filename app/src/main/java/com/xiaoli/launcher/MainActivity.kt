@@ -8,6 +8,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -189,12 +190,11 @@ private fun AppTile(app: TvApp, onClick: () -> Unit) {
                 color = if (focused) Color.White else Color.Transparent,
                 shape = RoundedCornerShape(22.dp)
             )
-            .focusable()
+            .clickable(onClick = onClick)
             .padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Surface(
-            onClick = onClick,
             modifier = Modifier.size(76.dp),
             shape = RoundedCornerShape(20.dp),
             color = Color.White.copy(alpha = .96f),
