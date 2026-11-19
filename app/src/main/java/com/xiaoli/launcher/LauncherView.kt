@@ -72,6 +72,7 @@ class LauncherView(context: Context) : View(context) {
     private val favorites = mutableListOf<AppEntry>()
     private var drawerIndex = 0
     private var homeIndex = 0
+    private var homeQuickTransferFocused = false
     private var touchDownX = 0f
     private var touchDownY = 0f
     private var touchDragging = false
@@ -296,7 +297,6 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun drawTop(c: Canvas, w: Float) {
-        text(c, "◉  小李桌面", w * .035f, height * .09f, height * .045f, -1, true)
         val now = Date()
         val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
         val date = SimpleDateFormat("MM月dd日  EEEE", Locale.CHINA).format(now)
@@ -532,59 +532,39 @@ class LauncherView(context: Context) : View(context) {
         } else {
             text(c, "按上键打开应用抽屉，选择常用应用", w * .34f, h * .68f, h * .03f, -1)
         }
-        text(c, "↑  按上键打开应用抽屉", w * .035f, h * .94f, h * .026f, -1)
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val connected = cm.activeNetworkInfo?.isConnected == true
-        paint.textAlign = Paint.Align.RIGHT
-        text(c, (if (connected) "● 网络已连接" else "○ 网络未连接") + "    小李设备", w * .965f, h * .94f, h * .024f, -1)
-        paint.textAlign = Paint.Align.LEFT
+        drawCompactQuanLianShortcut(c,w,h)
+        val cm=context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val connected=cm.activeNetworkInfo?.isConnected==true
+        paint.color=if(connected) 0xFFFFFFFF.toInt() else 0xFF9CB9D8.toInt()
+        paint.style=Paint.Style.STROKE
+        paint.strokeWidth=(h*.003f).coerceAtLeast(2f)
+        val cx=w*.91f;val cy=h*.91f
+        c.drawArc(RectF(cx-h*.026f,cy-h*.040f,cx+h*.026f,cy+h*.012f),220f,100f,false,paint)
+        c.drawArc(RectF(cx-h*.018f,cy-h*.028f,cx+h*.018f,cy+h*.008f),220f,100f,false,paint)
+        c.drawCircle(cx,cy+h*.004f,h*.004f,paint)
+        val bx=w*.955f;val by=h*.91f
+        val bt=android.graphics.Path().apply{
+            moveTo(bx,by-h*.035f);lineTo(bx,by+h*.035f)
+            moveTo(bx,by-h*.035f);lineTo(bx+h*.020f,by-h*.018f);lineTo(bx-h*.020f,by+h*.018f)
+            moveTo(bx,by+h*.035f);lineTo(bx+h*.020f,by+h*.018f);lineTo(bx-h*.020f,by-h*.018f)
+        }
+        c.drawPath(bt,paint);paint.style=Paint.Style.FILL;paint.textAlign=Paint.Align.LEFT
     }
 
-    private fun quanLianFeatureRect(w: Float, h: Float) =
-        RectF(w * .12f, h * .25f, w * .88f, h * .49f)
+    private fun quanLianFeatureRect(w: Float,h: Float)=
+        RectF(w*.035f,h*.805f,w*.205f,h*.895f)
 
-    private fun drawQuanLianFeatureCard(c: Canvas, w: Float, h: Float) {
-        val card = quanLianFeatureRect(w, h)
-        paint.shader = LinearGradient(
-            card.left, card.top, card.right, card.bottom,
-            intArrayOf(0xEE087CE8.toInt(), 0xE9158FFF.toInt(), 0xDD0754B8.toInt()),
-            null, Shader.TileMode.CLAMP
-        )
-        c.drawRoundRect(card, h * .025f, h * .025f, paint)
-        paint.shader = null
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = h * .002f
-        paint.color = 0x887FE3FF.toInt()
-        c.drawRoundRect(card, h * .025f, h * .025f, paint)
-        paint.style = Paint.Style.FILL
-
-        val mark = RectF(card.left + w * .025f, card.top + h * .045f,
-            card.left + w * .115f, card.bottom - h * .045f)
-        paint.shader = LinearGradient(mark.left, mark.top, mark.right, mark.bottom,
-            intArrayOf(0xFF12C9F2.toInt(), 0xFF0759D9.toInt()), null, Shader.TileMode.CLAMP)
-        c.drawRoundRect(mark, h * .018f, h * .018f, paint)
-        paint.shader = null
-        text(c, "⇄", mark.left + w * .018f, mark.centerY() + h * .035f,
-            h * .075f, -1, true)
-
-        text(c, "小李全联 · 快传", card.left + w * .145f, card.top + h * .085f,
-            h * .039f, -1, true)
-        text(c, "让手机、电视与电脑轻松互传文件", card.left + w * .145f,
-            card.top + h * .135f, h * .025f, 0xFFE5F4FF.toInt())
-        text(c, "局域网设备发现已接入", card.left + w * .145f,
-            card.top + h * .185f, h * .020f, 0xFFC9E8FF.toInt())
-
-        val action = RectF(card.right - w * .205f, card.top + h * .075f,
-            card.right - w * .035f, card.top + h * .165f)
-        paint.color = 0x5537C7FF
-        c.drawRoundRect(action, h * .025f, h * .025f, paint)
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = h * .0018f
-        paint.color = 0xFF75DFFF.toInt()
-        c.drawRoundRect(action, h * .025f, h * .025f, paint)
-        paint.style = Paint.Style.FILL
-        text(c, "立即打开  ›", action.left + w * .025f,
-            action.centerY() + h * .009f, h * .022f, -1, true)
+    private fun drawCompactQuanLianShortcut(c: Canvas,w: Float,h: Float){
+        val rect=quanLianFeatureRect(w,h)
+        paint.shader=LinearGradient(rect.left,rect.top,rect.right,rect.bottom,
+            intArrayOf(0xEE087CE8.toInt(),0xDD0754B8.toInt()),null,Shader.TileMode.CLAMP)
+        c.drawRoundRect(rect,h*.018f,h*.018f,paint);paint.shader=null
+        paint.style=Paint.Style.STROKE
+        paint.strokeWidth=if(homeQuickTransferFocused)h*.004f else h*.0018f
+        paint.color=if(homeQuickTransferFocused)0xFF9CEBFF.toInt() else 0x887FE3FF.toInt()
+        c.drawRoundRect(rect,h*.018f,h*.018f,paint);paint.style=Paint.Style.FILL
+        text(c,"⇄",rect.left+rect.width()*.10f,rect.centerY()+h*.018f,h*.045f,-1,true)
+        text(c,"快传",rect.left+rect.width()*.38f,rect.centerY()+h*.009f,h*.025f,-1,true)
     }
 
     private fun drawDrawer(c: Canvas, w: Float, h: Float) {
@@ -666,7 +646,8 @@ class LauncherView(context: Context) : View(context) {
     private fun drawLauncherSettings(c: Canvas, w: Float, h: Float) {
         paint.color = 0xE6052B68.toInt()
         c.drawRoundRect(RectF(w * .08f, h * .16f, w * .92f, h * .86f), 30f, 30f, paint)
-        text(c, "小李桌面设置", w * .13f, h * .235f, h * .04f, -1, true)
+        text(c, "小李桌面", w * .13f, h * .235f, h * .04f, -1, true)
+        text(c, "桌面设置", w * .13f, h * .265f, h * .021f, 0xFFDDEEFF.toInt())
         val weatherSetting = RectF(w * .13f, h * .275f, w * .87f, h * .37f)
         paint.color = if (settingsFocus == 8) 0xFF31B9FF.toInt() else 0x5544BFFF
         c.drawRoundRect(weatherSetting, 16f, 16f, paint)
@@ -1101,12 +1082,28 @@ class LauncherView(context: Context) : View(context) {
         when (keyCode) {
             KeyEvent.KEYCODE_MENU -> { openLauncherSettings(); return true }
             KeyEvent.KEYCODE_SETTINGS -> { toggleWidgetEditMode(); return true }
-            KeyEvent.KEYCODE_DPAD_UP -> { isDrawerOpen = true; drawerIndex = 0; invalidate(); return true }
-            KeyEvent.KEYCODE_DPAD_LEFT -> { if (favorites.isNotEmpty()) homeIndex = (homeIndex - 1).coerceAtLeast(0); invalidate(); return true }
-            KeyEvent.KEYCODE_DPAD_RIGHT -> { if (favorites.isNotEmpty()) homeIndex = (homeIndex + 1).coerceAtMost(favorites.lastIndex); invalidate(); return true }
+            KeyEvent.KEYCODE_DPAD_UP -> {
+                if(homeQuickTransferFocused)homeQuickTransferFocused=false
+                else{isDrawerOpen=true;drawerIndex=0}
+                invalidate();return true
+            }
+            KeyEvent.KEYCODE_DPAD_DOWN -> {homeQuickTransferFocused=true;invalidate();return true}
+            KeyEvent.KEYCODE_DPAD_LEFT -> {
+                if(homeQuickTransferFocused)homeQuickTransferFocused=false
+                else if(favorites.isNotEmpty())homeIndex=(homeIndex-1).coerceAtLeast(0)
+                invalidate();return true
+            }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                if(!homeQuickTransferFocused&&favorites.isNotEmpty()&&homeIndex< favorites.lastIndex)homeIndex++
+                else homeQuickTransferFocused=true
+                invalidate();return true
+            }
             KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> { openLauncherSettings(); return true }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                favorites.getOrNull(homeIndex)?.let { runCatching { context.startActivity(it.intent) } }
+                if(homeQuickTransferFocused||favorites.isEmpty()){
+                    homeQuickTransferFocused=false
+                    runCatching{context.startActivity(Intent(context,com.xiaoli.quanlian.QuanLianActivity::class.java))}
+                }else favorites.getOrNull(homeIndex)?.let{runCatching{context.startActivity(it.intent)}}
                 return true
             }
         }

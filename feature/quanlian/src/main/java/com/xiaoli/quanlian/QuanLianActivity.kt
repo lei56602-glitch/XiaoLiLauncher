@@ -43,6 +43,7 @@ class QuanLianActivity : Activity() {
     private var eventReceiver: BroadcastReceiver? = null
     private var page = Page.HOME
     private var focus = 0
+    private var historyScrollOffset = 0
     private var devices: List<DeviceInfo> = emptyList()
     private val selectedUris = arrayListOf<Uri>()
     private val selectedNames = arrayListOf<String>()
@@ -317,6 +318,22 @@ class QuanLianActivity : Activity() {
         }
     }
 
+    private fun readHistoryItems(): JSONArray = runCatching {
+        JSONArray(getSharedPreferences("transfer_history",MODE_PRIVATE).getString("items","[]"))
+    }.getOrDefault(JSONArray())
+
+    private fun openHistoryItem(item: org.json.JSONObject?) {
+        val value=item?.optString("uri").orEmpty()
+        if(value.isBlank()){Toast.makeText(this,"这条记录没有可打开的文件地址",Toast.LENGTH_SHORT).show();return}
+        val uri=runCatching{Uri.parse(value)}.getOrNull()?:return
+        val intent=Intent(Intent.ACTION_VIEW).apply{
+            setDataAndType(uri,contentResolver.getType(uri)?:"*/*")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        runCatching{startActivity(intent)}
+            .onFailure{Toast.makeText(this,"没有可打开此文件的应用",Toast.LENGTH_LONG).show()}
+    }
+
     private fun activateFocused() {
         when (page) {
             Page.HOME -> when (focus.coerceIn(0, 3)) {
@@ -342,15 +359,35 @@ class QuanLianActivity : Activity() {
                 screen.invalidate()
                 requestSend(device)
             }
-            Page.HISTORY -> if (focus == 0) {
-                getSharedPreferences("transfer_history", MODE_PRIVATE).edit().putString("items", "[]").apply()
-                status = "传输记录已清空"
+            Page.HISTORY -> {
+                val items=readHistoryItems()
+                if(focus<items.length()) openHistoryItem(items.optJSONObject(focus))
+                else if(focus==items.length()){
+                    getSharedPreferences("transfer_history",MODE_PRIVATE).edit().putString("items","[]").apply()
+                    focus=0;status="传输记录已清空"
+                }
                 screen.invalidate()
             }
         }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if(page==Page.HISTORY){
+            val count=readHistoryItems().length()
+            when(keyCode){
+                KeyEvent.KEYCODE_DPAD_UP,KeyEvent.KEYCODE_DPAD_LEFT -> focus=(focus-1).coerceAtLeast(0)
+                KeyEvent.KEYCODE_DPAD_DOWN,KeyEvent.KEYCODE_DPAD_RIGHT -> focus=(focus+1).coerceAtMost(count)
+                KeyEvent.KEYCODE_DPAD_CENTER,KeyEvent.KEYCODE_ENTER -> activateFocused()
+                KeyEvent.KEYCODE_BACK,KeyEvent.KEYCODE_ESCAPE -> {goBack();return true}
+                else -> return super.onKeyDown(keyCode,event)
+            }
+            historyScrollOffset=when{
+                focus<historyScrollOffset -> focus
+                focus>=historyScrollOffset+8 -> focus-7
+                else -> historyScrollOffset
+            }.coerceAtLeast(0)
+            screen.invalidate();return true
+        }
         if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) {
             goBack()
             return true
@@ -359,7 +396,8 @@ class QuanLianActivity : Activity() {
             Page.HOME -> 3
             Page.SEND -> devices.size + if (transferRunning) 1 else 0
             Page.DEVICES -> (devices.size - 1).coerceAtLeast(0)
-            Page.RECEIVE, Page.HISTORY -> 0
+            Page.RECEIVE -> 0
+            Page.HISTORY -> readHistoryItems().length()
         }
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_UP -> focus = (focus - 1).coerceAtLeast(0)
@@ -505,27 +543,22 @@ class QuanLianActivity : Activity() {
             }
         }
 
-        private fun drawHistory(c: Canvas, w: Float, h: Float, u: Float) {
-            drawText(c, "传输记录", w * .07f, h * .18f, u * .055f, -1, true)
-            val items = runCatching {
-                JSONArray(getSharedPreferences("transfer_history", MODE_PRIVATE).getString("items", "[]"))
-            }.getOrDefault(JSONArray())
-            if (items.length() == 0) {
-                drawText(c, "暂时没有传输记录", w * .09f, h * .40f, u * .026f, pale)
-            } else {
-                for (i in 0 until minOf(8, items.length())) {
-                    val item = items.optJSONObject(i) ?: continue
-                    val row = RectF(w * .07f, h * (.27f + i * .075f), w * .93f, h * (.33f + i * .075f))
-                    drawCard(c, row, false)
-                    val direction = item.optString("direction", "传输")
-                    val name = item.optString("name", "文件")
-                    val peer = item.optString("peer", "附近设备")
-                    drawText(c, "$direction  ·  ${name.take(32)}  ·  $peer",
-                        row.left + w * .02f, row.centerY() + u * .008f, u * .019f, -1)
-                }
+        private fun drawHistory(c: Canvas,w: Float,h: Float,u: Float){
+            drawText(c,"传输记录",w*.07f,h*.18f,u*.055f,-1,true)
+            val items=readHistoryItems()
+            val end=minOf(items.length(),historyScrollOffset+8)
+            if(items.length()==0)drawText(c,"暂时没有传输记录",w*.09f,h*.40f,u*.026f,pale)
+            else for(i in historyScrollOffset until end){
+                val item=items.optJSONObject(i)?:continue
+                val row=RectF(w*.07f,h*(.27f+(i-historyScrollOffset)*.067f),w*.93f,h*(.325f+(i-historyScrollOffset)*.067f))
+                drawCard(c,row,focus==i)
+                drawText(c,item.optString("direction","传输")+"  ·  "+item.optString("name","文件").take(32)+"  ·  "+item.optString("peer","附近设备"),
+                    row.left+w*.02f,row.centerY()+u*.008f,u*.019f,-1)
             }
-            val clear = RectF(w * .07f, h * .84f, w * .35f, h * .92f)
-            drawButton(c, clear, "清空记录", focus == 0)
+            val clear=RectF(w*.07f,h*.84f,w*.35f,h*.92f)
+            drawButton(c,clear,"清空记录",focus==items.length())
+            drawText(c,"方向键选择 · 确认打开 · "+(if(items.length()==0)"0" else "${focus.coerceAtMost(items.length())+1}/${items.length()+1}"),
+                w*.42f,h*.89f,u*.018f,pale)
         }
 
         private fun drawCard(c: Canvas, rect: RectF, selected: Boolean) {
@@ -628,12 +661,14 @@ class QuanLianActivity : Activity() {
                     }
                 }
                 Page.HISTORY -> {
-                    val clear = RectF(width * .07f, height * .84f, width * .35f, height * .92f)
-                    if (clear.contains(x, y)) {
-                        focus = 0
-                        activateFocused()
-                        return true
+                    val items=readHistoryItems()
+                    for(i in historyScrollOffset until minOf(items.length(),historyScrollOffset+8)){
+                        val visibleIndex=i-historyScrollOffset
+                        val row=RectF(width*.07f,height*(.27f+visibleIndex*.067f),width*.93f,height*(.325f+visibleIndex*.067f))
+                        if(row.contains(x,y)){focus=i;activateFocused();return true}
                     }
+                    val clear=RectF(width*.07f,height*.84f,width*.35f,height*.92f)
+                    if(clear.contains(x,y)){focus=items.length();activateFocused();return true}
                 }
             }
             return true
