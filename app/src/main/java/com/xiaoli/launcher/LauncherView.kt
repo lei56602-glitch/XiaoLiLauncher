@@ -36,7 +36,7 @@ class LauncherView(context: Context) : View(context) {
         private set
     private var isSettingsOpen = false
     val isLauncherSettingsOpen: Boolean get() = isSettingsOpen
-    private var settingsFocus = 0
+    private var settingsFocus = 3
     private val handler = Handler(Looper.getMainLooper())
     private val clockTick = object : Runnable {
         override fun run() { invalidate(); handler.postDelayed(this, 30_000L) }
@@ -267,7 +267,7 @@ class LauncherView(context: Context) : View(context) {
         val rowH = h*.085f
         rows.forEachIndexed { i,label ->
             val top = rowTop+i*rowH
-            if (i == 3) {
+            if (i == settingsFocus) {
                 val r=RectF(panel.left+h*.008f,top,panel.right-h*.008f,top+rowH*.94f)
                 paint.shader=LinearGradient(r.left,r.top,r.right,r.bottom,
                     intArrayOf(0xFF087CF4.toInt(),0xFF155BCB.toInt()),null,Shader.TileMode.CLAMP)
@@ -280,7 +280,7 @@ class LauncherView(context: Context) : View(context) {
             }
             text(c,label,panel.left+h*.04f,top+rowH*.59f,h*.026f,-1,i==3)
             text(c,"›",panel.right-h*.045f,top+rowH*.59f,h*.04f,0xFFD4E8FF.toInt(),true)
-            if (i==3) {
+            if (i==settingsFocus) {
                 text(c,"集成小李全联，支持文件互传",panel.left+h*.04f,top+rowH*1.25f,h*.019f,0xFFD6E8FA.toInt())
                 paint.color=0xFF19C957.toInt()
                 c.drawRoundRect(RectF(panel.right-h*.105f,top+rowH*1.04f,panel.right-h*.025f,top+rowH*1.38f),h*.018f,h*.018f,paint)
@@ -326,7 +326,7 @@ class LauncherView(context: Context) : View(context) {
     private fun openLauncherSettings() {
         isDrawerOpen = false
         isSettingsOpen = true
-        settingsFocus = (drawerColumns() - 3).coerceIn(0, 2)
+        settingsFocus = 3
         invalidate()
     }
 
@@ -371,11 +371,11 @@ class LauncherView(context: Context) : View(context) {
 
     private fun homeItemRect(index: Int, w: Float, h: Float): RectF {
         if (w >= h) {
-            val gap = w * .035f
-            val itemW = w * .13f
-            val total = favorites.size * itemW + (favorites.size - 1).coerceAtLeast(0) * gap
+            val itemW = w * .073f
+            val gap = w * .043f
+            val total = itemW * 5 + gap * 4
             val left = (w - total) / 2f + index * (itemW + gap)
-            return RectF(left, h * .57f, left + itemW, h * .73f)
+            return RectF(left, h * .785f, left + itemW, h * .91f)
         }
         val cols = 3
         val itemW = w * .27f
