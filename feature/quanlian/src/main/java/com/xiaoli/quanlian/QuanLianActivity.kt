@@ -119,7 +119,9 @@ class QuanLianActivity : Activity() {
                         val sender = intent.getStringExtra(ReceiveForegroundService.EXTRA_SENDER) ?: "附近设备"
                         val count = intent.getIntExtra(ReceiveForegroundService.EXTRA_COUNT, 0)
                         val total = intent.getLongExtra(ReceiveForegroundService.EXTRA_TOTAL, 0L)
-                        if (!isFinishing && !isDestroyed) {
+                        val activityVisible = getSharedPreferences("quanlian_runtime", MODE_PRIVATE)
+                            .getBoolean("activity_visible", false)
+                        if (activityVisible && !isFinishing && !isDestroyed) {
                             val dialog = AlertDialog.Builder(this@QuanLianActivity)
                                 .setTitle("收到文件传输请求")
                                 .setMessage("发送设备：$sender\n文件数量：$count 个\n文件总大小：${sizeText(total)}\n\n是否接收这些文件？")
@@ -397,7 +399,7 @@ class QuanLianActivity : Activity() {
                 else if(focus==items.length()) openHistoryDirectory()
                 else if(focus==items.length()+1){
                     getSharedPreferences("transfer_history",MODE_PRIVATE).edit().putString("items","[]").apply()
-                    focus=0;status="传输记录已清空"
+                    focus=0;historyScrollOffset=0;status="传输记录已清空"
                 }
                 screen.invalidate()
             }
@@ -613,13 +615,15 @@ class QuanLianActivity : Activity() {
         }
 
         private fun drawCard(c: Canvas, rect: RectF, selected: Boolean) {
-            p.color = if (selected) 0xFF168CE8.toInt() else 0x553A9FEA
-            c.drawRoundRect(rect, 20f, 20f, p)
-            p.style = Paint.Style.STROKE
-            p.strokeWidth = if (selected) 4f else 1.5f
-            p.color = if (selected) 0xFF9CE5FF.toInt() else 0x667CCBFF
-            c.drawRoundRect(rect, 20f, 20f, p)
             p.style = Paint.Style.FILL
+            p.color = if (selected) 0xEE087DEB.toInt() else 0x553A9FEA
+            if (selected) p.setShadowLayer(18f, 0f, 0f, 0xAA38C5FF.toInt())
+            c.drawRoundRect(rect, 22f, 22f, p)
+            p.clearShadowLayer()
+            if (!selected) {
+                p.color = 0x226FCBFF
+                c.drawRoundRect(rect, 22f, 22f, p)
+            }
         }
 
         private fun drawButton(c: Canvas, rect: RectF, label: String, selected: Boolean) {
