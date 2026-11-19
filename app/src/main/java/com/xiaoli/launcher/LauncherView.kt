@@ -26,6 +26,7 @@ class LauncherView(context: Context) : View(context) {
     private val apps = mutableListOf<AppEntry>()
     private val favorites = mutableListOf<AppEntry>()
     private var drawerIndex = 0
+    private var homeIndex = 0
     var isDrawerOpen = false
         private set
     private val handler = Handler(Looper.getMainLooper())
@@ -104,8 +105,23 @@ class LauncherView(context: Context) : View(context) {
                 val left = start + i * (itemW + gap)
                 val top = h * .57f
                 val rect = RectF(left, top, left + itemW, top + h * .16f)
-                paint.color = 0xCCFFFFFF.toInt(); c.drawRoundRect(rect, 28f, 28f, paint)
-                text(c, app.label.take(8), rect.left + 18f, rect.bottom + h * .045f, h * .025f, -1, true)
+                paint.color = if (i == homeIndex) 0xFFFFFFFF.toInt() else 0x66FFFFFF
+                c.drawRoundRect(rect, 28f, 28f, paint)
+                if (i == homeIndex) {
+                    paint.style = Paint.Style.STROKE; paint.strokeWidth = 4f; paint.color = 0xFF75D7FF.toInt()
+                    c.drawRoundRect(RectF(rect.left-3f, rect.top-3f, rect.right+3f, rect.bottom+3f), 30f, 30f, paint)
+                    paint.style = Paint.Style.FILL
+                }
+                val icon = runCatching { context.packageManager.getApplicationIcon(app.packageName) }.getOrNull()
+                icon?.let { drawable ->
+                    val size = (h * .075f).toInt().coerceAtLeast(32)
+                    val cx = rect.centerX().toInt(); val cy = (rect.top + rect.height()*.43f).toInt()
+                    drawable.setBounds(cx-size/2, cy-size/2, cx+size/2, cy+size/2)
+                    drawable.draw(c)
+                }
+                paint.textAlign = Paint.Align.CENTER
+                text(c, app.label.take(8), rect.centerX(), rect.bottom + h * .045f, h * .025f, -1, true)
+                paint.textAlign = Paint.Align.LEFT
             }
         } else {
             text(c, "按上键打开应用抽屉，选择常用应用", w * .34f, h * .68f, h * .03f, -1)
@@ -150,12 +166,14 @@ class LauncherView(context: Context) : View(context) {
         }
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_UP -> { isDrawerOpen = true; drawerIndex = 0; invalidate(); return true }
+            KeyEvent.KEYCODE_DPAD_LEFT -> { if (favorites.isNotEmpty()) homeIndex = (homeIndex - 1).coerceAtLeast(0); invalidate(); return true }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> { if (favorites.isNotEmpty()) homeIndex = (homeIndex + 1).coerceAtMost(favorites.lastIndex); invalidate(); return true }
             KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> {
                 runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                 return true
             }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                favorites.firstOrNull()?.let { runCatching { context.startActivity(it.intent) } }
+                favorites.getOrNull(homeIndex)?.let { runCatching { context.startActivity(it.intent) } }
                 return true
             }
         }
