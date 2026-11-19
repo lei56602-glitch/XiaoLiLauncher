@@ -1,6 +1,10 @@
 package com.xiaoli.launcher
 
 import android.app.Activity
+import android.app.role.RoleManager
+import android.os.Build
+import android.provider.Settings
+import android.widget.Toast
 import android.os.Bundle
 import android.content.Intent
 import android.view.View
@@ -21,6 +25,7 @@ class MainActivity : Activity() {
             }
             startActivityForResult(picker, REQUEST_WALLPAPER)
         }
+        launcherView.onRequestDefaultHome = { requestDefaultHomeRole() }
         setContentView(launcherView)
         enterImmersiveMode()
     }
@@ -30,6 +35,33 @@ class MainActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_WALLPAPER && resultCode == RESULT_OK) {
             data?.data?.let(launcherView::setWallpaper)
+        } else if (requestCode == REQUEST_HOME_ROLE) {
+            val isDefault = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                getSystemService(RoleManager::class.java)?.isRoleHeld(RoleManager.ROLE_HOME) == true
+            Toast.makeText(this, if (isDefault) "小李桌面已设为默认主屏幕" else "尚未更改默认主屏幕", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun requestDefaultHomeRole() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val roleManager = getSystemService(RoleManager::class.java)
+                if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_HOME)) {
+                    if (roleManager.isRoleHeld(RoleManager.ROLE_HOME)) {
+                        Toast.makeText(this, "小李桌面已经是默认主屏幕", Toast.LENGTH_SHORT).show()
+                    } else {
+                        startActivityForResult(roleManager.createRequestRoleIntent(RoleManager.ROLE_HOME), REQUEST_HOME_ROLE)
+                    }
+                    return
+                }
+            }
+            startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
+        } catch (_: Exception) {
+            try {
+                startActivity(Intent(Settings.ACTION_SETTINGS))
+            } catch (_: Exception) {
+                Toast.makeText(this, "当前电视系统不支持直接打开默认桌面设置", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -50,6 +82,7 @@ class MainActivity : Activity() {
 
     companion object {
         private const val REQUEST_WALLPAPER = 7101
+        private const val REQUEST_HOME_ROLE = 7102
     }
 
     private fun enterImmersiveMode() {
