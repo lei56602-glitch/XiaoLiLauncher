@@ -33,7 +33,7 @@ macOS 可用：
 
 ## 3. 发布流程
 
-推送符合 v* 格式的 Git tag（例如 v0.1.2）后，.github/workflows/release.yml 会：
+每次发布前先递增 app/build.gradle.kts 中的 versionCode，并将 versionName 更新为目标版本。推送与 versionName 一致的 v* Git tag（例如 versionName 为 0.1.3 时推送 v0.1.3）后，.github/workflows/release.yml 会：
 
 1. 检查四项签名 Secret 是否齐全。
 2. 在 GitHub runner 临时目录还原 keystore。

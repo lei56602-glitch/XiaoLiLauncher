@@ -9,9 +9,9 @@
 | 模块 | 职责 |
 |---|---|
 | app | 桌面首页、应用抽屉、设置中心、壁纸、时钟与默认桌面角色 |
-| feature/quanlian | 小李全联电视界面、左侧导航、遥控器和触摸交互 |
+| feature/quanlian | 小李全联电视界面、左侧导航、遥控器、触摸交互与局域网设备发现 |
 | core/transfer-api | 设备与传输 API 模型 |
-| core/transfer-android | 局域网发现、TLS 身份、发送/接收服务、完整性校验与续传 |
+| core/transfer-android | TLS 设备身份、发送/接收前台服务、文件完整性校验与续传 |
 
 ## 本地构建
 
