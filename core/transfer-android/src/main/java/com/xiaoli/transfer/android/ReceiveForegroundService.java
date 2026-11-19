@@ -22,7 +22,7 @@ public class ReceiveForegroundService extends Service {
     public static final String ACTION_DECISION="com.quanlian.app.receive.DECISION";
     public static final String ACTION_STATUS="com.quanlian.app.receive.STATUS";
     public static final String EXTRA_ID="request_id", EXTRA_ACCEPT="accept", EXTRA_SENDER="sender", EXTRA_COUNT="count", EXTRA_TOTAL="total", EXTRA_PORT="port", EXTRA_TEXT="text", EXTRA_PROGRESS="progress";
-    private static final String TYPE="_quanlian._tcp.", CHANNEL="quanlian_receive";
+    private static final String TYPE="_quanlian._tcp.", CHANNEL="quanlian_receive", INCOMING_CHANNEL="quanlian_incoming";
     private static final int NOTIFICATION_ID=2102, BUF=65536;
     public static final int DEFAULT_PORT=38890;
     private final ExecutorService clients=Executors.newCachedThreadPool();
@@ -39,8 +39,8 @@ public class ReceiveForegroundService extends Service {
     private BroadcastReceiver decisions;
     private final ConcurrentMap<String,PendingRequest> pendingRequests=new ConcurrentHashMap<>();
     private static class PendingRequest {
-        final String id; final CountDownLatch latch=new CountDownLatch(1); volatile boolean accepted;
-        PendingRequest(String value){id=value;}
+        final String id; final int notificationId; final CountDownLatch latch=new CountDownLatch(1); volatile boolean accepted;
+        PendingRequest(String value){id=value;notificationId=incomingNotificationId(value);}
     }
 
     public static void start(Context c){
@@ -56,6 +56,7 @@ public class ReceiveForegroundService extends Service {
         super.onCreate();
         NotificationManager nm=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
         if(Build.VERSION.SDK_INT>=26){NotificationChannel ch=new NotificationChannel(CHANNEL,"文件接收",NotificationManager.IMPORTANCE_LOW);ch.setDescription("小李全联正在等待局域网文件");nm.createNotificationChannel(ch);}
+        if(Build.VERSION.SDK_INT>=26){NotificationChannel incoming=new NotificationChannel(INCOMING_CHANNEL,"文件接收请求",NotificationManager.IMPORTANCE_HIGH);incoming.setDescription("提示附近设备发来的文件接收请求");incoming.enableVibration(true);nm.createNotificationChannel(incoming);}
         Notification.Builder notificationBuilder = Build.VERSION.SDK_INT >= 26
             ? new Notification.Builder(this, CHANNEL)
             : new Notification.Builder(this);
@@ -67,7 +68,7 @@ public class ReceiveForegroundService extends Service {
         if(Build.VERSION.SDK_INT>=29)startForeground(NOTIFICATION_ID,n,android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE);
         else startForeground(NOTIFICATION_ID,n);
         decisions=new BroadcastReceiver(){@Override public void onReceive(Context c,Intent i){
-            PendingRequest p=pendingRequests.get(i.getStringExtra(EXTRA_ID));if(p!=null){p.accepted=i.getBooleanExtra(EXTRA_ACCEPT,false);p.latch.countDown();}
+            PendingRequest p=pendingRequests.get(i.getStringExtra(EXTRA_ID));if(p!=null){p.accepted=i.getBooleanExtra(EXTRA_ACCEPT,false);p.latch.countDown();NotificationManager manager=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);if(manager!=null)manager.cancel(p.notificationId);}
         }};
         IntentFilter f=new IntentFilter(ACTION_DECISION);
         if(Build.VERSION.SDK_INT>=33)registerReceiver(decisions,f,Context.RECEIVER_NOT_EXPORTED);else registerReceiver(decisions,f);
@@ -115,6 +116,39 @@ public class ReceiveForegroundService extends Service {
         udpAnnounceThread.start();
     }
 
+    private static int incomingNotificationId(String requestId){return 3000+(requestId.hashCode()&0x3fffffff);}
+    private PendingIntent decisionIntent(String requestId,boolean accept){
+        Intent action=new Intent(ACTION_DECISION).setPackage(getPackageName());
+        action.putExtra(EXTRA_ID,requestId);action.putExtra(EXTRA_ACCEPT,accept);
+        return PendingIntent.getBroadcast(this,incomingNotificationId(requestId)+(accept?1:2),action,
+            PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+    }
+    private void showIncomingNotification(PendingRequest request,String sender,int count,long total){
+        NotificationManager manager=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+        if(manager==null)return;
+        String summary="发送设备："+sender+" · 文件数量："+count+" 个 · 总大小："+sizeText(total);
+        Intent launch=getPackageManager().getLaunchIntentForPackage(getPackageName());
+        PendingIntent content=launch==null?null:PendingIntent.getActivity(this,request.notificationId,launch,
+            PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+        Notification.Builder builder=Build.VERSION.SDK_INT>=26
+            ?new Notification.Builder(this,INCOMING_CHANNEL):new Notification.Builder(this);
+        builder.setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentTitle("收到文件传输请求")
+            .setContentText(summary)
+            .setStyle(new Notification.BigTextStyle().bigText(summary+"。点击下方按钮接收或拒绝。"))
+            .setAutoCancel(true)
+            .setDefaults(Notification.DEFAULT_ALL)
+            .addAction(android.R.drawable.stat_sys_download_done,"接收",decisionIntent(request.id,true))
+            .addAction(android.R.drawable.ic_menu_close_clear_cancel,"拒绝",decisionIntent(request.id,false));
+        if(content!=null)builder.setContentIntent(content);
+        manager.notify(request.notificationId,builder.build());
+    }
+    private String sizeText(long bytes){
+        if(bytes<1024)return bytes+" B";
+        if(bytes<1024*1024)return String.format(Locale.getDefault(),"%.1f KB",bytes/1024d);
+        if(bytes<1024L*1024*1024)return String.format(Locale.getDefault(),"%.1f MB",bytes/(1024d*1024));
+        return String.format(Locale.getDefault(),"%.2f GB",bytes/(1024d*1024*1024));
+    }
     private String deviceName(){return DeviceIdentity.name(this);}
     private void publish(int port){
         try{NsdServiceInfo info=new NsdServiceInfo();info.setServiceName(deviceName());info.setServiceType(TYPE);info.setPort(port);info.setAttribute("id",DeviceIdentity.id(this));info.setAttribute("fp",TlsIdentity.fingerprint(this));
@@ -137,8 +171,10 @@ public class ReceiveForegroundService extends Service {
             DiagnosticLog.info(this,"INCOMING_REQUEST_READY","sender="+sender+", files="+count+", bytes="+total );
             android.util.Log.i("QuanLianReceive","Valid transfer request from "+sender+"; files="+count+", bytes="+total+"; waiting for user decision");
             Intent event=new Intent(ACTION_INCOMING).setPackage(getPackageName());event.putExtra(EXTRA_ID,request.id);event.putExtra(EXTRA_SENDER,sender);event.putExtra(EXTRA_COUNT,count);event.putExtra(EXTRA_TOTAL,total);sendBroadcast(event);
+            showIncomingNotification(request,sender,count,total);
             boolean accepted=request.latch.await(90,TimeUnit.SECONDS)&&request.accepted;
             pendingRequests.remove(request.id);
+            NotificationManager requestNotifications=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);if(requestNotifications!=null)requestNotifications.cancel(request.notificationId);
             out.writeBoolean(accepted);out.flush();if(!accepted)return;
             File dir=new File(getFilesDir(),"QuanLianIncoming");if(!dir.exists()&&!dir.mkdirs())throw new IOException("无法创建临时目录");
             byte[] buf=new byte[BUF];
