@@ -649,8 +649,8 @@ class LauncherView(context: Context) : View(context) {
             if (i == drawerIndex) paint.setShadowLayer(h * .018f, 0f, 0f, 0xAA39C8FF.toInt())
             c.drawRoundRect(cell, h * .025f, h * .025f, paint)
             paint.clearShadowLayer()
-            val iconSize = minOf(cellH * .62f, cell.width() * .60f)
-            val iconTop = cell.top + cellH * .075f
+            val iconSize = minOf(cellH * .76f, cell.width() * .72f)
+            val iconTop = cell.top + cellH * .045f
             val iconRect = RectF(cell.centerX() - iconSize / 2f, iconTop,
                 cell.centerX() + iconSize / 2f, iconTop + iconSize)
             drawUnifiedAppIcon(c, app, iconRect, i == drawerIndex)
@@ -809,6 +809,13 @@ class LauncherView(context: Context) : View(context) {
             val rect = RectF(left, h * .515f, left + w * .095f, h * .575f)
             paint.color = if (drawerColumns() == columns) 0xFF31B9FF.toInt() else 0x44FFFFFF
             c.drawRoundRect(rect, 14f, 14f, paint)
+            if (settingsFocus == i) {
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = (h * .0035f).coerceAtLeast(2f)
+                paint.color = 0xFF8BE7FF.toInt()
+                c.drawRoundRect(rect, 14f, 14f, paint)
+                paint.style = Paint.Style.FILL
+            }
             paint.textAlign = Paint.Align.CENTER
             text(c, "${columns}列", rect.centerX(), h * .553f, h * .021f, -1, true)
             paint.textAlign = Paint.Align.LEFT
@@ -819,6 +826,13 @@ class LauncherView(context: Context) : View(context) {
             val rect = RectF(left, h * .515f, left + w * .095f, h * .575f)
             paint.color = if (drawerRows() == rows) 0xFF31B9FF.toInt() else 0x44FFFFFF
             c.drawRoundRect(rect, 14f, 14f, paint)
+            if (settingsFocus == rows + 15) {
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = (h * .0035f).coerceAtLeast(2f)
+                paint.color = 0xFF8BE7FF.toInt()
+                c.drawRoundRect(rect, 14f, 14f, paint)
+                paint.style = Paint.Style.FILL
+            }
             paint.textAlign = Paint.Align.CENTER
             text(c, "${rows}行", rect.centerX(), h * .553f, h * .021f, -1, true)
             paint.textAlign = Paint.Align.LEFT
@@ -1109,8 +1123,6 @@ class LauncherView(context: Context) : View(context) {
                             event.x < width * .65f -> onRequestDefaultHome?.invoke()
                             else -> closeLauncherSettings()
                         }
-                    } else {
-                        isSettingsOpen = false
                     }
                 } else if (isDrawerOpen) {
                     if (event.y in (height * .19f)..(height * .29f) && event.x > width * .68f) {
