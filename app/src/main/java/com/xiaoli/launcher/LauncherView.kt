@@ -72,6 +72,7 @@ class LauncherView(context: Context) : View(context) {
     private val apps = mutableListOf<AppEntry>()
     private val favorites = mutableListOf<AppEntry>()
     private var drawerIndex = 0
+    private var drawerScrollRow = 0
     private var homeIndex = 0
     private var homeQuickTransferFocused = false
     private var touchDownX = 0f
@@ -584,9 +585,17 @@ class LauncherView(context: Context) : View(context) {
         val cols = drawerColumns()
         val cellW = w * .8f / cols
         val cellH = if (w < h) h * .105f else h * .15f
+        val contentTop = h * .31f
+        val contentBottom = h * .81f
+        val visibleRows = ((contentBottom - contentTop) / cellH).toInt().coerceAtLeast(1)
+        val totalRows = (apps.size + cols - 1) / cols
+        val maxScroll = (totalRows - visibleRows).coerceAtLeast(0)
+        drawerScrollRow = drawerScrollRow.coerceIn(0, maxScroll)
+        val clipSave = c.save()
+        c.clipRect(w * .085f, contentTop, w * .915f, contentBottom)
         apps.forEachIndexed { i, app ->
             val row = i / cols; val col = i % cols
-            val x = w*.1f + col*cellW; val y = h*.32f + row*cellH
+            val x = w*.1f + col*cellW; val y = contentTop + (row - drawerScrollRow)*cellH
             val cell = RectF(x,y,x+cellW*.88f,y+cellH*.92f)
             val iconSize = (if (w >= h) h * .105f else cellH * .57f).coerceAtMost(cellW * .58f)
             val iconRect = RectF(cell.centerX() - iconSize/2f, y + cellH*.035f,
@@ -596,6 +605,10 @@ class LauncherView(context: Context) : View(context) {
             text(c, app.label.take(8), cell.centerX(), iconRect.bottom + cellH*.22f,
                 h*.019f, -1, i==drawerIndex)
             paint.textAlign = Paint.Align.LEFT
+        }
+        c.restoreToCount(clipSave)
+        if (totalRows > visibleRows) {
+            text(c, "${drawerScrollRow + 1}/$maxScroll", w*.86f, h*.835f, h*.016f, 0xFFBDEBFF.toInt())
         }
         if (apps.isEmpty()) text(c, "暂未发现可启动的应用", w*.38f,h*.55f,h*.03f,-1)
         val hint = if (editingFavorites) "触摸点按添加/移除  ·  遥控器确认键操作  ·  最多5个"
@@ -653,9 +666,9 @@ class LauncherView(context: Context) : View(context) {
 
     private fun drawLauncherSettings(c: Canvas, w: Float, h: Float) {
         paint.color = 0xE6052B68.toInt()
-        c.drawRoundRect(RectF(w * .08f, h * .16f, w * .92f, h * .86f), 30f, 30f, paint)
+        c.drawRoundRect(RectF(w * .08f, h * .14f, w * .92f, h * .97f), 30f, 30f, paint)
         text(c, "小李桌面", w * .13f, h * .235f, h * .04f, -1, true)
-        text(c, "桌面设置", w * .13f, h * .265f, h * .021f, 0xFFDDEEFF.toInt())
+        text(c, "桌面设置  ·  个性化与设备管理", w * .13f, h * .265f, h * .021f, 0xFFDDEEFF.toInt())
         val weatherSetting = RectF(w * .13f, h * .275f, w * .87f, h * .37f)
         paint.color = if (settingsFocus == 8) 0xFF31B9FF.toInt() else 0x5544BFFF
         c.drawRoundRect(weatherSetting, 16f, 16f, paint)
@@ -718,9 +731,9 @@ class LauncherView(context: Context) : View(context) {
         paint.color = if (settingsFocus == 6) 0xFF167FD8.toInt() else 0x553AAFFF
         c.drawRoundRect(card, 20f, 20f, paint)
         text(c, "⇄  小李全联 · 快传", w * .17f, h * .755f, h * .03f, -1, true)
-        text(c, "桌面内置设备互传功能  ·  核心模块接入中", w * .17f, h * .805f, h * .021f, 0xFFDDEEFF.toInt())
+        text(c, "局域网高速互传  ·  发送、接收与传输记录", w * .17f, h * .805f, h * .021f, 0xFFDDEEFF.toInt())
 
-        val sys = RectF(w * .13f, h * .87f, w * .48f, h * .95f)
+        val sys = RectF(w * .13f, h * .865f, w * .48f, h * .945f)
         paint.color = if (settingsFocus == 7) 0xFF31B9FF.toInt() else 0x44FFFFFF
         c.drawRoundRect(sys, 16f, 16f, paint)
         text(c, "打开系统设置", sys.centerX() - w * .11f, h * .92f, h * .024f, -1, true)
@@ -1085,6 +1098,11 @@ class LauncherView(context: Context) : View(context) {
                     }
                 }
             }
+            val cols = drawerColumns()
+            val visibleRows = ((height * .50f) / (if (width < height) height * .105f else height * .15f)).toInt().coerceAtLeast(1)
+            val totalRows = (apps.size + cols - 1) / cols
+            val maxScroll = (totalRows - visibleRows).coerceAtLeast(0)
+            drawerScrollRow = (drawerIndex / cols - visibleRows + 1).coerceIn(0, maxScroll)
             invalidate(); return true
         }
         when (keyCode) {
