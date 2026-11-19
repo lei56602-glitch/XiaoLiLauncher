@@ -744,22 +744,23 @@ class QuanLianActivity : Activity() {
                 return true
             }
             x -= railWidth
-            if (y < height * .12f && x < (width - railWidth) * .28f) {
+            val contentWidth = contentWidth.toFloat() - railWidth
+            if (y < height * .12f && x < (contentWidth - railWidth) * .28f) {
                 goBack()
                 return true
             }
             when (page) {
                 Page.HOME -> {
-                    val cols = if (width >= height) 4 else 2
-                    val gap = width * if (cols == 4) .018f else .035f
-                    val cardW = (width * .86f - gap * (cols - 1)) / cols
+                    val cols = if (contentWidth >= height) 4 else 2
+                    val gap = contentWidth * if (cols == 4) .018f else .035f
+                    val cardW = (contentWidth * .86f - gap * (cols - 1)) / cols
                     val cardH = if (cols == 4) height * .25f else height * .17f
                     for (i in 0..3) {
                         val col = i % cols
                         val row = i / cols
-                        val rect = RectF(width * .07f + col * (cardW + gap),
+                        val rect = RectF(contentWidth * .07f + col * (cardW + gap),
                             height * .34f + row * (cardH + height * .025f),
-                            width * .07f + col * (cardW + gap) + cardW,
+                            contentWidth * .07f + col * (cardW + gap) + cardW,
                             height * .34f + row * (cardH + height * .025f) + cardH)
                         if (rect.contains(x, y)) {
                             focus = i
@@ -769,14 +770,14 @@ class QuanLianActivity : Activity() {
                     }
                 }
                 Page.SEND -> {
-                    val pick = RectF(width * .07f, height * .205f, width * .30f, height * .305f)
+                    val pick = RectF(contentWidth * .07f, height * .205f, contentWidth * .30f, height * .305f)
                     if (pick.contains(x, y)) {
                         focus = 0
                         openFilePicker()
                         return true
                     }
                     if (transferRunning) {
-                        val cancel = RectF(width * .72f, height * .205f, width * .93f, height * .305f)
+                        val cancel = RectF(contentWidth * .72f, height * .205f, contentWidth * .93f, height * .305f)
                         if (cancel.contains(x, y)) {
                             focus = 1
                             TransferForegroundService.cancelTransfer(this@QuanLianActivity)
@@ -790,9 +791,9 @@ class QuanLianActivity : Activity() {
                         val device = devices[i]
                         val col = i % 2
                         val rowIndex = i / 2 - sendDeviceScrollRow
-                        val left = if (col == 0) width * .07f else width * .515f
+                        val left = if (col == 0) contentWidth * .07f else contentWidth * .515f
                         val row = RectF(left, height * (.575f + rowIndex * .112f),
-                            left + width * .415f, height * (.675f + rowIndex * .112f))
+                            left + contentWidth * .415f, height * (.675f + rowIndex * .112f))
                         if (row.contains(x, y)) {
                             focus = i + if (transferRunning) 2 else 1
                             requestSend(device)
@@ -801,7 +802,7 @@ class QuanLianActivity : Activity() {
                     }
                 }
                 Page.RECEIVE -> {
-                    val action = RectF(width * .07f, height * .34f, width * .48f, height * .46f)
+                    val action = RectF(contentWidth * .07f, height * .34f, contentWidth * .48f, height * .46f)
                     if (action.contains(x, y)) {
                         focus = 0
                         activateFocused()
@@ -809,8 +810,8 @@ class QuanLianActivity : Activity() {
                     }
                 }
                 Page.DEVICES -> devices.take(9).forEachIndexed { i, device ->
-                    val row = RectF(width * .07f, height * (.31f + i * .071f),
-                        width * .93f, height * (.31f + i * .071f) + height * .065f)
+                    val row = RectF(contentWidth * .07f, height * (.31f + i * .071f),
+                        contentWidth * .93f, height * (.31f + i * .071f) + height * .065f)
                     if (row.contains(x, y)) {
                         focus = i
                         page = Page.SEND
@@ -823,11 +824,11 @@ class QuanLianActivity : Activity() {
                     val items=readHistoryItems()
                     for(i in historyScrollOffset until minOf(items.length(),historyScrollOffset+8)){
                         val visibleIndex=i-historyScrollOffset
-                        val row=RectF(width*.07f,height*(.27f+visibleIndex*.067f),width*.93f,height*(.325f+visibleIndex*.067f))
+                        val row=RectF(contentWidth*.07f,height*(.27f+visibleIndex*.067f),contentWidth*.93f,height*(.325f+visibleIndex*.067f))
                         if(row.contains(x,y)){focus=i;activateFocused();return true}
                     }
-                    val openDir=RectF(width*.07f,height*.82f,width*.39f,height*.91f)
-                    val clear=RectF(width*.43f,height*.82f,width*.75f,height*.91f)
+                    val openDir=RectF(contentWidth*.07f,height*.82f,contentWidth*.39f,height*.91f)
+                    val clear=RectF(contentWidth*.43f,height*.82f,contentWidth*.75f,height*.91f)
                     if(openDir.contains(x,y)){focus=items.length();activateFocused();return true}
                     if(clear.contains(x,y)){focus=items.length()+1;activateFocused();return true}
                 }
