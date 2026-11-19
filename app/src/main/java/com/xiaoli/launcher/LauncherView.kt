@@ -330,7 +330,7 @@ class LauncherView(context: Context) : View(context) {
         val connected = caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
         val validated = caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
         val x = w * .91f
-        val y = h * .285f
+        val y = h * .235f
         paint.color = if (connected && validated) 0xFFFFFFFF.toInt() else 0xFFFFC66D.toInt()
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = (h * .0035f).coerceAtLeast(2f)
@@ -644,16 +644,6 @@ class LauncherView(context: Context) : View(context) {
                 paint.textAlign = Paint.Align.LEFT
             }
         }
-        val cm=context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val connected=cm.activeNetworkInfo?.isConnected==true
-        paint.color=if(connected) 0xFFFFFFFF.toInt() else 0xFF9CB9D8.toInt()
-        paint.style=Paint.Style.STROKE
-        paint.strokeWidth=(h*.003f).coerceAtLeast(2f)
-        val cx=w*.91f;val cy=h*.91f
-        c.drawArc(RectF(cx-h*.026f,cy-h*.040f,cx+h*.026f,cy+h*.012f),220f,100f,false,paint)
-        c.drawArc(RectF(cx-h*.018f,cy-h*.028f,cx+h*.018f,cy+h*.008f),220f,100f,false,paint)
-        c.drawCircle(cx,cy+h*.004f,h*.004f,paint)
-paint.style=Paint.Style.FILL;paint.textAlign=Paint.Align.LEFT
     }
 
     private fun drawUnifiedAppIcon(c: Canvas, app: AppEntry, rect: RectF, focused: Boolean) {
@@ -1192,7 +1182,7 @@ paint.style=Paint.Style.FILL;paint.textAlign=Paint.Align.LEFT
                             else (homeIndex - 1).coerceAtLeast(0)
                     }
                 } else {
-                    if (event.x > width * .80f && event.y in (height * .245f)..(height * .34f)) { showNetworkDetails(); invalidate(); return true }
+                    if (event.x > width * .80f && event.y in (height * .195f)..(height * .29f)) { showNetworkDetails(); invalidate(); return true }
                     val index = homeItemIndexAt(event.x, event.y)
                     if (index >= 0) {
                         homeIndex = index
