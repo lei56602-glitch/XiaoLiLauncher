@@ -60,13 +60,33 @@ class LauncherView(context: Context) : View(context) {
             }.sortedBy { it.label.lowercase(Locale.getDefault()) }
         apps.clear(); apps.addAll(resolved)
         val saved = prefs.getString("favorites", null)
-        val chosen = saved?.split("|")?.filter { it.isNotBlank() }?.toSet()
         favorites.clear()
-        if (chosen != null) favorites.addAll(apps.filter { it.packageName in chosen })
-        if (favorites.isEmpty()) favorites.addAll(apps.take(5))
+        if (saved == null) {
+            favorites.addAll(apps.take(5))
+        } else {
+            val byPackage = apps.associateBy { it.packageName }
+            saved.split("|").filter { it.isNotBlank() }.forEach { pkg ->
+                byPackage[pkg]?.let { if (favorites.size < 5) favorites.add(it) }
+            }
+        }
+        homeIndex = homeIndex.coerceIn(0, (favorites.size - 1).coerceAtLeast(0))
     }
 
-    fun closeDrawer() { isDrawerOpen = false; invalidate() }
+    private var editingFavorites = false
+
+    private fun saveFavorites() {
+        prefs.edit().putString("favorites", favorites.joinToString("|") { it.packageName }).apply()
+        homeIndex = homeIndex.coerceIn(0, (favorites.size - 1).coerceAtLeast(0))
+    }
+
+    private fun toggleFavorite(app: AppEntry) {
+        val existing = favorites.indexOfFirst { it.packageName == app.packageName }
+        if (existing >= 0) favorites.removeAt(existing)
+        else if (favorites.size < 5) favorites.add(app)
+        saveFavorites()
+    }
+
+    fun closeDrawer() { isDrawerOpen = false; editingFavorites = false; invalidate() }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
@@ -136,30 +156,45 @@ class LauncherView(context: Context) : View(context) {
 
     private fun drawDrawer(c: Canvas, w: Float, h: Float) {
         paint.color = 0xCC052B68.toInt(); c.drawRoundRect(RectF(w*.06f,h*.18f,w*.94f,h*.9f),32f,32f,paint)
-        text(c, "应用抽屉", w*.09f, h*.25f, h*.04f, -1, true)
+        text(c, if (editingFavorites) "选择首页常用应用（最多5个）" else "应用抽屉", w*.09f, h*.25f, h*.04f, -1, true)
         val cols = 5; val cellW = w*.16f; val cellH = h*.15f
         apps.forEachIndexed { i, app ->
             val row = i / cols; val col = i % cols
             val x = w*.1f + col*cellW; val y = h*.32f + row*cellH
             val rect = RectF(x,y,x+cellW*.78f,y+cellH*.72f)
-            paint.color = if (i == drawerIndex) 0xFF31B9FF.toInt() else 0x44FFFFFF
+            val selected = favorites.any { it.packageName == app.packageName }
+            paint.color = when {
+                i == drawerIndex -> 0xFF31B9FF.toInt()
+                selected -> 0x6675D7FF
+                else -> 0x44FFFFFF
+            }
             c.drawRoundRect(rect,20f,20f,paint)
-            text(c, app.label.take(10), x+12f, y+cellH*.48f, h*.022f, -1, i==drawerIndex)
+            text(c, (if (selected) "✓ " else "") + app.label.take(8), x+12f, y+cellH*.48f, h*.022f, -1, i==drawerIndex)
         }
         if (apps.isEmpty()) text(c, "暂未发现可启动的应用", w*.38f,h*.55f,h*.03f,-1)
-        text(c, "方向键选择  ·  确认键启动  ·  返回键关闭", w*.3f,h*.86f,h*.022f,0xFFDDEEFF.toInt())
+        val hint = if (editingFavorites) "确认键添加/移除  ·  最多5个  ·  菜单键完成"
+            else "方向键选择  ·  确认键启动  ·  菜单键管理首页应用"
+        text(c, hint, w*.25f,h*.86f,h*.022f,0xFFDDEEFF.toInt())
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (isDrawerOpen) {
             when (keyCode) {
                 KeyEvent.KEYCODE_BACK -> { closeDrawer(); return true }
+                KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> editingFavorites = !editingFavorites
                 KeyEvent.KEYCODE_DPAD_LEFT -> drawerIndex = (drawerIndex - 1).coerceAtLeast(0)
                 KeyEvent.KEYCODE_DPAD_RIGHT -> drawerIndex = (drawerIndex + 1).coerceAtMost(apps.lastIndex.coerceAtLeast(0))
                 KeyEvent.KEYCODE_DPAD_UP -> drawerIndex = (drawerIndex - 5).coerceAtLeast(0)
                 KeyEvent.KEYCODE_DPAD_DOWN -> drawerIndex = (drawerIndex + 5).coerceAtMost(apps.lastIndex.coerceAtLeast(0))
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                    apps.getOrNull(drawerIndex)?.let { runCatching { context.startActivity(it.intent) } }
+                    apps.getOrNull(drawerIndex)?.let { app ->
+                        if (editingFavorites) {
+                            val exists = favorites.any { it.packageName == app.packageName }
+                            if (exists || favorites.size < 5) toggleFavorite(app)
+                        } else {
+                            runCatching { context.startActivity(app.intent) }
+                        }
+                    }
                 }
             }
             invalidate(); return true
