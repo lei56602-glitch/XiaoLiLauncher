@@ -74,3 +74,24 @@
 - 当前模块骨架的目标是验证依赖边界，不代表快传功能已经集成或可用。
 - 小李全联此前确认的 `v1.0-development`（commit `01ed793`）是开发测试分支，不是正式稳定版；截至本次审计，尚未识别出正式稳定分支或正式 release。因此禁止直接把该开发分支的发送/接收实现迁入生产模块。
 - 下一步必须继续核实小李全联仓库的正式发布来源；在确认之前，只推进接口、宿主导航和 UI 壳层，不迁移网络协议或后台服务。
+
+
+### 传输源代码审计补充（2026-11-19）
+
+已检查小李全联仓库当前公开 refs：
+- `main` 当前仅含 README；没有可供迁移的 Android 源码。
+- Git tags 与 GitHub releases 均为空，暂时没有可验证的正式发布标签或 release APK 来源。
+- `v1.0-development` 保留旧版 Android 实现，但它不是正式稳定版，不能作为默认迁移源。
+- 当前代码量较完整的候选是 `feature/windows-desktop`（commit `dc7ca4c`）；包含 Android 发送/接收前台服务、LAN/NSD/UDP 发现、设备身份与 TLS 指纹校验，并带 Windows 客户端。但其 README 明确标注项目仍处开发初期，因此只能作为待验证候选，不能称为稳定版。
+
+候选协议与集成风险：
+- 发送端使用 `QUANLIAN4`；接收端同时兼容 `QUANLIAN2`、`QUANLIAN3`、`QUANLIAN4`。QUANLIAN4 包含续传偏移与批量确认，不能用旧版 QUANLIAN2 代码替换。
+- 发现同时涉及 NSD 与自定义 UDP；连接层使用设备证书 SHA-256 指纹校验的 TLS。迁移必须连同设备身份、证书持久化/恢复策略一起审计，不能只搬两个 Service 文件。
+- 候选 Android 工程 `minSdk 26`，而小李桌面目前 `minSdk 23`；并依赖 Bouncy Castle。直接复制会造成最低系统版本和依赖冲突，必须先做 API/依赖兼容性处理。
+- 接收端支持断点续传临时文件、SHA-256 校验、接收确认、通知和前台服务；这些行为应保留并覆盖异常场景测试。
+
+执行决定：
+1. 不把任何当前开发分支冒充正式稳定版，也不直接合并整个 Android App。
+2. 将 `feature/windows-desktop` 作为当前最完整候选，先做独立构建与协议/安全审查；必要时与其他 feature 分支逐项比对。
+3. 在审查通过后，按 `transfer-api → protocol/device → Android discovery/services/storage` 的顺序抽取；先在独立集成分支验证，再合入 `main`。
+4. 必须保留 QUANLIAN2/3/4 互通能力、TLS 身份校验、接收确认、SHA-256、续传、取消和后台通知；不得降低安全性来换取快速接入。
