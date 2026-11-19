@@ -8,6 +8,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.RadialGradient
 import android.graphics.Shader
@@ -557,7 +558,7 @@ class LauncherView(context: Context) : View(context) {
         text(c,"快传",rect.left+rect.width()*.38f,rect.centerY()+h*.009f,h*.025f,-1,true)
     }
 
-    private fun drawUnifiedAppIcon(c: Canvas, app: ResolveInfo, rect: RectF, focused: Boolean) {
+    private fun drawUnifiedAppIcon(c: Canvas, app: AppEntry, rect: RectF, focused: Boolean) {
         val radius = rect.width() * .23f
         paint.style = Paint.Style.FILL
         paint.color = if (focused) 0xFF087DEB.toInt() else 0xFF0759B8.toInt()
@@ -569,7 +570,7 @@ class LauncherView(context: Context) : View(context) {
         val save = c.save()
         val clip = Path().apply { addRoundRect(inner, radius*.55f, radius*.55f, Path.Direction.CW) }
         c.clipPath(clip)
-        val drawable = runCatching { context.packageManager.getApplicationIcon(app.activityInfo.packageName) }.getOrNull()
+        val drawable = runCatching { context.packageManager.getApplicationIcon(app.packageName) }.getOrNull()
         drawable?.let {
             it.setBounds(inner.left.toInt(), inner.top.toInt(), inner.right.toInt(), inner.bottom.toInt())
             it.draw(c)
