@@ -573,13 +573,6 @@ class LauncherView(context: Context) : View(context) {
             it.draw(c)
         }
         c.restoreToCount(save)
-        if (focused) {
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = (rect.width()*.035f).coerceAtLeast(1.5f)
-            paint.color = 0xFF83DFFF.toInt()
-            c.drawRoundRect(rect, radius, radius, paint)
-            paint.style = Paint.Style.FILL
-        }
     }
 
     private fun drawDrawer(c: Canvas, w: Float, h: Float) {
