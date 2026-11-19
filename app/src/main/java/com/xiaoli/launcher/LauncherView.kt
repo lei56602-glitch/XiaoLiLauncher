@@ -554,7 +554,7 @@ class LauncherView(context: Context) : View(context) {
         c.drawRoundRect(weatherSetting, 16f, 16f, paint)
         text(c, "天气城市：${if (weatherCity.isBlank()) "尚未设置" else weatherCity}",
             w * .16f, h * .335f, h * .025f, -1, true)
-        text(c, "桌面信息显示", w * .13f, h * .405f, h * .023f, 0xFFDDEEFF.toInt())
+        text(c, "桌面信息显示", w * .13f, h * .397f, h * .021f, 0xFFDDEEFF.toInt())
         val labels = listOf(if (showClock) "时间：开" else "时间：关",
             if (showDate) "日期：开" else "日期：关",
             if (showLunar) "农历：开" else "农历：关",
@@ -564,28 +564,27 @@ class LauncherView(context: Context) : View(context) {
         val componentW = (w * .74f - componentGap * 3f) / 4f
         for (i in 0..3) {
             val left = w * .13f + i * (componentW + componentGap)
-            val rect = RectF(left, h * .42f, left + componentW, h * .475f)
+            val rect = RectF(left, h * .415f, left + componentW, h * .465f)
             paint.color = if (settingsFocus == componentKeys[i]) 0xFF31B9FF.toInt() else 0x5544BFFF
             c.drawRoundRect(rect, 12f, 12f, paint)
             paint.textAlign = Paint.Align.CENTER
-            text(c, labels[i], rect.centerX(), h * .456f, h * .019f, -1, true)
+            text(c, labels[i], rect.centerX(), h * .447f, h * .018f, -1, true)
             paint.textAlign = Paint.Align.LEFT
         }
-        text(c, "应用抽屉列数", w * .13f, h * .505f, h * .026f, 0xFFDDEEFF.toInt())
+        text(c, "应用抽屉列数", w * .13f, h * .492f, h * .023f, 0xFFDDEEFF.toInt())
         val gap = w * .025f
         val buttonW = w * .18f
         val start = w * .13f
         for (i in 0..2) {
             val columns = i + 3
             val left = start + i * (buttonW + gap)
-            val rect = RectF(left, h * .49f, left + buttonW, h * .58f)
+            val rect = RectF(left, h * .515f, left + buttonW, h * .575f)
             paint.color = if (drawerColumns() == columns) 0xFF31B9FF.toInt() else 0x44FFFFFF
             c.drawRoundRect(rect, 18f, 18f, paint)
             paint.textAlign = Paint.Align.CENTER
-            text(c, "${columns}列", rect.centerX(), h * .55f, h * .028f, -1, true)
+            text(c, "${columns}列", rect.centerX(), h * .553f, h * .024f, -1, true)
             paint.textAlign = Paint.Align.LEFT
         }
-        text(c, "默认五列，可根据习惯选择三列、四列或五列。", w * .13f, h * .665f, h * .020f, 0xFFDDEEFF.toInt())
 
         val wallpaper = RectF(w * .13f, h * .59f, w * .35f, h * .68f)
         paint.color = if (settingsFocus == 3) 0xFF31B9FF.toInt() else 0x5544BFFF
@@ -705,7 +704,7 @@ class LauncherView(context: Context) : View(context) {
                 if (isSettingsOpen) {
                     if (event.y in (height * .275f)..(height * .37f)) {
                         openWeatherCityDialog()
-                    } else if (event.y in (height * .49f)..(height * .58f)) {
+                    } else if (event.y in (height * .515f)..(height * .575f)) {
                         val gap = width * .025f
                         val buttonW = width * .18f
                         val start = width * .13f
