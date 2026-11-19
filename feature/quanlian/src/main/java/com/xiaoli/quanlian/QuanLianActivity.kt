@@ -710,14 +710,14 @@ class QuanLianActivity : Activity() {
                     }
                 }
                 Page.SEND -> {
-                    val pick = RectF(width * .07f, height * .23f, width * .42f, height * .32f)
+                    val pick = RectF(width * .07f, height * .205f, width * .30f, height * .305f)
                     if (pick.contains(x, y)) {
                         focus = 0
                         openFilePicker()
                         return true
                     }
                     if (transferRunning) {
-                        val cancel = RectF(width * .68f, height * .23f, width * .93f, height * .32f)
+                        val cancel = RectF(width * .72f, height * .205f, width * .93f, height * .305f)
                         if (cancel.contains(x, y)) {
                             focus = 1
                             TransferForegroundService.cancelTransfer(this@QuanLianActivity)
@@ -726,9 +726,11 @@ class QuanLianActivity : Activity() {
                             return true
                         }
                     }
-                    devices.take(5).forEachIndexed { i, device ->
+                    val firstDevice = sendDeviceScrollRow * 2
+                    for (i in firstDevice until minOf(devices.size, firstDevice + 6)) {
+                        val device = devices[i]
                         val col = i % 2
-                        val rowIndex = i / 2
+                        val rowIndex = i / 2 - sendDeviceScrollRow
                         val left = if (col == 0) width * .07f else width * .515f
                         val row = RectF(left, height * (.575f + rowIndex * .112f),
                             left + width * .415f, height * (.675f + rowIndex * .112f))
