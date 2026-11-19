@@ -324,26 +324,6 @@ class LauncherView(context: Context) : View(context) {
         }.getOrNull()
     }
 
-    private fun drawWifiStatus(c: Canvas, w: Float, h: Float) {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val caps = cm.activeNetwork?.let { cm.getNetworkCapabilities(it) }
-        val connected = caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
-        val validated = caps?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
-        val x = w * .91f
-        val y = h * .235f
-        paint.color = if (connected && validated) 0xFFFFFFFF.toInt() else 0xFFFFC66D.toInt()
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = (h * .0035f).coerceAtLeast(2f)
-        c.drawArc(RectF(x-h*.027f,y-h*.025f,x+h*.027f,y+h*.029f),220f,100f,false,paint)
-        c.drawArc(RectF(x-h*.017f,y-h*.014f,x+h*.017f,y+h*.020f),220f,100f,false,paint)
-        c.drawCircle(x,y+h*.018f,h*.0045f,paint)
-        paint.style = Paint.Style.FILL
-        paint.textAlign = Paint.Align.RIGHT
-        text(c, if (!connected) "未连接网络" else if (!validated) "网络受限" else "Wi-Fi 已连接",
-            w*.965f,y+h*.055f,h*.016f,if (connected && validated) -1 else 0xFFFFD59A.toInt())
-        paint.textAlign = Paint.Align.LEFT
-    }
-
     private fun showNetworkDetails() {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = cm.activeNetwork
@@ -377,18 +357,6 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun drawTop(c: Canvas, w: Float) {
-        val brandSize = (height * .058f).coerceAtLeast(36f)
-        val brand = RectF(w * .052f, height * .045f, w * .052f + brandSize, height * .045f + brandSize)
-        paint.shader = LinearGradient(brand.left, brand.top, brand.right, brand.bottom,
-            intArrayOf(0xFF62E5FF.toInt(), 0xFF087DEB.toInt()), null, Shader.TileMode.CLAMP)
-        c.drawRoundRect(brand, brandSize * .24f, brandSize * .24f, paint)
-        paint.shader = null
-        paint.color = android.graphics.Color.WHITE
-        paint.textAlign = Paint.Align.CENTER
-        text(c, "⇄", brand.centerX(), brand.centerY() + brandSize * .19f, brandSize * .56f, -1, true)
-        paint.textAlign = Paint.Align.LEFT
-        text(c, "小李桌面", brand.right + height * .016f, brand.centerY() + height * .012f,
-            height * .028f, -1, true)
         val now = Date()
         val timePattern = when {
             use24HourClock && showClockSeconds -> "HH:mm:ss"
@@ -512,13 +480,13 @@ class LauncherView(context: Context) : View(context) {
         val field = EditText(context).apply {
             setSingleLine(true)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
-            hint = "例如：Singapore"
+            hint = "例如：北京、上海、Singapore"
             setText(weatherCity)
             setSelection(text.length)
         }
         AlertDialog.Builder(context)
             .setTitle("设置天气城市")
-            .setMessage("输入城市名称，天气数据将通过网络获取。")
+            .setMessage("自动定位不可用时，可在此输入城市名称获取天气。")
             .setView(field)
             .setNegativeButton("取消", null)
             .setPositiveButton("保存") { _, _ ->
@@ -566,8 +534,9 @@ class LauncherView(context: Context) : View(context) {
             } catch (e: Exception) {
                 result = when (e) {
                     is java.net.UnknownHostException -> "网络不可用，天气无法更新"
-                    is java.net.SocketTimeoutException -> "天气服务连接超时"
-                    else -> e.message?.takeIf { it.contains("城市") } ?: "位置或天气服务暂不可用"
+                    is java.net.SocketTimeoutException -> "天气服务连接超时，点击天气设置城市"
+                    else -> if (requestedCity.isBlank()) "自动定位失败，点击天气手动设置城市"
+                        else e.message?.takeIf { it.contains("城市") } ?: "天气服务暂不可用"
                 }
             }
             val finalResult = result
@@ -620,7 +589,6 @@ class LauncherView(context: Context) : View(context) {
 
     private fun drawHome(c: Canvas, w: Float, h: Float) {
         val count = minOf(5, favorites.size)
-        drawWifiStatus(c, w, h)
         if (count > 0) {
             favorites.take(5).forEachIndexed { i, app ->
                 val rect = homeItemRect(i, w, h)
@@ -634,10 +602,13 @@ class LauncherView(context: Context) : View(context) {
                 paint.color = if (focused) 0xCC7DE5FF.toInt() else 0x557FC9FF
                 c.drawRoundRect(rect, h * .035f, h * .035f, paint)
                 paint.style = Paint.Style.FILL
-                val iconSize = minOf(rect.width() * .90f, rect.height() * .76f).coerceAtLeast(52f)
-                val iconTop = rect.top + rect.height() * .025f
-                val iconRect = RectF(rect.centerX() - iconSize / 2f, iconTop,
-                    rect.centerX() + iconSize / 2f, iconTop + iconSize)
+                // Let the app artwork occupy almost the entire card; reserve only a slim label strip.
+                val iconRect = RectF(
+                    rect.left + rect.width() * .035f,
+                    rect.top + rect.height() * .025f,
+                    rect.right - rect.width() * .035f,
+                    rect.bottom - rect.height() * .19f
+                )
                 drawUnifiedAppIcon(c, app, iconRect, focused)
                 paint.textAlign = Paint.Align.CENTER
                 text(c, app.label.take(10), rect.centerX(), rect.bottom - h * .018f, h * .026f, -1, true)
@@ -651,8 +622,8 @@ class LauncherView(context: Context) : View(context) {
             runCatching { context.packageManager.getApplicationIcon(app.packageName) }
                 .getOrNull() ?: android.graphics.drawable.ColorDrawable(0xFF1B74C8.toInt())
         }
-        val inset = rect.width() * .025f
-        val target = RectF(rect.left + inset, rect.top + inset, rect.right - inset, rect.bottom - inset)
+        // Use the supplied bounds directly: no extra nested icon frame or artificial padding.
+        val target = RectF(rect)
         if (focused) {
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = (rect.width() * .018f).coerceAtLeast(2f)
@@ -1182,7 +1153,12 @@ class LauncherView(context: Context) : View(context) {
                             else (homeIndex - 1).coerceAtLeast(0)
                     }
                 } else {
-                    if (event.x > width * .80f && event.y in (height * .195f)..(height * .29f)) { showNetworkDetails(); invalidate(); return true }
+                    if (showWeather && event.x > width * .68f &&
+                        event.y in (height * .14f)..(height * .34f)) {
+                        openWeatherCityDialog()
+                        invalidate()
+                        return true
+                    }
                     val index = homeItemIndexAt(event.x, event.y)
                     if (index >= 0) {
                         homeIndex = index
