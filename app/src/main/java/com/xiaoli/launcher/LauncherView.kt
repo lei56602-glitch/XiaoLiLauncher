@@ -110,7 +110,7 @@ class LauncherView(context: Context) : View(context) {
     private val clockTick = object : Runnable {
         override fun run() {
             invalidate()
-            if (weatherCity.isNotBlank() && System.currentTimeMillis() - weatherUpdatedAt > 30 * 60 * 1000L) refreshWeather()
+            if (System.currentTimeMillis() - weatherUpdatedAt > 30 * 60 * 1000L) refreshWeather()
             handler.postDelayed(this, if (showClockSeconds) 1_000L else 30_000L)
         }
     }
@@ -152,7 +152,7 @@ class LauncherView(context: Context) : View(context) {
         isFocusableInTouchMode = true
         loadApps()
         loadSavedWallpaper()
-        if (weatherCity.isNotBlank() && System.currentTimeMillis() - weatherUpdatedAt > 30 * 60 * 1000L) refreshWeather()
+        if (System.currentTimeMillis() - weatherUpdatedAt > 30 * 60 * 1000L) refreshWeather()
         handler.post(clockTick)
         updateAnimationLoop()
     }
@@ -537,41 +537,56 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun refreshWeather() {
-        if (weatherLoading || weatherCity.isBlank()) return
+        if (weatherLoading) return
         weatherLoading = true
         val requestedCity = weatherCity
         thread(name = "launcher-weather") {
-            var result = "天气暂不可用"
+            var result = "天气获取失败"
+            var resolvedCity = requestedCity
             try {
-                val encoded = URLEncoder.encode(requestedCity, "UTF-8")
-                val geo = readWeatherJson("https://geocoding-api.open-meteo.com/v1/search?name=$encoded&count=1&language=zh&format=json")
-                val first = geo.optJSONArray("results")?.optJSONObject(0)
-                if (first != null) {
-                    val lat = first.getDouble("latitude")
-                    val lon = first.getDouble("longitude")
-                    val forecast = readWeatherJson("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code&timezone=auto")
-                    val current = forecast.getJSONObject("current")
-                    val temperature = current.getDouble("temperature_2m")
-                    val code = current.getInt("weather_code")
-                    result = String.format(Locale.getDefault(), "%s  %.0f°C", weatherDescription(code), temperature)
+                val lat: Double
+                val lon: Double
+                if (requestedCity.isBlank()) {
+                    // Coarse IP geolocation avoids requiring runtime location permission on TV.
+                    val location = readWeatherJson("https://ipapi.co/json/")
+                    lat = location.getDouble("latitude")
+                    lon = location.getDouble("longitude")
+                    resolvedCity = location.optString("city").ifBlank { location.optString("country_name") }.ifBlank { "当前位置" }
                 } else {
-                    result = "找不到该城市"
+                    val encoded = URLEncoder.encode(requestedCity, "UTF-8")
+                    val geo = readWeatherJson("https://geocoding-api.open-meteo.com/v1/search?name=$encoded&count=1&language=zh&format=json")
+                    val first = geo.optJSONArray("results")?.optJSONObject(0) ?: throw IllegalStateException("找不到该城市")
+                    lat = first.getDouble("latitude")
+                    lon = first.getDouble("longitude")
+                    resolvedCity = first.optString("name", requestedCity)
                 }
-            } catch (_: Exception) {
-                result = "天气获取失败"
+                val forecast = readWeatherJson("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon&current=temperature_2m,weather_code&timezone=auto")
+                val current = forecast.getJSONObject("current")
+                result = String.format(Locale.getDefault(), "%s  %.0f°C",
+                    weatherDescription(current.getInt("weather_code")), current.getDouble("temperature_2m"))
+            } catch (e: Exception) {
+                result = when (e) {
+                    is java.net.UnknownHostException -> "网络不可用，天气无法更新"
+                    is java.net.SocketTimeoutException -> "天气服务连接超时"
+                    else -> e.message?.takeIf { it.contains("城市") } ?: "位置或天气服务暂不可用"
+                }
             }
             val finalResult = result
+            val finalCity = resolvedCity
             handler.post {
                 if (weatherCity == requestedCity) {
+                    if (requestedCity.isBlank() && finalCity.isNotBlank() &&
+                        !finalResult.contains("不可用") && !finalResult.contains("超时")) {
+                        weatherCity = finalCity
+                        prefs.edit().putString("weather_city", finalCity).apply()
+                    }
                     weatherSummary = finalResult
                     weatherUpdatedAt = System.currentTimeMillis()
                     prefs.edit().putString("weather_summary", weatherSummary)
                         .putLong("weather_updated_at", weatherUpdatedAt).apply()
-                    weatherLoading = false
-                    invalidate()
-                } else {
-                    weatherLoading = false
                 }
+                weatherLoading = false
+                invalidate()
             }
         }
     }
