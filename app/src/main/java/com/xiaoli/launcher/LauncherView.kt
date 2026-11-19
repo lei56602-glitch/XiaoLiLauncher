@@ -16,6 +16,7 @@ import android.net.ConnectivityManager
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.os.Build
 import android.provider.Settings
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -237,6 +238,23 @@ class LauncherView(context: Context) : View(context) {
     }
     private fun canvasText(c: Canvas, value: String, x: Float, y: Float) { c.drawText(value, x, y, paint) }
 
+    private fun lunarDateLabel(timeMillis: Long): String? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return null
+        return runCatching {
+            val lunar = android.icu.util.ChineseCalendar().apply { setTimeInMillis(timeMillis) }
+            val months = arrayOf("正月", "二月", "三月", "四月", "五月", "六月",
+                "七月", "八月", "九月", "十月", "冬月", "腊月")
+            val days = arrayOf("初一", "初二", "初三", "初四", "初五", "初六", "初七",
+                "初八", "初九", "初十", "十一", "十二", "十三", "十四", "十五",
+                "十六", "十七", "十八", "十九", "二十", "廿一", "廿二", "廿三",
+                "廿四", "廿五", "廿六", "廿七", "廿八", "廿九", "三十")
+            val month = lunar.get(android.icu.util.Calendar.MONTH).coerceIn(0, 11)
+            val day = (lunar.get(android.icu.util.Calendar.DAY_OF_MONTH) - 1).coerceIn(0, 29)
+            val leap = lunar.get(android.icu.util.ChineseCalendar.IS_LEAP_MONTH) == 1
+            "农历" + (if (leap) "闰" else "") + months[month] + days[day]
+        }.getOrNull()
+    }
+
     private fun drawTop(c: Canvas, w: Float) {
         text(c, "◉  小李桌面", w * .035f, height * .09f, height * .045f, -1, true)
         val now = Date()
@@ -245,6 +263,9 @@ class LauncherView(context: Context) : View(context) {
         paint.textAlign = Paint.Align.RIGHT
         text(c, time, w * .965f, height * .085f, height * .052f, -1, true)
         text(c, date, w * .965f, height * .125f, height * .021f, 0xFFE2F1FF.toInt())
+        lunarDateLabel(now.time)?.let {
+            text(c, it, w * .965f, height * .16f, height * .019f, 0xFFBDEBFF.toInt())
+        }
         paint.textAlign = Paint.Align.LEFT
     }
 
