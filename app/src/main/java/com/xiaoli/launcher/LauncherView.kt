@@ -366,7 +366,7 @@ class LauncherView(context: Context) : View(context) {
             append("状态：").append(status).append("\n")
             append("接口：").append(links?.interfaceName ?: "—").append("\n")
             append("本机地址：").append(links?.linkAddresses?.joinToString { it.address.hostAddress ?: "" } ?: "—").append("\n")
-            append("网关：").append(links?.routes?.firstOrNull { it.isDefault }?.gateway?.hostAddress ?: "—").append("\n")
+            append("网关：").append(links?.routes?.firstOrNull { it.isDefaultRoute() }?.gateway?.hostAddress ?: "—").append("\n")
             append("DNS：").append(links?.dnsServers?.joinToString { it.hostAddress ?: "" } ?: "—")
         }
         AlertDialog.Builder(context).setTitle("实时网络信息").setMessage(details)
