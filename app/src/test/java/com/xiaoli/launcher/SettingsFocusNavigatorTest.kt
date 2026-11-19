@@ -1,7 +1,6 @@
 package com.xiaoli.launcher
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class SettingsFocusNavigatorTest {
