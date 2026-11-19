@@ -29,6 +29,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
 import org.json.JSONArray
 import java.util.Locale
 
@@ -79,7 +80,7 @@ class QuanLianActivity : Activity() {
     }
 
     override fun onDestroy() {
-        screenScope.coroutineContext[SupervisorJob]?.cancel()
+        screenScope.cancel()
         super.onDestroy()
     }
 
