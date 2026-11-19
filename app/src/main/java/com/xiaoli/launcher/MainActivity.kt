@@ -22,7 +22,9 @@ class MainActivity : Activity() {
     }
 
     override fun onBackPressed() {
-        if (::launcherView.isInitialized && launcherView.isDrawerOpen) {
+        if (::launcherView.isInitialized && launcherView.isLauncherSettingsOpen) {
+            launcherView.closeLauncherSettings()
+        } else if (::launcherView.isInitialized && launcherView.isDrawerOpen) {
             launcherView.closeDrawer()
         } else {
             super.onBackPressed()
