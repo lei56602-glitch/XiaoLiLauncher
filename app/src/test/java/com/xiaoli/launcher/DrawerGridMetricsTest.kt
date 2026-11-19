@@ -41,4 +41,22 @@ class DrawerGridMetricsTest {
         assertEquals(-1, metrics.indexAt(gapX, centerY, 0, 20))
         assertEquals(-1, metrics.indexAt(lastCellX, centerY, 0, 4))
     }
+    @Test
+    fun horizontalFocusDoesNotWrapAcrossGridRows() {
+        val metrics = DrawerGridMetrics(1920f, 1080f, 5, 2)
+        assertEquals(4, metrics.moveFocus(4, 1, 20))
+        assertEquals(5, metrics.moveFocus(5, -1, 20))
+        assertEquals(3, metrics.moveFocus(4, -1, 20))
+        assertEquals(9, metrics.moveFocus(8, 1, 12))
+    }
+
+    @Test
+    fun verticalFocusDoesNotJumpIntoMissingCellsOfIncompleteRows() {
+        val metrics = DrawerGridMetrics(1920f, 1080f, 5, 2)
+        assertEquals(8, metrics.moveFocus(3, 2, 9))
+        assertEquals(8, metrics.moveFocus(8, 2, 9))
+        assertEquals(8, metrics.moveFocus(8, 1, 9))
+        assertEquals(3, metrics.moveFocus(8, -2, 9))
+    }
+}
 }

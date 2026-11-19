@@ -1268,10 +1268,10 @@ class LauncherView(context: Context) : View(context) {
             when (keyCode) {
                 KeyEvent.KEYCODE_BACK -> { closeDrawer(); return true }
                 KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> editingFavorites = !editingFavorites
-                KeyEvent.KEYCODE_DPAD_LEFT -> drawerIndex = (drawerIndex - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> drawerIndex = (drawerIndex + 1).coerceAtMost(apps.lastIndex.coerceAtLeast(0))
-                KeyEvent.KEYCODE_DPAD_UP -> drawerIndex = (drawerIndex - drawerColumns()).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_DOWN -> drawerIndex = (drawerIndex + drawerColumns()).coerceAtMost(apps.lastIndex.coerceAtLeast(0))
+                KeyEvent.KEYCODE_DPAD_LEFT -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, -1, apps.size)
+                KeyEvent.KEYCODE_DPAD_RIGHT -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, 1, apps.size)
+                KeyEvent.KEYCODE_DPAD_UP -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, -2, apps.size)
+                KeyEvent.KEYCODE_DPAD_DOWN -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, 2, apps.size)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     apps.getOrNull(drawerIndex)?.let { app ->
                         if (editingFavorites) {

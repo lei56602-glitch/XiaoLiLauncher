@@ -28,6 +28,23 @@ internal data class DrawerGridMetrics(
 
     fun iconTop(cellTop: Float): Float = cellTop + cellHeight * .045f
 
+    /**
+     * Move focus within the current grid row/column. Never wrap at row edges
+     * or jump to an unrelated item when the last row is incomplete.
+     */
+    fun moveFocus(index: Int, direction: Int, itemCount: Int): Int {
+        if (itemCount <= 0) return 0
+        val current = index.coerceIn(0, itemCount - 1)
+        val column = current % columns
+        return when (direction) {
+            -1 -> if (column > 0) current - 1 else current
+            1 -> if (column < columns - 1 && current + 1 < itemCount) current + 1 else current
+            -2 -> if (current >= columns) current - columns else current
+            2 -> if (current + columns < itemCount) current + columns else current
+            else -> current
+        }
+    }
+
     fun indexAt(x: Float, y: Float, scrollRow: Int, itemCount: Int): Int {
         if (x < gridLeft || x >= gridRight || y < contentTop || y >= contentBottom ||
             cellWidth <= 0f || cellHeight <= 0f) return -1
