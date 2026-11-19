@@ -227,11 +227,18 @@ class LauncherView(context: Context) : View(context) {
             paint.textAlign = Paint.Align.LEFT
         }
         text(c, "默认五列，可根据习惯选择三列、四列或五列。", w * .13f, h * .66f, h * .024f, 0xFFDDEEFF.toInt())
-        val sys = RectF(w * .13f, h * .72f, w * .48f, h * .81f)
-        paint.color = if (settingsFocus == 3) 0xFF31B9FF.toInt() else 0x44FFFFFF
+
+        val card = RectF(w * .13f, h * .70f, w * .87f, h * .84f)
+        paint.color = if (settingsFocus == 3) 0xFF167FD8.toInt() else 0x553AAFFF
+        c.drawRoundRect(card, 20f, 20f, paint)
+        text(c, "⇄  小李全联 · 快传", w * .17f, h * .755f, h * .03f, -1, true)
+        text(c, "桌面内置设备互传功能  ·  核心模块接入中", w * .17f, h * .805f, h * .021f, 0xFFDDEEFF.toInt())
+
+        val sys = RectF(w * .13f, h * .87f, w * .48f, h * .95f)
+        paint.color = if (settingsFocus == 4) 0xFF31B9FF.toInt() else 0x44FFFFFF
         c.drawRoundRect(sys, 16f, 16f, paint)
-        text(c, "打开系统设置", sys.centerX() - w * .11f, h * .775f, h * .024f, -1, true)
-        text(c, "返回桌面", w * .72f, h * .775f, h * .024f, -1, true)
+        text(c, "打开系统设置", sys.centerX() - w * .11f, h * .92f, h * .024f, -1, true)
+        text(c, "返回桌面", w * .72f, h * .92f, h * .024f, -1, true)
     }
 
     private fun homeItemRect(index: Int, w: Float, h: Float): RectF {
@@ -322,7 +329,9 @@ class LauncherView(context: Context) : View(context) {
                         val start = width * .13f
                         val selected = ((event.x - start) / (buttonW + gap)).toInt()
                         if (selected in 0..2) setDrawerColumns(selected + 3)
-                    } else if (event.y in (height * .72f)..(height * .81f) && event.x < width * .5f) {
+                    } else if (event.y in (height * .70f)..(height * .84f)) {
+                        context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
+                    } else if (event.y in (height * .87f)..(height * .95f) && event.x < width * .5f) {
                         runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                     } else {
                         isSettingsOpen = false
@@ -390,9 +399,10 @@ class LauncherView(context: Context) : View(context) {
             when (keyCode) {
                 KeyEvent.KEYCODE_BACK -> { closeLauncherSettings(); return true }
                 KeyEvent.KEYCODE_DPAD_LEFT -> settingsFocus = (settingsFocus - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> settingsFocus = (settingsFocus + 1).coerceAtMost(3)
+                KeyEvent.KEYCODE_DPAD_RIGHT -> settingsFocus = (settingsFocus + 1).coerceAtMost(4)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     if (settingsFocus in 0..2) setDrawerColumns(settingsFocus + 3)
+                    else if (settingsFocus == 3) context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
                     else runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                 }
             }
