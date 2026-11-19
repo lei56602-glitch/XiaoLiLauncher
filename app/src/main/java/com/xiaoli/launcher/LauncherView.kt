@@ -511,22 +511,12 @@ class LauncherView(context: Context) : View(context) {
         if (count > 0) {
             favorites.take(5).forEachIndexed { i, app ->
                 val rect = homeItemRect(i, w, h)
-                paint.color = if (i == homeIndex) 0xFFFFFFFF.toInt() else 0x66FFFFFF
-                c.drawRoundRect(rect, 28f, 28f, paint)
-                if (i == homeIndex) {
-                    paint.style = Paint.Style.STROKE; paint.strokeWidth = 4f; paint.color = 0xFF75D7FF.toInt()
-                    c.drawRoundRect(RectF(rect.left-3f, rect.top-3f, rect.right+3f, rect.bottom+3f), 30f, 30f, paint)
-                    paint.style = Paint.Style.FILL
-                }
-                val icon = runCatching { context.packageManager.getApplicationIcon(app.packageName) }.getOrNull()
-                icon?.let { drawable ->
-                    val size = (h * .075f).toInt().coerceAtLeast(32)
-                    val cx = rect.centerX().toInt(); val cy = (rect.top + rect.height()*.43f).toInt()
-                    drawable.setBounds(cx-size/2, cy-size/2, cx+size/2, cy+size/2)
-                    drawable.draw(c)
-                }
+                val iconSize = (h * .105f).coerceAtMost(rect.width() * .72f).coerceAtLeast(34f)
+                val iconRect = RectF(rect.centerX() - iconSize / 2f, rect.top + rect.height() * .04f,
+                    rect.centerX() + iconSize / 2f, rect.top + rect.height() * .04f + iconSize)
+                drawUnifiedAppIcon(c, app, iconRect, i == homeIndex)
                 paint.textAlign = Paint.Align.CENTER
-                text(c, app.label.take(8), rect.centerX(), rect.bottom + h * .045f, h * .025f, -1, true)
+                text(c, app.label.take(8), rect.centerX(), iconRect.bottom + h * .045f, h * .025f, -1, true)
                 paint.textAlign = Paint.Align.LEFT
             }
         } else {
@@ -567,6 +557,33 @@ class LauncherView(context: Context) : View(context) {
         text(c,"快传",rect.left+rect.width()*.38f,rect.centerY()+h*.009f,h*.025f,-1,true)
     }
 
+    private fun drawUnifiedAppIcon(c: Canvas, app: ResolveInfo, rect: RectF, focused: Boolean) {
+        val radius = rect.width() * .23f
+        paint.style = Paint.Style.FILL
+        paint.color = if (focused) 0xFF087DEB.toInt() else 0xFF0759B8.toInt()
+        if (focused) paint.setShadowLayer(rect.width() * .24f, 0f, 0f, 0xAA27BFFF.toInt())
+        c.drawRoundRect(rect, radius, radius, paint)
+        paint.clearShadowLayer()
+        val inner = RectF(rect.left + rect.width()*.17f, rect.top + rect.height()*.17f,
+            rect.right - rect.width()*.17f, rect.bottom - rect.height()*.17f)
+        val save = c.save()
+        val clip = Path().apply { addRoundRect(inner, radius*.55f, radius*.55f, Path.Direction.CW) }
+        c.clipPath(clip)
+        val drawable = runCatching { context.packageManager.getApplicationIcon(app.activityInfo.packageName) }.getOrNull()
+        drawable?.let {
+            it.setBounds(inner.left.toInt(), inner.top.toInt(), inner.right.toInt(), inner.bottom.toInt())
+            it.draw(c)
+        }
+        c.restoreToCount(save)
+        if (focused) {
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = (rect.width()*.035f).coerceAtLeast(1.5f)
+            paint.color = 0xFF83DFFF.toInt()
+            c.drawRoundRect(rect, radius, radius, paint)
+            paint.style = Paint.Style.FILL
+        }
+    }
+
     private fun drawDrawer(c: Canvas, w: Float, h: Float) {
         paint.color = 0xCC052B68.toInt(); c.drawRoundRect(RectF(w*.06f,h*.18f,w*.94f,h*.9f),32f,32f,paint)
         text(c, if (editingFavorites) "选择首页常用应用（最多5个）" else "应用抽屉", w*.09f, h*.25f, h*.04f, -1, true)
@@ -579,15 +596,15 @@ class LauncherView(context: Context) : View(context) {
         apps.forEachIndexed { i, app ->
             val row = i / cols; val col = i % cols
             val x = w*.1f + col*cellW; val y = h*.32f + row*cellH
-            val rect = RectF(x,y,x+cellW*.88f,y+cellH*.78f)
-            val selected = favorites.any { it.packageName == app.packageName }
-            paint.color = when {
-                i == drawerIndex -> 0xFF31B9FF.toInt()
-                selected -> 0x6675D7FF
-                else -> 0x44FFFFFF
-            }
-            c.drawRoundRect(rect,20f,20f,paint)
-            text(c, (if (selected) "✓ " else "") + app.label.take(8), x+12f, y+cellH*.48f, h*.022f, -1, i==drawerIndex)
+            val cell = RectF(x,y,x+cellW*.88f,y+cellH*.92f)
+            val iconSize = (cellH * .57f).coerceAtMost(cellW * .58f)
+            val iconRect = RectF(cell.centerX() - iconSize/2f, y + cellH*.035f,
+                cell.centerX() + iconSize/2f, y + cellH*.035f + iconSize)
+            drawUnifiedAppIcon(c, app, iconRect, i == drawerIndex)
+            paint.textAlign = Paint.Align.CENTER
+            text(c, app.label.take(8), cell.centerX(), iconRect.bottom + cellH*.22f,
+                h*.019f, -1, i==drawerIndex)
+            paint.textAlign = Paint.Align.LEFT
         }
         if (apps.isEmpty()) text(c, "暂未发现可启动的应用", w*.38f,h*.55f,h*.03f,-1)
         val hint = if (editingFavorites) "触摸点按添加/移除  ·  遥控器确认键操作  ·  最多5个"
