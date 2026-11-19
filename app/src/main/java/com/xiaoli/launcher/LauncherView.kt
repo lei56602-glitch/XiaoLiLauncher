@@ -1194,11 +1194,7 @@ paint.style=Paint.Style.FILL;paint.textAlign=Paint.Align.LEFT
                 } else {
                     if (event.x > width * .80f && event.y in (height * .245f)..(height * .34f)) { showNetworkDetails(); invalidate(); return true }
                     val index = homeItemIndexAt(event.x, event.y)
-                    if (quanLianFeatureRect(width.toFloat(), height.toFloat()).contains(event.x, event.y)) {
-                        runCatching {
-                            context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
-                        }
-                    } else if (index >= 0) {
+                    if (index >= 0) {
                         homeIndex = index
                         favorites.getOrNull(index)?.let { runCatching { context.startActivity(it.intent) } }
                     } else if (event.y > height * .78f && event.x < width * .42f) {
