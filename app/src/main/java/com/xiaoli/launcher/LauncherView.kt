@@ -9,6 +9,7 @@ import android.graphics.BitmapFactory
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.RadialGradient
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.net.ConnectivityManager
@@ -28,6 +29,8 @@ class LauncherView(context: Context) : View(context) {
     private val prefs = context.getSharedPreferences("launcher", Context.MODE_PRIVATE)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private var wallpaperBitmap: Bitmap? = null
+    private var dynamicWallpaperEnabled = prefs.getBoolean("dynamic_wallpaper", false)
+    private var animationStarted = false
     var onChooseWallpaper: (() -> Unit)? = null
     private val apps = mutableListOf<AppEntry>()
     private val favorites = mutableListOf<AppEntry>()
@@ -46,6 +49,33 @@ class LauncherView(context: Context) : View(context) {
     private val clockTick = object : Runnable {
         override fun run() { invalidate(); handler.postDelayed(this, 30_000L) }
     }
+    private val animationTick = object : Runnable {
+        override fun run() {
+            if (dynamicWallpaperEnabled) {
+                invalidate()
+                handler.postDelayed(this, 50L)
+            } else {
+                animationStarted = false
+            }
+        }
+    }
+
+    private fun updateAnimationLoop() {
+        if (dynamicWallpaperEnabled && !animationStarted) {
+            animationStarted = true
+            handler.post(animationTick)
+        } else if (!dynamicWallpaperEnabled) {
+            animationStarted = false
+            handler.removeCallbacks(animationTick)
+        }
+    }
+
+    private fun toggleDynamicWallpaper() {
+        dynamicWallpaperEnabled = !dynamicWallpaperEnabled
+        prefs.edit().putBoolean("dynamic_wallpaper", dynamicWallpaperEnabled).apply()
+        updateAnimationLoop()
+        invalidate()
+    }
 
     init {
         isFocusable = true
@@ -53,10 +83,13 @@ class LauncherView(context: Context) : View(context) {
         loadApps()
         loadSavedWallpaper()
         handler.post(clockTick)
+        updateAnimationLoop()
     }
 
     override fun onDetachedFromWindow() {
         handler.removeCallbacks(clockTick)
+        handler.removeCallbacks(animationTick)
+        animationStarted = false
         super.onDetachedFromWindow()
     }
 
@@ -155,6 +188,24 @@ class LauncherView(context: Context) : View(context) {
         c.drawRect(0f, 0f, w, h, paint)
         return true
     }
+
+    private fun drawDynamicAurora(c: Canvas, w: Float, h: Float) {
+        if (!dynamicWallpaperEnabled) return
+        val phase = System.currentTimeMillis() / 5000.0
+        val x1 = (0.5 + 0.34 * kotlin.math.sin(phase)).toFloat() * w
+        val y1 = (0.42 + 0.18 * kotlin.math.cos(phase * 0.8)).toFloat() * h
+        val x2 = (0.5 + 0.38 * kotlin.math.cos(phase * 0.65)).toFloat() * w
+        val y2 = (0.55 + 0.2 * kotlin.math.sin(phase * 0.9)).toFloat() * h
+        paint.shader = RadialGradient(x1, y1, w * 0.58f,
+            intArrayOf(0x5537D9FF, 0x2237A9FF, 0x00075BD8),
+            floatArrayOf(0f, 0.52f, 1f), Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, w, h, paint)
+        paint.shader = RadialGradient(x2, y2, w * 0.48f,
+            intArrayOf(0x442D8BFF, 0x1A25C7FF, 0x00075BD8),
+            floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, w, h, paint)
+        paint.shader = null
+    }
     fun closeLauncherSettings() { isSettingsOpen = false; invalidate() }
 
     override fun onDraw(canvas: Canvas) {
@@ -164,6 +215,7 @@ class LauncherView(context: Context) : View(context) {
             paint.shader = LinearGradient(0f, 0f, w, h, intArrayOf(0xFF0878E8.toInt(), 0xFF0754B9.toInt(), 0xFF032D79.toInt()), null, Shader.TileMode.CLAMP)
             canvas.drawRect(0f, 0f, w, h, paint); paint.shader = null
         }
+        drawDynamicAurora(canvas, w, h)
         drawTop(canvas, w)
         when {
             isSettingsOpen -> drawLauncherSettings(canvas, w, h)
@@ -367,14 +419,20 @@ class LauncherView(context: Context) : View(context) {
         }
         text(c, "默认五列，可根据习惯选择三列、四列或五列。", w * .13f, h * .66f, h * .024f, 0xFFDDEEFF.toInt())
 
-        val wallpaper = RectF(w * .13f, h * .59f, w * .48f, h * .68f)
+        val wallpaper = RectF(w * .13f, h * .59f, w * .35f, h * .68f)
         paint.color = if (settingsFocus == 3) 0xFF31B9FF.toInt() else 0x5544BFFF
         c.drawRoundRect(wallpaper, 16f, 16f, paint)
-        text(c, "更换桌面壁纸", w * .17f, h * .647f, h * .023f, -1, true)
+        text(c, "更换壁纸", w * .155f, h * .647f, h * .022f, -1, true)
 
-        val preview = RectF(w * .52f, h * .59f, w * .87f, h * .68f)
+        val dynamic = RectF(w * .38f, h * .59f, w * .62f, h * .68f)
+        paint.color = if (settingsFocus == 4) 0xFF31B9FF.toInt() else 0x5544BFFF
+        c.drawRoundRect(dynamic, 16f, 16f, paint)
+        text(c, if (dynamicWallpaperEnabled) "动态背景：开" else "动态背景：关",
+            w * .405f, h * .647f, h * .021f, -1, true)
+
+        val preview = RectF(w * .65f, h * .59f, w * .87f, h * .68f)
         drawWallpaperPreview(c, preview)
-        if (settingsFocus == 4) {
+        if (settingsFocus == 5) {
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = h * .003f
             paint.color = 0xFF75D7FF.toInt()
@@ -383,13 +441,13 @@ class LauncherView(context: Context) : View(context) {
         }
 
         val card = RectF(w * .13f, h * .70f, w * .87f, h * .84f)
-        paint.color = if (settingsFocus == 5) 0xFF167FD8.toInt() else 0x553AAFFF
+        paint.color = if (settingsFocus == 6) 0xFF167FD8.toInt() else 0x553AAFFF
         c.drawRoundRect(card, 20f, 20f, paint)
         text(c, "⇄  小李全联 · 快传", w * .17f, h * .755f, h * .03f, -1, true)
         text(c, "桌面内置设备互传功能  ·  核心模块接入中", w * .17f, h * .805f, h * .021f, 0xFFDDEEFF.toInt())
 
         val sys = RectF(w * .13f, h * .87f, w * .48f, h * .95f)
-        paint.color = if (settingsFocus == 6) 0xFF31B9FF.toInt() else 0x44FFFFFF
+        paint.color = if (settingsFocus == 7) 0xFF31B9FF.toInt() else 0x44FFFFFF
         c.drawRoundRect(sys, 16f, 16f, paint)
         text(c, "打开系统设置", sys.centerX() - w * .11f, h * .92f, h * .024f, -1, true)
         text(c, "返回桌面", w * .72f, h * .92f, h * .024f, -1, true)
@@ -483,9 +541,11 @@ class LauncherView(context: Context) : View(context) {
                         val start = width * .13f
                         val selected = ((event.x - start) / (buttonW + gap)).toInt()
                         if (selected in 0..2) setDrawerColumns(selected + 3)
-                    } else if (event.y in (height * .59f)..(height * .68f) && event.x < width * .5f) {
+                    } else if (event.y in (height * .59f)..(height * .68f) && event.x < width * .36f) {
                         onChooseWallpaper?.invoke()
-                    } else if (event.y in (height * .59f)..(height * .68f) && event.x >= width * .5f) {
+                    } else if (event.y in (height * .59f)..(height * .68f) && event.x in (width * .38f)..(width * .62f)) {
+                        toggleDynamicWallpaper()
+                    } else if (event.y in (height * .59f)..(height * .68f) && event.x > width * .64f) {
                         clearWallpaper()
                     } else if (event.y in (height * .70f)..(height * .84f)) {
                         context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
@@ -561,12 +621,13 @@ class LauncherView(context: Context) : View(context) {
             when (keyCode) {
                 KeyEvent.KEYCODE_BACK -> { closeLauncherSettings(); return true }
                 KeyEvent.KEYCODE_DPAD_LEFT -> settingsFocus = (settingsFocus - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> settingsFocus = (settingsFocus + 1).coerceAtMost(6)
+                KeyEvent.KEYCODE_DPAD_RIGHT -> settingsFocus = (settingsFocus + 1).coerceAtMost(7)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     if (settingsFocus in 0..2) setDrawerColumns(settingsFocus + 3)
                     else if (settingsFocus == 3) onChooseWallpaper?.invoke()
-                    else if (settingsFocus == 4) clearWallpaper()
-                    else if (settingsFocus == 5) context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
+                    else if (settingsFocus == 4) toggleDynamicWallpaper()
+                    else if (settingsFocus == 5) clearWallpaper()
+                    else if (settingsFocus == 6) context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
                     else runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                 }
             }
