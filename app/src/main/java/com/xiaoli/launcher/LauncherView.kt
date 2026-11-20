@@ -1292,9 +1292,15 @@ class LauncherView(context: Context) : View(context) {
                             drawerIndex = index
                             val app = apps[index]
                             if (editingFavorites) {
-                                val exists = favorites.any { it.packageName == app.packageName }
-                                if (exists || favorites.size < 5) toggleFavorite(app)
-                                else android.widget.Toast.makeText(context, "首页最多固定 5 个应用，请先移除一个", android.widget.Toast.LENGTH_SHORT).show()
+                                if (homeAppManageMode) {
+                                    replaceFavoriteAt(homeManageSlot, app)
+                                    homeAppManageMode = false
+                                    closeDrawer()
+                                } else {
+                                    val exists = favorites.any { it.packageName == app.packageName }
+                                    if (exists || favorites.size < 5) toggleFavorite(app)
+                                    else android.widget.Toast.makeText(context, "首页最多固定 5 个应用，请先移除一个", android.widget.Toast.LENGTH_SHORT).show()
+                                }
                             } else {
                                 runCatching { context.startActivity(app.intent) }
                             }
@@ -1303,6 +1309,13 @@ class LauncherView(context: Context) : View(context) {
                             closeDrawer()
                         }
                     }
+                } else if (homeAppManageMode) {
+                    val selectedSlot = homeItemIndexAt(event.x, event.y)
+                    if (selectedSlot >= 0) homeManageSlot = selectedSlot
+                    isDrawerOpen = true
+                    editingFavorites = true
+                    drawerIndex = 0
+                    drawerScrollRow = 0
                 } else if (dy < -height * .06f) {
                     isDrawerOpen = true
                     drawerIndex = 0
