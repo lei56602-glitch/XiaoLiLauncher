@@ -114,7 +114,6 @@ class LauncherView(context: Context) : View(context) {
     private val clockTick = object : Runnable {
         override fun run() {
             invalidate()
-            if (System.currentTimeMillis() - weatherUpdatedAt > 30 * 60 * 1000L) refreshWeather()
             handler.postDelayed(this, if (showClockSeconds) 1_000L else 30_000L)
         }
     }
@@ -171,7 +170,6 @@ class LauncherView(context: Context) : View(context) {
         isFocusableInTouchMode = true
         loadApps()
         loadSavedWallpaper()
-        if (System.currentTimeMillis() - weatherUpdatedAt > 30 * 60 * 1000L) refreshWeather()
         handler.post(clockTick)
         updateAnimationLoop()
     }
