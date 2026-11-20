@@ -1323,8 +1323,11 @@ class LauncherView(context: Context) : View(context) {
                 KeyEvent.KEYCODE_DPAD_LEFT -> homeIndex = (homeIndex - 1).coerceAtLeast(0)
                 KeyEvent.KEYCODE_DPAD_RIGHT -> homeIndex = (homeIndex + 1).coerceAtMost(favorites.lastIndex)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                    prefs.edit().putFloat("home_icon_scale", homeIconScale).apply()
-                    homeIconEditMode = false
+                    // Consume the long-press repeat that opened edit mode; only a fresh OK saves.
+                    if (event.repeatCount == 0) {
+                        prefs.edit().putFloat("home_icon_scale", homeIconScale).apply()
+                        homeIconEditMode = false
+                    }
                 }
                 KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> {
                     homeIconScale = homeIconScaleBeforeEdit
