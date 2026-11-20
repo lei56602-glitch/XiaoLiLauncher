@@ -579,7 +579,7 @@ class LauncherView(context: Context) : View(context) {
             drawUnifiedAppIcon(c, app, iconRect, focused)
 
             paint.textAlign = Paint.Align.CENTER
-            text(c, app.label.take(12), card.centerX(), card.bottom + h * .032f,
+            text(c, app.label.take(12), card.centerX(), card.bottom + h * .075f,
                 h * .026f, -1, true)
             paint.textAlign = Paint.Align.LEFT
         }
@@ -879,7 +879,7 @@ class LauncherView(context: Context) : View(context) {
     // Full hit target includes the label line; only homeIconCardRect is painted.
     private fun homeItemRect(index: Int, w: Float, h: Float): RectF {
         val card = homeIconCardRect(index, w, h)
-        return RectF(card.left, card.top, card.right, card.bottom + h * .055f)
+        return RectF(card.left, card.top, card.right, card.bottom + h * .095f)
     }
 
     private fun homeIconCardRect(index: Int, w: Float, h: Float): RectF {
@@ -898,10 +898,11 @@ class LauncherView(context: Context) : View(context) {
         val total = cols * itemW + (cols - 1) * gapX
         val startX = (w - total) / 2f
         val rows = (favorites.size + cols - 1) / cols
-        val totalH = rows * (itemH + h * .055f) + (rows - 1).coerceAtLeast(0) * gapY
+        val labelGap = h * .095f
+        val totalH = rows * (itemH + labelGap) + (rows - 1).coerceAtLeast(0) * gapY
         val startY = (h - totalH) / 2f + h * .04f
         val left = startX + (index % cols) * (itemW + gapX)
-        val top = startY + (index / cols) * (itemH + h * .055f + gapY)
+        val top = startY + (index / cols) * (itemH + labelGap + gapY)
         return RectF(left, top, left + itemW, top + itemH)
     }
 
