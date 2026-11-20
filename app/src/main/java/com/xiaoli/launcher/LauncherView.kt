@@ -331,7 +331,13 @@ class LauncherView(context: Context) : View(context) {
                     drawerScrollRow = 0
                 }
                 1 -> { hideDesktopApp(actionMenuIndex); actionMenuOpen = false }
-                else -> actionMenuOpen = false
+                else -> {
+                    actionMenuOpen = false
+                    isDrawerOpen = true
+                    editingFavorites = false
+                    drawerIndex = 0
+                    drawerScrollRow = 0
+                }
             }
         } else {
             if (actionMenuChoice == 0 && app != null) {
@@ -1711,7 +1717,7 @@ class LauncherView(context: Context) : View(context) {
         }
         if (!widgetEditMode && !isSettingsOpen && isDrawerOpen &&
             (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) {
-            if (event.repeatCount == 0) event.startTracking()
+            apps.getOrNull(drawerIndex)?.let { openAppActionMenu("drawer", drawerIndex, it) }
             return true
         }
         if (widgetEditMode && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
@@ -1895,7 +1901,8 @@ class LauncherView(context: Context) : View(context) {
                 KeyEvent.KEYCODE_DPAD_UP -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, -2, apps.size)
                 KeyEvent.KEYCODE_DPAD_DOWN -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, 2, apps.size)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                    apps.getOrNull(drawerIndex)?.let { app -> chooseDrawerApp(app) }
+                    if (event.repeatCount == 0) event.startTracking()
+                    return true
                 }
             }
             val metrics = drawerMetrics()
