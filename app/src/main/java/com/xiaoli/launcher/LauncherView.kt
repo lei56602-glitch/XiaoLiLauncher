@@ -703,15 +703,7 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun drawHome(c: Canvas, w: Float, h: Float) {
-        text(c, "小李桌面", w * .055f, h * .035f, h * .022f, 0xFFE5F4FF.toInt(), true)
-        text(c, "↑ 按上键打开应用抽屉", w * .055f, h * .955f, h * .019f, 0xFFDDEEFF.toInt())
-        val networkLabel = if (runCatching {
-            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            cm.activeNetwork != null
-        }.getOrDefault(false)) "网络已连接" else "网络未连接"
-        paint.textAlign = Paint.Align.RIGHT
-        text(c, networkLabel, w * .955f, h * .955f, h * .019f, 0xFFDDEEFF.toInt())
-        paint.textAlign = Paint.Align.LEFT
+        // Approved clean home layout: no brand caption or bottom status/instruction labels.
         // App icons are first-class desktop objects; no enclosing tile/card.
         favorites.take(5).forEachIndexed { i, app ->
             val icon = homeIconCardRect(i, w, h)
@@ -979,7 +971,7 @@ class LauncherView(context: Context) : View(context) {
         paint.color = 0xF0062A62.toInt()
         c.drawRoundRect(rail, 24f, 24f, paint)
         text(c, "设置中心", w * .075f, h * .225f, h * .027f, -1, true)
-        val labels = listOf("桌面布局", "外观与壁纸", "应用管理", "桌面组件", "遥控器与操作", "小李全联", "电视系统设置")
+        val labels = listOf("桌面布局", "外观与壁纸", "应用管理", "桌面组件", "主屏幕设置与遥控器", "小李全联", "电视系统设置")
         labels.forEachIndexed { index, label ->
             val top = h * (.275f + index * .091f)
             val rect = RectF(w * .067f, top, w * .213f, top + h * .073f)
@@ -1094,8 +1086,8 @@ class LauncherView(context: Context) : View(context) {
             }
             4 -> {
                 drawSettingCard(c, RectF(w * .13f, h * .39f, w * .87f, h * .64f),
-                    if (isDefaultHomeLauncher()) "当前已是默认桌面" else "设为默认桌面",
-                    "遥控器：上键打开抽屉 · 长按菜单进入应用管理 · 长按 OK 调整图标大小",
+                    if (isDefaultHomeLauncher()) "小李桌面已设为电视默认主屏幕" else "设为电视默认主屏幕",
+                    "设为默认后，按遥控器 Home 键直接进入小李桌面；除非更改默认桌面，否则持续生效。\n遥控器：上键打开应用抽屉 · 长按菜单进入应用管理 · 长按 OK 调整图标大小",
                     settingsFocus == 14)
             }
             5 -> {
