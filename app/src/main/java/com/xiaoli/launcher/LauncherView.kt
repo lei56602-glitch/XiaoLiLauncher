@@ -608,22 +608,27 @@ class LauncherView(context: Context) : View(context) {
             text(c, app.label.take(12), icon.centerX(), icon.bottom + h * .038f, h * .024f, -1, true)
             paint.textAlign = Paint.Align.LEFT
         }
-        drawQuickTransferShortcut(c, w, h)
+        drawSettingsShortcut(c, w, h)
     }
 
-    private fun drawQuickTransferShortcut(c: Canvas, w: Float, h: Float) {
-        val r = quickTransferRect(w, h)
-        paint.color = 0xCC0878D8.toInt()
+    // A permanent, clearly labelled desktop entry; never hidden in gestures or the app drawer.
+    private fun settingsShortcutRect(w: Float, h: Float) =
+        RectF(w * .805f, h * .255f, w * .965f, h * .325f)
+
+    private fun drawSettingsShortcut(c: Canvas, w: Float, h: Float) {
+        val r = settingsShortcutRect(w, h)
+        paint.style = Paint.Style.FILL
+        paint.color = 0xCC0757A8.toInt()
         paint.setShadowLayer(h * .012f, 0f, h * .004f, 0x6637C9FF)
-        c.drawRoundRect(r, h * .025f, h * .025f, paint)
+        c.drawRoundRect(r, h * .018f, h * .018f, paint)
         paint.clearShadowLayer()
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = (h * .0025f).coerceAtLeast(2f)
         paint.color = 0xFF9BEAFF.toInt()
-        c.drawRoundRect(r, h * .025f, h * .025f, paint)
+        c.drawRoundRect(r, h * .018f, h * .018f, paint)
         paint.style = Paint.Style.FILL
         paint.textAlign = Paint.Align.CENTER
-        text(c, "快传", r.centerX(), r.centerY() + h * .009f, h * .027f, -1, true)
+        text(c, "⚙  设置", r.centerX(), r.centerY() + h * .009f, h * .027f, -1, true)
         paint.textAlign = Paint.Align.LEFT
     }
     private fun drawUnifiedAppIcon(c: Canvas, app: AppEntry, rect: RectF, focused: Boolean) {
@@ -955,7 +960,6 @@ class LauncherView(context: Context) : View(context) {
         return RectF(left, top, left + size, top + size)
     }
 
-    private fun quickTransferRect(w: Float, h: Float): RectF = RectF(w * .055f, h * .145f, w * .245f, h * .225f)
     private fun widgetIndexAt(x: Float, y: Float): Int {
         val rows = listOf(
             Triple(showClock, clockX, clockY),
@@ -1189,8 +1193,8 @@ class LauncherView(context: Context) : View(context) {
                             else (homeIndex - 1).coerceAtLeast(0)
                     }
                 } else {
-                    if (quickTransferRect(width.toFloat(), height.toFloat()).contains(event.x, event.y)) {
-                        runCatching { context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java)) }
+                    if (settingsShortcutRect(width.toFloat(), height.toFloat()).contains(event.x, event.y)) {
+                        openLauncherSettings()
                         invalidate()
                         return true
                     }
