@@ -1031,6 +1031,19 @@ class LauncherView(context: Context) : View(context) {
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
+            MotionEvent.ACTION_SCROLL -> {
+                // Mouse wheel over a desktop app icon adjusts the shared desktop/drawer icon size.
+                if (!isDrawerOpen && !isSettingsOpen && homeItemIndexAt(event.x, event.y) >= 0) {
+                    val wheel = event.getAxisValue(MotionEvent.AXIS_VSCROLL)
+                    if (wheel != 0f) {
+                        homeIconScale = (homeIconScale + wheel * .06f).coerceIn(.65f, 1.6f)
+                        prefs.edit().putFloat("home_icon_scale", homeIconScale).apply()
+                        invalidate()
+                    }
+                    return true
+                }
+                return false
+            }
             MotionEvent.ACTION_DOWN -> {
                 touchDownX = event.x
                 touchDownY = event.y
