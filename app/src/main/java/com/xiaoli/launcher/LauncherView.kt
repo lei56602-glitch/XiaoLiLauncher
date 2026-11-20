@@ -421,8 +421,10 @@ class LauncherView(context: Context) : View(context) {
         val positions = listOf(Pair(clockX, clockY), Pair(lunarX, lunarY), Pair(weatherX, weatherY))
         val p = positions[selectedEditWidget]
         val bottomY = if (selectedEditWidget == 0) p.second + .05f * clockScale + .018f else p.second + .012f
-        val rect = RectF(width * (p.first - .39f), height * (p.second - .045f),
-            width * (p.first + .025f), height * bottomY)
+        val leftInset = if (selectedEditWidget == 0) .012f else .39f
+        val rightExtent = if (selectedEditWidget == 0) .20f else .025f
+        val rect = RectF(width * (p.first - leftInset), height * (p.second - .045f),
+            width * (p.first + rightExtent), height * bottomY)
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = (height * .0035f).coerceAtLeast(2f)
         paint.color = 0xFF55D9FF.toInt()
@@ -476,8 +478,9 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun adjustSelectedWidgetPosition(dx: Float, dy: Float) {
-        val stepX = .008f
-        val stepY = .012f
+        // DPAD movement uses consistent screen-relative increments on 720p/1080p/4K.
+        val stepX = .01f
+        val stepY = .01f
         val x = when (selectedEditWidget) {
             0 -> clockX
             1 -> lunarX
@@ -1032,8 +1035,9 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun widgetIndexAt(x: Float, y: Float): Int {
-        val left = width * (clockX - .39f)
-        val right = width * (clockX + .025f)
+        // The time/date text is left-aligned at clockX; hit-test the visible text area.
+        val left = width * (clockX - .012f)
+        val right = width * (clockX + .20f)
         val top = height * (clockY - .045f)
         val bottom = height * (clockY + .05f * clockScale + .018f)
         if ((showClock || showDate) && x in left..right && y in top..bottom) return 0
