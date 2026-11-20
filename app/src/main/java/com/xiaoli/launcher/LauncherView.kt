@@ -824,8 +824,32 @@ class LauncherView(context: Context) : View(context) {
     private fun drawLauncherSettings(c: Canvas, w: Float, h: Float) {
         paint.color = 0xE6052B68.toInt()
         c.drawRoundRect(RectF(w * .08f, h * .14f, w * .92f, h * .97f), 30f, 30f, paint)
-        text(c, "小李桌面", w * .13f, h * .235f, h * .04f, -1, true)
-        text(c, "桌面设置  ·  个性化与设备管理（长按菜单键可编辑组件）", w * .13f, h * .265f, h * .021f, 0xFFDDEEFF.toInt())
+
+        // Clear visual grouping for TV viewing distance: each settings domain has
+        // its own spacious surface while the existing controls and actions remain intact.
+        val sectionPaintColor = 0x332B75B5
+        val sectionStrokeColor = 0x335FC5FF
+        val sectionRects = listOf(
+            RectF(w * .11f, h * .265f, w * .89f, h * .38f),
+            RectF(w * .11f, h * .39f, w * .89f, h * .48f),
+            RectF(w * .11f, h * .485f, w * .89f, h * .585f),
+            RectF(w * .11f, h * .59f, w * .89f, h * .69f),
+            RectF(w * .11f, h * .695f, w * .89f, h * .85f),
+            RectF(w * .11f, h * .855f, w * .89f, h * .955f)
+        )
+        sectionRects.forEach { rect ->
+            paint.style = Paint.Style.FILL
+            paint.color = sectionPaintColor
+            c.drawRoundRect(rect, 18f, 18f, paint)
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = (h * .0012f).coerceAtLeast(1f)
+            paint.color = sectionStrokeColor
+            c.drawRoundRect(rect, 18f, 18f, paint)
+        }
+        paint.style = Paint.Style.FILL
+        text(c, "小李桌面", w * .13f, h * .225f, h * .04f, -1, true)
+        text(c, "电视设置中心  ·  使用遥控器方向键选择，OK 确认，返回退出",
+            w * .13f, h * .258f, h * .019f, 0xFFDDEEFF.toInt())
         val iconSizeSetting = RectF(w * .13f, h * .275f, w * .64f, h * .37f)
         paint.color = if (settingsFocus == 8) 0xFF31B9FF.toInt() else 0x5544BFFF
         c.drawRoundRect(iconSizeSetting, 16f, 16f, paint)
