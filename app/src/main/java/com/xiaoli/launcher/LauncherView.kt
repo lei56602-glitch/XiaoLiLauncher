@@ -983,7 +983,7 @@ class LauncherView(context: Context) : View(context) {
         labels.forEachIndexed { index, label ->
             val top = h * (.275f + index * .091f)
             val rect = RectF(w * .067f, top, w * .213f, top + h * .073f)
-            val selected = settingsFocus == 30 + index
+            val selected = settingsFocus == 30 + index || settingsCategoryForControl(settingsFocus) == index
             paint.color = if (selected) 0xFF167FD8.toInt() else 0x443AAFFF
             c.drawRoundRect(rect, 14f, 14f, paint)
             if (selected) {
