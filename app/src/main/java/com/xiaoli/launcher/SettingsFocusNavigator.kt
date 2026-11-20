@@ -6,8 +6,7 @@ package com.xiaoli.launcher
  */
 internal object SettingsFocusNavigator {
     private val rows = listOf(
-        listOf(8, 22),
-        listOf(23),
+        listOf(8, 22, 23),
         listOf(9, 10, 15, 16),
         listOf(0, 1, 2, 17, 18, 19),
         listOf(3, 4, 5),
