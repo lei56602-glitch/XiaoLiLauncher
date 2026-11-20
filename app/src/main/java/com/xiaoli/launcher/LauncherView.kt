@@ -94,6 +94,7 @@ class LauncherView(context: Context) : View(context) {
     var onRequestDefaultHome: (() -> Unit)? = null
     private val apps = mutableListOf<AppEntry>()
     private val favorites = mutableListOf<AppEntry>()
+    private val homeIconPositions = mutableMapOf<String, Pair<Float, Float>>()
     private val appIconCache = mutableMapOf<String, android.graphics.drawable.Drawable>()
     private var drawerIndex = 0
     private var drawerScrollRow = 0
@@ -110,6 +111,8 @@ class LauncherView(context: Context) : View(context) {
     private var touchDownY = 0f
     private var touchDragging = false
     private var lastDragIndex = -1
+    private var homeAppDragOffsetX = 0f
+    private var homeAppDragOffsetY = 0f
     var isDrawerOpen = false
         private set
     private var isSettingsOpen = false
@@ -212,6 +215,19 @@ class LauncherView(context: Context) : View(context) {
                 )
             }.sortedBy { it.label.lowercase(Locale.getDefault()) }
         apps.clear(); apps.addAll(resolved)
+        homeIconPositions.clear()
+        runCatching {
+            val stored = JSONObject(prefs.getString("home_icon_positions", "{}") ?: "{}")
+            resolved.forEach { app ->
+                val position = stored.optJSONObject(app.packageName) ?: return@forEach
+                if (position.has("x") && position.has("y")) {
+                    homeIconPositions[app.packageName] = Pair(
+                        position.optDouble("x", 0.5).toFloat().coerceIn(0f, 1f),
+                        position.optDouble("y", 0.6).toFloat().coerceIn(0f, 1f)
+                    )
+                }
+            }
+        }
         val saved = prefs.getString("favorites", null)
         favorites.clear()
         if (saved == null) {
@@ -833,6 +849,12 @@ class LauncherView(context: Context) : View(context) {
             drawUnifiedAppIcon(c, app, iconRect, i == drawerIndex)
             paint.textAlign = Paint.Align.CENTER
             text(c, app.label.take(12), cell.centerX(), cell.bottom - cellH * .045f, h * .023f, -1, i == drawerIndex)
+            if (favorites.any { it.packageName == app.packageName }) {
+                paint.textAlign = Paint.Align.CENTER
+                text(c, "已固定", iconRect.centerX(), iconRect.top - h * .012f,
+                    h * .015f, 0xFF8BE7FF.toInt(), true)
+                paint.textAlign = Paint.Align.LEFT
+            }
             paint.textAlign = Paint.Align.LEFT
         }
         c.restoreToCount(clipSave)
@@ -1090,6 +1112,12 @@ class LauncherView(context: Context) : View(context) {
     private fun homeIconCardRect(index: Int, w: Float, h: Float): RectF {
         val baseSize = minOf(w * (if (w >= h) .105f else .19f), h * (if (w >= h) .19f else .105f))
         val size = baseSize * homeIconScale
+        val savedPosition = favorites.getOrNull(index)?.let { homeIconPositions[it.packageName] }
+        if (savedPosition != null) {
+            val left = (savedPosition.first * w).coerceIn(0f, (w - size).coerceAtLeast(0f))
+            val top = (savedPosition.second * h).coerceIn(0f, (h - size).coerceAtLeast(0f))
+            return RectF(left, top, left + size, top + size)
+        }
         if (w >= h) {
             val gap = w * .035f
             val total = favorites.size * size + (favorites.size - 1).coerceAtLeast(0) * gap
@@ -1174,6 +1202,32 @@ class LauncherView(context: Context) : View(context) {
         return -1
     }
 
+    private fun saveHomeIconPositions() {
+        val stored = JSONObject()
+        homeIconPositions.forEach { (packageName, position) ->
+            stored.put(packageName, JSONObject().put("x", position.first).put("y", position.second))
+        }
+        prefs.edit().putString("home_icon_positions", stored.toString()).apply()
+    }
+
+    private fun moveHomeIcon(index: Int, pointerX: Float, pointerY: Float) {
+        val app = favorites.getOrNull(index) ?: return
+        val w = width.toFloat()
+        val h = height.toFloat()
+        if (w <= 0f || h <= 0f) return
+        val size = homeIconCardRect(index, w, h).width()
+        val left = (pointerX - homeAppDragOffsetX).coerceIn(12f, (w - size - 12f).coerceAtLeast(12f))
+        val top = (pointerY - homeAppDragOffsetY).coerceIn(h * .12f, (h - size - h * .10f).coerceAtLeast(h * .12f))
+        val candidate = RectF(left, top, left + size, top + size)
+        val overlaps = favorites.indices.any { other ->
+            other != index && RectF.intersects(candidate, homeIconCardRect(other, w, h))
+        }
+        if (!overlaps) {
+            homeIconPositions[app.packageName] = Pair(left / w, top / h)
+            invalidate()
+        }
+    }
+
     private fun drawerItemIndexAt(x: Float, y: Float): Int =
         drawerMetrics().indexAt(x, y, drawerScrollRow, apps.size)
 
@@ -1220,6 +1274,11 @@ class LauncherView(context: Context) : View(context) {
                 widgetDragOffsetY = event.y - height * clockY
                 widgetDragStarted = false
                 lastDragIndex = if (activeWidgetDrag < 0) homeItemIndexAt(event.x, event.y) else -1
+                if (lastDragIndex >= 0) {
+                    val iconRect = homeIconCardRect(lastDragIndex, width.toFloat(), height.toFloat())
+                    homeAppDragOffsetX = event.x - iconRect.left
+                    homeAppDragOffsetY = event.y - iconRect.top
+                }
                 return true
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
@@ -1272,17 +1331,9 @@ class LauncherView(context: Context) : View(context) {
                 }
                 if (!isDrawerOpen && lastDragIndex >= 0 &&
                     event.eventTime - event.downTime > android.view.ViewConfiguration.getLongPressTimeout() &&
-                    kotlin.math.abs(dx) > width * .015f && kotlin.math.abs(dx) > kotlin.math.abs(dy)) {
+                    (kotlin.math.abs(dx) > width * .01f || kotlin.math.abs(dy) > height * .01f)) {
                     touchDragging = true
-                    val target = homeItemIndexAt(event.x, event.y)
-                    if (target >= 0 && target != lastDragIndex && target in favorites.indices) {
-                        val item = favorites.removeAt(lastDragIndex)
-                        favorites.add(target, item)
-                        homeIndex = target
-                        lastDragIndex = target
-                        saveFavorites()
-                        invalidate()
-                    }
+                    moveHomeIcon(lastDragIndex, event.x, event.y)
                 }
                 return true
             }
@@ -1311,7 +1362,9 @@ class LauncherView(context: Context) : View(context) {
                 }
                 activeWidgetDrag = -1
                 if (touchDragging) {
+                    saveHomeIconPositions()
                     touchDragging = false
+                    lastDragIndex = -1
                     performClick()
                     return true
                 }
