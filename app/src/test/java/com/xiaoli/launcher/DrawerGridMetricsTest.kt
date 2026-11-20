@@ -53,10 +53,10 @@ class DrawerGridMetricsTest {
     @Test
     fun verticalFocusDoesNotJumpIntoMissingCellsOfIncompleteRows() {
         val metrics = DrawerGridMetrics(1920f, 1080f, 5, 2)
-        assertEquals(8, metrics.moveFocus(3, 2, 9))
-        assertEquals(8, metrics.moveFocus(8, 2, 9))
+        assertEquals(8, metrics.moveFocus(3, 5, 9))
+        assertEquals(8, metrics.moveFocus(8, 5, 9))
         assertEquals(8, metrics.moveFocus(8, 1, 9))
-        assertEquals(3, metrics.moveFocus(8, -2, 9))
+        assertEquals(3, metrics.moveFocus(8, -5, 9))
     }
 }
 

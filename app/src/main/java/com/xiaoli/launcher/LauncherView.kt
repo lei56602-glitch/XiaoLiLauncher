@@ -935,11 +935,6 @@ class LauncherView(context: Context) : View(context) {
             paint.textAlign = Paint.Align.LEFT
         }
         c.restoreToCount(clipSave)
-        if (totalRows > visibleRows) {
-            paint.textAlign = Paint.Align.CENTER
-            text(c, "${drawerScrollRow + 1}/${maxScroll + 1}", w * .5f, h * .91f, h * .018f, 0xFFBDEBFF.toInt())
-            paint.textAlign = Paint.Align.LEFT
-        }
         if (apps.isEmpty()) {
             paint.textAlign = Paint.Align.CENTER
             text(c, "暂无可启动的应用", w * .5f, h * .55f, h * .03f, -1)
@@ -1924,8 +1919,8 @@ class LauncherView(context: Context) : View(context) {
                 }
                 KeyEvent.KEYCODE_DPAD_LEFT -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, -1, apps.size)
                 KeyEvent.KEYCODE_DPAD_RIGHT -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, 1, apps.size)
-                KeyEvent.KEYCODE_DPAD_UP -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, -2, apps.size)
-                KeyEvent.KEYCODE_DPAD_DOWN -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, 2, apps.size)
+                KeyEvent.KEYCODE_DPAD_UP -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, -drawerMetrics().columns, apps.size)
+                KeyEvent.KEYCODE_DPAD_DOWN -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, drawerMetrics().columns, apps.size)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     if (event.repeatCount == 0) event.startTracking()
                     return true
@@ -1935,7 +1930,12 @@ class LauncherView(context: Context) : View(context) {
             val cols = metrics.columns
             val visibleRows = metrics.rows
             val maxScroll = metrics.maxScroll(apps.size)
-            drawerScrollRow = (drawerIndex / cols - visibleRows + 1).coerceIn(0, maxScroll)
+            val focusedRow = drawerIndex / cols
+            drawerScrollRow = when {
+                focusedRow < drawerScrollRow -> focusedRow
+                focusedRow >= drawerScrollRow + visibleRows -> focusedRow - visibleRows + 1
+                else -> drawerScrollRow
+            }.coerceIn(0, maxScroll)
             invalidate(); return true
         }
         when (keyCode) {

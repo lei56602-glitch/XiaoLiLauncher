@@ -39,8 +39,8 @@ internal data class DrawerGridMetrics(
         return when (direction) {
             -1 -> if (column > 0) current - 1 else current
             1 -> if (column < columns - 1 && current + 1 < itemCount) current + 1 else current
-            -2 -> if (current >= columns) current - columns else current
-            2 -> if (current + columns < itemCount) current + columns else current
+            -columns -> if (current >= columns) current - columns else current
+            columns -> if (current + columns < itemCount) current + columns else current
             else -> current
         }
     }
