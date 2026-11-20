@@ -237,9 +237,10 @@ class LauncherView(context: Context) : View(context) {
         val existing = favorites.indexOfFirst { it.packageName == app.packageName }
         if (existing == slot) return
         if (existing >= 0) {
-            val previous = favorites.getOrNull(slot)
+            if (slot >= favorites.size) return
+            val previous = favorites[slot]
             favorites[slot] = app
-            if (previous != null) favorites[existing] = previous else favorites.removeAt(existing)
+            favorites[existing] = previous
         } else if (slot < favorites.size) {
             favorites[slot] = app
         } else if (slot == favorites.size && favorites.size < 5) {
