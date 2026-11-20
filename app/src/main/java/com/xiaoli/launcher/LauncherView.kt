@@ -609,7 +609,6 @@ class LauncherView(context: Context) : View(context) {
             text(c, app.label.take(12), icon.centerX(), icon.bottom + h * .038f, h * .024f, -1, true)
             paint.textAlign = Paint.Align.LEFT
         }
-        drawSettingsShortcut(c, w, h)
     }
 
     // A permanent, clearly labelled desktop entry; never hidden in gestures or the app drawer.
@@ -686,7 +685,7 @@ class LauncherView(context: Context) : View(context) {
                 left + cellW * .965f, top + cellH * .965f)
             // Icon frame and title line are separate visual elements.
             // Drawer uses standalone icons and the same persisted size scale as the desktop.
-            val iconSize = minOf(metrics.iconSize(cell.width()) * homeIconScale, cellH * .76f)
+            val iconSize = minOf(metrics.iconSize(cell.width()) * homeIconScale, cellW * .84f, cellH * .76f)
             val iconTop = cell.top + (cellH * .78f - iconSize) / 2f
             val iconRect = RectF(cell.centerX() - iconSize / 2f, iconTop,
                 cell.centerX() + iconSize / 2f, iconTop + iconSize)
@@ -1027,6 +1026,14 @@ class LauncherView(context: Context) : View(context) {
                 return true
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
+                if (!isDrawerOpen && !isSettingsOpen && lastDragIndex >= 0 && event.pointerCount >= 2) {
+                    val dx = event.getX(1) - event.getX(0)
+                    val dy = event.getY(1) - event.getY(0)
+                    homeIconResizeStartSpan = kotlin.math.sqrt(dx * dx + dy * dy).coerceAtLeast(1f)
+                    homeIconResizeStartScale = homeIconScale
+                    resizingHomeIcons = true
+                    return true
+                }
                 if (activeWidgetDrag >= 0 && event.pointerCount >= 2) {
                     val x2 = event.getX(1)
                     val y2 = event.getY(1)
@@ -1044,6 +1051,14 @@ class LauncherView(context: Context) : View(context) {
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
+                if (resizingHomeIcons && event.pointerCount >= 2) {
+                    val dx = event.getX(1) - event.getX(0)
+                    val dy = event.getY(1) - event.getY(0)
+                    val span = kotlin.math.sqrt(dx * dx + dy * dy)
+                    homeIconScale = (homeIconResizeStartScale * span / homeIconResizeStartSpan).coerceIn(.65f, 1.6f)
+                    invalidate()
+                    return true
+                }
                 if (activeWidgetResize >= 0 && event.pointerCount >= 2) {
                     val dx = event.getX(1) - event.getX(0)
                     val dy = event.getY(1) - event.getY(0)
@@ -1075,6 +1090,12 @@ class LauncherView(context: Context) : View(context) {
                 return true
             }
             MotionEvent.ACTION_UP -> {
+                if (resizingHomeIcons) {
+                    prefs.edit().putFloat("home_icon_scale", homeIconScale).apply()
+                    resizingHomeIcons = false
+                    performClick()
+                    return true
+                }
                 val dx = event.x - touchDownX
                 val dy = event.y - touchDownY
                 if (activeWidgetResize >= 0) {
@@ -1185,7 +1206,7 @@ class LauncherView(context: Context) : View(context) {
                         invalidate()
                         return true
                     }
-                    if (event.x < width * .24f && event.y < height * .14f) {
+                    if (event.x > width * .70f && event.x < width * .88f && event.y < height * .16f) {
                         runCatching { context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                             .onFailure { runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
                         return true
@@ -1221,6 +1242,7 @@ class LauncherView(context: Context) : View(context) {
             }
             MotionEvent.ACTION_CANCEL -> {
                 touchDragging = false
+                resizingHomeIcons = false
                 activeWidgetResize = -1
                 return true
             }
