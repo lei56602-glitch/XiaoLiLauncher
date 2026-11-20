@@ -99,6 +99,8 @@ class LauncherView(context: Context) : View(context) {
     private var homeIndex = 0
     private var homeIconScale = prefs.getFloat("home_icon_scale", 1f).coerceIn(.65f, 1.6f)
     private var homeIconEditMode = false
+    private var homeAppManageMode = false
+    private var homeManageSlot = 0
     private var homeIconScaleBeforeEdit = 1f
     private var resizingHomeIcons = false
     private var homeIconResizeStartSpan = 0f
@@ -230,7 +232,33 @@ class LauncherView(context: Context) : View(context) {
         saveFavorites()
     }
 
-    fun closeDrawer() { isDrawerOpen = false; editingFavorites = false; invalidate() }
+    private fun replaceFavoriteAt(slot: Int, app: AppEntry) {
+        if (slot !in 0..4) return
+        val existing = favorites.indexOfFirst { it.packageName == app.packageName }
+        while (favorites.size <= slot) favorites.add(apps.firstOrNull { candidate ->
+            favorites.none { it.packageName == candidate.packageName } &&
+                candidate.packageName != app.packageName
+        } ?: app)
+        if (existing >= 0 && existing != slot) {
+            val previous = favorites.getOrNull(slot)
+            favorites[slot] = app
+            if (previous != null) favorites[existing] = previous else favorites.removeAt(existing)
+        } else {
+            favorites[slot] = app
+        }
+        favorites.distinctBy { it.packageName }.let { unique ->
+            favorites.clear()
+            favorites.addAll(unique.take(5))
+        }
+        saveFavorites()
+    }
+
+    fun closeDrawer() {
+        isDrawerOpen = false
+        editingFavorites = false
+        if (homeAppManageMode) homeAppManageMode = false
+        invalidate()
+    }
 
     private fun decodeWallpaper(uri: Uri): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -1332,14 +1360,31 @@ class LauncherView(context: Context) : View(context) {
             return true
         }
         if (!widgetEditMode && !isSettingsOpen && !isDrawerOpen &&
-            keyCode == KeyEvent.KEYCODE_MENU) {
-            toggleWidgetEditMode()
+            !homeIconEditMode && keyCode == KeyEvent.KEYCODE_MENU) {
+            homeAppManageMode = true
+            homeManageSlot = homeIndex.coerceIn(0, 4)
+            invalidate()
             return true
         }
         return super.onKeyLongPress(keyCode, event)
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (homeAppManageMode && !isSettingsOpen && !isDrawerOpen) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> homeManageSlot = (homeManageSlot - 1).coerceAtLeast(0)
+                KeyEvent.KEYCODE_DPAD_RIGHT -> homeManageSlot = (homeManageSlot + 1).coerceAtMost(4)
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                    isDrawerOpen = true
+                    editingFavorites = true
+                    drawerIndex = 0
+                    drawerScrollRow = 0
+                }
+                KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> homeAppManageMode = false
+            }
+            invalidate()
+            return true
+        }
         if (homeIconEditMode && !isSettingsOpen && !isDrawerOpen) {
             when (keyCode) {
                 KeyEvent.KEYCODE_DPAD_UP -> homeIconScale = (homeIconScale + .05f).coerceAtMost(1.6f)
@@ -1359,6 +1404,11 @@ class LauncherView(context: Context) : View(context) {
                 }
             }
             invalidate()
+            return true
+        }
+        if (!widgetEditMode && !isSettingsOpen && !isDrawerOpen &&
+            keyCode == KeyEvent.KEYCODE_MENU) {
+            if (event.repeatCount == 0) event.startTracking()
             return true
         }
         if (!widgetEditMode && !isSettingsOpen && !isDrawerOpen &&
@@ -1437,9 +1487,15 @@ class LauncherView(context: Context) : View(context) {
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     apps.getOrNull(drawerIndex)?.let { app ->
                         if (editingFavorites) {
-                            val exists = favorites.any { it.packageName == app.packageName }
-                            if (exists || favorites.size < 5) toggleFavorite(app)
-                            else android.widget.Toast.makeText(context, "首页最多固定 5 个应用，请先移除一个", android.widget.Toast.LENGTH_SHORT).show()
+                            if (homeAppManageMode) {
+                                replaceFavoriteAt(homeManageSlot, app)
+                                homeAppManageMode = false
+                                closeDrawer()
+                            } else {
+                                val exists = favorites.any { it.packageName == app.packageName }
+                                if (exists || favorites.size < 5) toggleFavorite(app)
+                                else android.widget.Toast.makeText(context, "首页最多固定 5 个应用，请先移除一个", android.widget.Toast.LENGTH_SHORT).show()
+                            }
                         } else {
                             runCatching { context.startActivity(app.intent) }
                         }
@@ -1454,7 +1510,7 @@ class LauncherView(context: Context) : View(context) {
             invalidate(); return true
         }
         when (keyCode) {
-            KeyEvent.KEYCODE_MENU -> { openLauncherSettings(); return true }
+            KeyEvent.KEYCODE_MENU -> { if (!event.isLongPress) openLauncherSettings(); return true }
             KeyEvent.KEYCODE_SETTINGS -> { toggleWidgetEditMode(); return true }
             KeyEvent.KEYCODE_DPAD_UP -> {
                 isDrawerOpen = true
