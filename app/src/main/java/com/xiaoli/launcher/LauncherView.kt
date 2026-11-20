@@ -1379,6 +1379,16 @@ class LauncherView(context: Context) : View(context) {
         return super.onKeyLongPress(keyCode, event)
     }
 
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_MENU && !event.isCanceled) {
+            if (!event.isLongPress && !homeAppManageMode && !isSettingsOpen && !isDrawerOpen) {
+                openLauncherSettings()
+            }
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
+    }
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (homeAppManageMode && !isSettingsOpen && !isDrawerOpen) {
             when (keyCode) {
