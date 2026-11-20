@@ -1131,6 +1131,14 @@ class LauncherView(context: Context) : View(context) {
                 return false
             }
             MotionEvent.ACTION_DOWN -> {
+                if ((event.buttonState and MotionEvent.BUTTON_SECONDARY) != 0 &&
+                    !isDrawerOpen && !isSettingsOpen && !homeIconEditMode) {
+                    homeAppManageMode = true
+                    homeManageSlot = homeItemIndexAt(event.x, event.y)
+                        .takeIf { it >= 0 } ?: homeIndex.coerceIn(0, favorites.size.coerceAtMost(4))
+                    invalidate()
+                    return true
+                }
                 touchDownX = event.x
                 touchDownY = event.y
                 touchDragging = false
