@@ -1672,7 +1672,13 @@ class LauncherView(context: Context) : View(context) {
                     val index = homeItemIndexAt(event.x, event.y)
                     if (index >= 0) {
                         homeIndex = index
-                        favorites.getOrNull(index)?.let { runCatching { context.startActivity(it.intent) } }
+                        val app = favorites.getOrNull(index)
+                        if (app != null && app.packageName == emptySlot.packageName) {
+                            isDrawerOpen = true
+                            editingFavorites = true
+                            drawerIndex = 0
+                            drawerScrollRow = 0
+                        } else app?.let { runCatching { context.startActivity(it.intent) } }
                     } else if (event.y > height * .78f && event.x < width * .42f) {
                         isDrawerOpen = true
                         drawerIndex = 0
@@ -1747,6 +1753,7 @@ class LauncherView(context: Context) : View(context) {
                 favorites.getOrNull(homeIndex)?.let { app ->
                     if (app.packageName == emptySlot.packageName) {
                         isDrawerOpen = true
+                        editingFavorites = true
                         drawerIndex = 0
                         drawerScrollRow = 0
                         invalidate()
