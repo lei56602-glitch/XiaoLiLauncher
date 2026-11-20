@@ -78,10 +78,10 @@ class LauncherView(context: Context) : View(context) {
     private var lunarY = prefs.getFloat("widget_lunar_y", .16f)
     private var weatherX = prefs.getFloat("widget_weather_x", .965f)
     private var weatherY = prefs.getFloat("widget_weather_y", .195f)
-    private var clockScale = prefs.getFloat("widget_clock_scale", 1f).coerceIn(.7f, 1.8f)
-    private var dateScale = prefs.getFloat("widget_date_scale", 1f).coerceIn(.7f, 1.8f)
-    private var lunarScale = prefs.getFloat("widget_lunar_scale", 1f).coerceIn(.7f, 1.8f)
-    private var weatherScale = prefs.getFloat("widget_weather_scale", 1f).coerceIn(.7f, 1.8f)
+    private var clockScale = prefs.getFloat("widget_clock_scale", 1f).coerceIn(.55f, 2.4f)
+    private var dateScale = prefs.getFloat("widget_date_scale", 1f).coerceIn(.55f, 2.4f)
+    private var lunarScale = prefs.getFloat("widget_lunar_scale", 1f).coerceIn(.55f, 2.4f)
+    private var weatherScale = prefs.getFloat("widget_weather_scale", 1f).coerceIn(.55f, 2.4f)
     private var activeWidgetResize = -1
     private var widgetEditMode = false
     private var selectedEditWidget = 0
@@ -975,8 +975,8 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun moveWidget(index: Int, x: Float, y: Float) {
-        val nx = (x / width).coerceIn(.30f, .985f)
-        val ny = (y / height).coerceIn(.045f, .29f)
+        val nx = (x / width).coerceIn(.025f, .985f)
+        val ny = (y / height).coerceIn(.035f, .94f)
         when (index) {
             0 -> { clockX = nx; clockY = ny }
             1 -> { dateX = nx; dateY = ny }
@@ -995,7 +995,7 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun setWidgetScale(index: Int, value: Float) {
-        val scale = value.coerceIn(.7f, 1.8f)
+        val scale = value.coerceIn(.55f, 2.4f)
         when (index) {
             0 -> clockScale = scale
             1 -> dateScale = scale
