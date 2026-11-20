@@ -961,6 +961,7 @@ class LauncherView(context: Context) : View(context) {
         21 -> 2
         22, 9, 10, 15, 16 -> 3
         14, 13 -> 4
+        23 -> 0
         6 -> 5
         7 -> 6
         else -> null
@@ -1003,10 +1004,28 @@ class LauncherView(context: Context) : View(context) {
             c.drawRoundRect(rect, 18f, 18f, paint)
             paint.style = Paint.Style.FILL
         }
-        text(c, heading, rect.left + rect.width() * .055f, rect.top + rect.height() * .43f,
-            rect.height() * .25f, -1, true)
-        text(c, detail, rect.left + rect.width() * .055f, rect.top + rect.height() * .76f,
-            rect.height() * .16f, 0xFFDDEEFF.toInt())
+        val left = rect.left + rect.width() * .055f
+        val maxWidth = rect.width() * .89f
+        val titleSize = rect.height() * .25f
+        val detailSize = rect.height() * .16f
+        text(c, heading, left, rect.top + rect.height() * .39f, titleSize, -1, true)
+        // Wrap long descriptions within the card's inner width.
+        paint.textSize = detailSize
+        paint.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+        val lines = mutableListOf<String>()
+        var remaining = detail.replace("\\n", " ")
+        val maxLines = if (rect.height() > height * .18f) 3 else 1
+        while (remaining.isNotEmpty() && lines.size < maxLines) {
+            val count = paint.breakText(remaining, true, maxWidth, null).coerceAtLeast(1)
+            lines.add(remaining.substring(0, count))
+            remaining = remaining.substring(count).trimStart()
+        }
+        val lineHeight = detailSize * 1.35f
+        val firstBaseline = if (lines.size > 1) rect.top + rect.height() * .66f
+            else rect.top + rect.height() * .76f
+        lines.forEachIndexed { index, line ->
+            text(c, line, left, firstBaseline + index * lineHeight, detailSize, 0xFFDDEEFF.toInt())
+        }
     }
 
     private fun drawLauncherSettings(c: Canvas, w: Float, h: Float) {
@@ -1051,6 +1070,8 @@ class LauncherView(context: Context) : View(context) {
                     drawSettingCard(c, rect, "${i + 2}行",
                         if (drawerRows() == i + 2) "当前" else "选择", settingsFocus == i + 17)
                 }
+                drawSettingCard(c, RectF(w * .13f, h * .82f, w * .62f, h * .92f),
+                    "恢复五个桌面图标默认位置", "保留当前应用和顺序，只恢复预设位置", settingsFocus == 23)
             }
             1 -> {
                 drawSettingCard(c, RectF(w * .13f, h * .36f, w * .35f, h * .51f),
@@ -1210,6 +1231,14 @@ class LauncherView(context: Context) : View(context) {
             stored.put(packageName, JSONObject().put("x", position.first).put("y", position.second))
         }
         prefs.edit().putString("home_icon_positions", stored.toString()).apply()
+    }
+
+    private fun resetHomeIconPositions() {
+        homeIconPositions.clear()
+        prefs.edit().remove("home_icon_positions").apply()
+        homeIndex = homeIndex.coerceIn(0, (favorites.size - 1).coerceAtLeast(0))
+        android.widget.Toast.makeText(context, "五个桌面图标已恢复默认位置", android.widget.Toast.LENGTH_SHORT).show()
+        invalidate()
     }
 
     private fun moveHomeIcon(index: Int, pointerX: Float, pointerY: Float) {
@@ -1411,6 +1440,10 @@ class LauncherView(context: Context) : View(context) {
                                 } else if (event.y in (height * .71f)..(height * .80f)) {
                                     val selected = ((settingsHitX - width * .13f) / (width * .105f)).toInt()
                                     if (selected in 0..2) setDrawerRows(selected + 2)
+                                } else if (event.y in (height * .82f)..(height * .92f) &&
+                                    settingsHitX in (width * .13f)..(width * .62f)) {
+                                    settingsFocus = 23
+                                    resetHomeIconPositions()
                                 }
                             }
                             1 -> if (event.y in (height * .36f)..(height * .51f)) {
@@ -1704,7 +1737,8 @@ class LauncherView(context: Context) : View(context) {
                 KeyEvent.KEYCODE_DPAD_UP -> moveSettingsFocus(-2)
                 KeyEvent.KEYCODE_DPAD_DOWN -> moveSettingsFocus(2)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                    if (settingsFocus == 9 || settingsFocus == 10) toggleHomeComponent(settingsFocus)
+                    if (settingsFocus == 23) resetHomeIconPositions()
+                    else if (settingsFocus == 9 || settingsFocus == 10) toggleHomeComponent(settingsFocus)
                     else if (settingsFocus == 15) {
                         use24HourClock = !use24HourClock
                         prefs.edit().putBoolean("clock_24_hour", use24HourClock).apply()
