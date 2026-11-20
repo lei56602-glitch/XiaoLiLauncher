@@ -235,21 +235,19 @@ class LauncherView(context: Context) : View(context) {
     private fun replaceFavoriteAt(slot: Int, app: AppEntry) {
         if (slot !in 0..4) return
         val existing = favorites.indexOfFirst { it.packageName == app.packageName }
-        while (favorites.size <= slot) favorites.add(apps.firstOrNull { candidate ->
-            favorites.none { it.packageName == candidate.packageName } &&
-                candidate.packageName != app.packageName
-        } ?: app)
-        if (existing >= 0 && existing != slot) {
+        if (existing == slot) return
+        if (existing >= 0) {
             val previous = favorites.getOrNull(slot)
             favorites[slot] = app
             if (previous != null) favorites[existing] = previous else favorites.removeAt(existing)
-        } else {
+        } else if (slot < favorites.size) {
             favorites[slot] = app
+        } else if (slot == favorites.size && favorites.size < 5) {
+            favorites.add(app)
         }
-        favorites.distinctBy { it.packageName }.let { unique ->
-            favorites.clear()
-            favorites.addAll(unique.take(5))
-        }
+        val unique = favorites.distinctBy { it.packageName }.take(5)
+        favorites.clear()
+        favorites.addAll(unique)
         saveFavorites()
     }
 
@@ -660,10 +658,22 @@ class LauncherView(context: Context) : View(context) {
             text(c, app.label.take(12), icon.centerX(), icon.bottom + h * .038f, h * .024f, -1, true)
             paint.textAlign = Paint.Align.LEFT
         }
-        if (homeIconEditMode) {
+        if (homeIconEditMode || homeAppManageMode) {
             paint.textAlign = Paint.Align.CENTER
-            text(c, "图标大小调整：↑ 放大   ↓ 缩小   ←→ 选择图标   OK 保存   返回取消",
-                w * .5f, h * .91f, h * .023f, 0xFFBDEBFF.toInt(), true)
+            val hint = if (homeIconEditMode)
+                "图标大小调整：↑ 放大   ↓ 缩小   ←→ 选择图标   OK 保存   返回取消"
+            else
+                "应用管理：←→ 选择桌面位置   OK 选择应用   返回退出"
+            text(c, hint, w * .5f, h * .91f, h * .023f, 0xFFBDEBFF.toInt(), true)
+            if (homeAppManageMode && homeManageSlot < favorites.size) {
+                val selected = homeIconCardRect(homeManageSlot, w, h)
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = (h * .006f).coerceAtLeast(3f)
+                paint.color = 0xFFFFD166.toInt()
+                c.drawRoundRect(RectF(selected.left - 8f, selected.top - 8f,
+                    selected.right + 8f, selected.bottom + 8f), 18f, 18f, paint)
+                paint.style = Paint.Style.FILL
+            }
             paint.textAlign = Paint.Align.LEFT
         }
     }
@@ -1373,7 +1383,7 @@ class LauncherView(context: Context) : View(context) {
         if (homeAppManageMode && !isSettingsOpen && !isDrawerOpen) {
             when (keyCode) {
                 KeyEvent.KEYCODE_DPAD_LEFT -> homeManageSlot = (homeManageSlot - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> homeManageSlot = (homeManageSlot + 1).coerceAtMost(4)
+                KeyEvent.KEYCODE_DPAD_RIGHT -> homeManageSlot = (homeManageSlot + 1).coerceAtMost(favorites.size.coerceAtMost(4))
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     isDrawerOpen = true
                     editingFavorites = true
