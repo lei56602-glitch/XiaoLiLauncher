@@ -5,9 +5,9 @@ import org.junit.Test
 
 class SettingsFocusNavigatorTest {
     @Test
-    fun everySettingsControlIsReachable() {
+    fun everyRenderedSettingsControlIsReachable() {
         assertEquals(
-            setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22),
+            setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 15, 16, 17, 18, 19, 21, 22),
             SettingsFocusNavigator.supportedFocusIds()
         )
     }
@@ -22,8 +22,8 @@ class SettingsFocusNavigatorTest {
 
     @Test
     fun verticalMovementChoosesNearestColumn() {
-        assertEquals(11, SettingsFocusNavigator.next(8, 2))
-        assertEquals(3, SettingsFocusNavigator.next(2, 2))
+        assertEquals(10, SettingsFocusNavigator.next(8, 2))
+        assertEquals(4, SettingsFocusNavigator.next(2, 2))
         assertEquals(6, SettingsFocusNavigator.next(3, 2))
         assertEquals(7, SettingsFocusNavigator.next(6, 2))
         assertEquals(6, SettingsFocusNavigator.next(7, -2))
