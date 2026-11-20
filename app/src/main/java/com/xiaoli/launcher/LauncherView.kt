@@ -1736,6 +1736,25 @@ class LauncherView(context: Context) : View(context) {
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if ((keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
+            !event.isCanceled && !event.isLongPress && !actionMenuOpen &&
+            !isSettingsOpen && !widgetEditMode && !homeIconEditMode) {
+            if (isDrawerOpen) {
+                apps.getOrNull(drawerIndex)?.let { chooseDrawerApp(it) }
+                return true
+            }
+            if (!homeAppManageMode) {
+                favorites.getOrNull(homeIndex)?.let { app ->
+                    if (app.packageName == emptySlot.packageName) {
+                        isDrawerOpen = true
+                        drawerIndex = 0
+                        drawerScrollRow = 0
+                        invalidate()
+                    } else runCatching { context.startActivity(app.intent) }
+                }
+                return true
+            }
+        }
         if (keyCode == KeyEvent.KEYCODE_MENU && !event.isCanceled) {
             if (!event.isLongPress && !homeAppManageMode && !isSettingsOpen && !isDrawerOpen) {
                 openLauncherSettings()
