@@ -218,7 +218,7 @@ public class TransferForegroundService extends Service {
     }
 
     private void sendSession(ArrayList<SendFile> files, String host, int port, String peer,
-                             String fingerprint, long totalBytes, String protocol) throws IOException {
+                             String fingerprint, long totalBytes, String protocol) throws Exception {
         boolean legacy = "QUANLIAN2".equals(protocol);
         boolean batched = "QUANLIAN4".equals(protocol);
         boolean resumable = !legacy;
