@@ -156,6 +156,12 @@ public class TransferForegroundService extends Service {
         SendFile(Uri uri, String name, long size, String hash) { this.uri=uri; this.name=name; this.size=size; this.hash=hash; }
     }
 
+    private static final class UnsupportedPeerProtocolException extends IOException {
+        UnsupportedPeerProtocolException(IOException cause) {
+            super("接收设备不支持当前传输协议", cause);
+        }
+    }
+
     private void executeSend(ArrayList<Uri> uris, ArrayList<String> names, String host, int port, String peer, String fingerprint, int startId) {
         boolean cancelled = false;
         String failure = null;
@@ -186,13 +192,12 @@ public class TransferForegroundService extends Service {
             updateStatus("文件准备完成，正在连接 " + peer + "…", 0);
             try {
                 sendSession(files, host, port, peer, fingerprint, totalBytes, "QUANLIAN4");
-            } catch (EOFException incompatibleV4) {
-                // Older receivers close immediately when they do not recognize QUANLIAN4.
-                // Retry only before receiving the user's acceptance response; never replay a partially sent transfer.
+            } catch (UnsupportedPeerProtocolException incompatibleV4) {
+                // Retry only when the peer closes before its acceptance response; never replay a partially sent transfer.
                 DiagnosticLog.info(this, "PROTOCOL_FALLBACK", "QUANLIAN4 rejected before acceptance; retrying QUANLIAN3");
                 try {
                     sendSession(files, host, port, peer, fingerprint, totalBytes, "QUANLIAN3");
-                } catch (EOFException incompatibleV3) {
+                } catch (UnsupportedPeerProtocolException incompatibleV3) {
                     DiagnosticLog.info(this, "PROTOCOL_FALLBACK", "QUANLIAN3 rejected before acceptance; retrying QUANLIAN2");
                     sendSession(files, host, port, peer, fingerprint, totalBytes, "QUANLIAN2");
                 }
@@ -234,8 +239,14 @@ public class TransferForegroundService extends Service {
                 out.writeUTF(file.hash);
             }
             out.flush();
-            // EOF here means an older receiver rejected the protocol before user acceptance.
-            if (!in.readBoolean()) throw new IOException("对方拒绝接收或接收确认超时");
+            // Only this first response is eligible for protocol fallback.
+            final boolean accepted;
+            try {
+                accepted = in.readBoolean();
+            } catch (EOFException peerClosedBeforeAcceptance) {
+                throw new UnsupportedPeerProtocolException(peerClosedBeforeAcceptance);
+            }
+            if (!accepted) throw new IOException("对方拒绝接收或接收确认超时");
             long sent = 0, lastUi = 0, started = System.currentTimeMillis();
             int index = 0;
             for (SendFile file : files) {
