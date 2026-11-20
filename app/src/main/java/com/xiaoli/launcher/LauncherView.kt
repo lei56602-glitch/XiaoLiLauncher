@@ -1346,7 +1346,7 @@ class LauncherView(context: Context) : View(context) {
                         showClockSeconds = !showClockSeconds
                         prefs.edit().putBoolean("clock_seconds", showClockSeconds).apply()
                         updateClockTick()
-                    } else if (settingsFocus == 8) openWeatherCityDialog()
+                    } else if (settingsFocus == 8) cycleHomeIconScale()
                     else if (settingsFocus == 22) { isSettingsOpen = false; toggleWidgetEditMode() }
                     else if (settingsFocus in 0..2) setDrawerColumns(settingsFocus + 4)
                     else if (settingsFocus in 17..19) setDrawerRows(settingsFocus - 15)
