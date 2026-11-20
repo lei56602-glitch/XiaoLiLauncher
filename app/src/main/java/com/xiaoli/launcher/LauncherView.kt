@@ -590,19 +590,28 @@ class LauncherView(context: Context) : View(context) {
             runCatching { context.packageManager.getApplicationIcon(app.packageName) }
                 .getOrNull() ?: android.graphics.drawable.ColorDrawable(0xFF1B74C8.toInt())
         }
-        // Use the supplied bounds directly: no extra nested icon frame or artificial padding.
+        // Fill the icon viewport, clipping only its corners to the same rounded-card silhouette.
         val target = RectF(rect)
+        val radius = rect.width() * .20f
+        val save = c.save()
+        val clip = Path().apply {
+            addRoundRect(target, radius, radius, Path.Direction.CW)
+        }
+        c.clipPath(clip)
+        drawable.setBounds(target.left.toInt(), target.top.toInt(), target.right.toInt(), target.bottom.toInt())
+        drawable.draw(c)
+        c.restoreToCount(save)
+
+        // Draw focus treatment after the artwork so it remains visible and does not shrink it.
         if (focused) {
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = (rect.width() * .018f).coerceAtLeast(2f)
             paint.color = 0xCC7DE5FF.toInt()
             paint.setShadowLayer(rect.width() * .12f, 0f, 0f, 0xAA27BFFF.toInt())
-            c.drawRoundRect(target, rect.width() * .20f, rect.width() * .20f, paint)
+            c.drawRoundRect(target, radius, radius, paint)
             paint.clearShadowLayer()
             paint.style = Paint.Style.FILL
         }
-        drawable.setBounds(target.left.toInt(), target.top.toInt(), target.right.toInt(), target.bottom.toInt())
-        drawable.draw(c)
     }
 
     private fun drawDrawer(c: Canvas, w: Float, h: Float) {
