@@ -1723,7 +1723,7 @@ class LauncherView(context: Context) : View(context) {
             }
             if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
                 settingsCategoryForControl(settingsFocus)?.let { category ->
-                    if (settingsFocus == settingsCategoryControl(category)) {
+                    if (settingsFocus == settingsCategoryControl(category) || settingsFocus == 23) {
                         settingsFocus = 30 + category
                         invalidate()
                         return true
