@@ -359,7 +359,7 @@ class LauncherView(context: Context) : View(context) {
         val panel = RectF(w * .34f, h * .31f, w * .66f, h * .70f)
         paint.color = 0xF20A3470.toInt()
         c.drawRoundRect(panel, h * .025f, h * .025f, paint)
-        val options = if (actionMenuSource == "home") listOf("移动 APP", "隐藏 APP", "返回") else listOf("加入主屏幕", "返回")
+        val options = if (actionMenuSource == "home") listOf("移动 APP", "隐藏 APP", "返回抽屉") else listOf("加入主屏幕", "返回")
         text(c, if (actionMenuSource == "home") "桌面应用管理" else "添加到主屏幕",
             panel.left + panel.width() * .09f, panel.top + panel.height() * .20f, h * .031f, -1, true)
         options.forEachIndexed { i, label ->
@@ -1711,7 +1711,7 @@ class LauncherView(context: Context) : View(context) {
         }
         if (!widgetEditMode && !isSettingsOpen && isDrawerOpen &&
             (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) {
-            apps.getOrNull(drawerIndex)?.let { openAppActionMenu("drawer", drawerIndex, it) }
+            if (event.repeatCount == 0) event.startTracking()
             return true
         }
         if (widgetEditMode && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
