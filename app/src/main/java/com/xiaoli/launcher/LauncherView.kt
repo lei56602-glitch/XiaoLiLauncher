@@ -15,7 +15,6 @@ import android.graphics.RadialGradient
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.net.ConnectivityManager
-import android.net.wifi.WifiManager
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -394,8 +393,6 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun drawWifiShortcut(c: Canvas, w: Float, h: Float) {
-        val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-        val enabled = runCatching { wifi?.isWifiEnabled == true }.getOrDefault(false)
         val connected = runCatching {
             val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
             val network = cm.activeNetwork
