@@ -556,32 +556,32 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun drawHome(c: Canvas, w: Float, h: Float) {
-        val count = minOf(5, favorites.size)
-        if (count > 0) {
-            favorites.take(5).forEachIndexed { i, app ->
-                val rect = homeItemRect(i, w, h)
-                val focused = i == homeIndex
-                paint.color = if (focused) 0xAA0878D8.toInt() else 0x553B8DD0
-                if (focused) paint.setShadowLayer(h * .025f, 0f, h * .008f, 0xAA27BFFF.toInt())
-                c.drawRoundRect(rect, h * .035f, h * .035f, paint)
-                paint.clearShadowLayer()
-                paint.style = Paint.Style.STROKE
-                paint.strokeWidth = (h * .002f).coerceAtLeast(1.5f)
-                paint.color = if (focused) 0xCC7DE5FF.toInt() else 0x557FC9FF
-                c.drawRoundRect(rect, h * .035f, h * .035f, paint)
-                paint.style = Paint.Style.FILL
-                // Let the app artwork occupy almost the entire card; reserve only a slim label strip.
-                val iconRect = RectF(
-                    rect.left + rect.width() * .035f,
-                    rect.top + rect.height() * .025f,
-                    rect.right - rect.width() * .035f,
-                    rect.bottom - rect.height() * .19f
-                )
-                drawUnifiedAppIcon(c, app, iconRect, focused)
-                paint.textAlign = Paint.Align.CENTER
-                text(c, app.label.take(10), rect.centerX(), rect.bottom - h * .018f, h * .026f, -1, true)
-                paint.textAlign = Paint.Align.LEFT
-            }
+        favorites.take(5).forEachIndexed { i, app ->
+            // The translucent card is exclusively the icon viewport. The app name is
+            // laid out in a separate line below it and never consumes icon space.
+            val card = homeIconCardRect(i, w, h)
+            val focused = i == homeIndex
+            paint.color = if (focused) 0xAA0878D8.toInt() else 0x553B8DD0
+            if (focused) paint.setShadowLayer(h * .025f, 0f, h * .008f, 0xAA27BFFF.toInt())
+            c.drawRoundRect(card, h * .035f, h * .035f, paint)
+            paint.clearShadowLayer()
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = (h * .002f).coerceAtLeast(1.5f)
+            paint.color = if (focused) 0xCC7DE5FF.toInt() else 0x557FC9FF
+            c.drawRoundRect(card, h * .035f, h * .035f, paint)
+            paint.style = Paint.Style.FILL
+
+            // Drawable bounds span the card with only a tiny proportional safety inset.
+            val iconInsetX = card.width() * .012f
+            val iconInsetY = card.height() * .012f
+            val iconRect = RectF(card.left + iconInsetX, card.top + iconInsetY,
+                card.right - iconInsetX, card.bottom - iconInsetY)
+            drawUnifiedAppIcon(c, app, iconRect, focused)
+
+            paint.textAlign = Paint.Align.CENTER
+            text(c, app.label.take(12), card.centerX(), card.bottom + h * .032f,
+                h * .026f, -1, true)
+            paint.textAlign = Paint.Align.LEFT
         }
     }
 
@@ -867,26 +867,32 @@ class LauncherView(context: Context) : View(context) {
         paint.textAlign = Paint.Align.LEFT
     }
 
+    // Full hit target includes the label line; only homeIconCardRect is painted.
     private fun homeItemRect(index: Int, w: Float, h: Float): RectF {
+        val card = homeIconCardRect(index, w, h)
+        return RectF(card.left, card.top, card.right, card.bottom + h * .055f)
+    }
+
+    private fun homeIconCardRect(index: Int, w: Float, h: Float): RectF {
         if (w >= h) {
             val gap = w * .035f
             val itemW = w * .13f
             val total = favorites.size * itemW + (favorites.size - 1).coerceAtLeast(0) * gap
             val left = (w - total) / 2f + index * (itemW + gap)
-            return RectF(left, h * .55f, left + itemW, h * .79f)
+            return RectF(left, h * .55f, left + itemW, h * .75f)
         }
         val cols = 3
         val itemW = w * .27f
-        val itemH = h * .14f
+        val itemH = h * .105f
         val gapX = w * .045f
         val gapY = h * .035f
         val total = cols * itemW + (cols - 1) * gapX
         val startX = (w - total) / 2f
         val rows = (favorites.size + cols - 1) / cols
-        val totalH = rows * itemH + (rows - 1).coerceAtLeast(0) * gapY
+        val totalH = rows * (itemH + h * .055f) + (rows - 1).coerceAtLeast(0) * gapY
         val startY = (h - totalH) / 2f + h * .04f
         val left = startX + (index % cols) * (itemW + gapX)
-        val top = startY + (index / cols) * (itemH + gapY)
+        val top = startY + (index / cols) * (itemH + h * .055f + gapY)
         return RectF(left, top, left + itemW, top + itemH)
     }
 
