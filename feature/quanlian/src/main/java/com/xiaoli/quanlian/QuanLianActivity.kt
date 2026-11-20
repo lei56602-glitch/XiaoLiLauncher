@@ -47,6 +47,7 @@ class QuanLianActivity : Activity() {
     private var navIndex = 0
     private var historyScrollOffset = 0
     private var sendDeviceScrollRow = 0
+    private var deviceScrollOffset = 0
     private var devices: List<DeviceInfo> = emptyList()
     private val selectedUris = arrayListOf<Uri>()
     private val selectedNames = arrayListOf<String>()
@@ -358,6 +359,7 @@ class QuanLianActivity : Activity() {
         navFocused = false
         focus = 0
         if(target==Page.HISTORY)historyScrollOffset=0
+        if(target==Page.DEVICES)deviceScrollOffset=0
         screen.invalidate()
     }
 
@@ -420,7 +422,7 @@ class QuanLianActivity : Activity() {
             Page.RECEIVE -> if (focus == 0) {
                 if (receiveEnabled) stopReceive() else startReceive()
             }
-            Page.DEVICES -> devices.take(9).getOrNull(focus)?.let { device ->
+            Page.DEVICES -> devices.getOrNull(focus)?.let { device ->
                 page = Page.SEND
                 screen.invalidate()
                 requestSend(device)
@@ -515,7 +517,7 @@ class QuanLianActivity : Activity() {
         val max = when (page) {
             Page.HOME -> 3
             Page.SEND -> devices.size + if (transferRunning) 1 else 0
-            Page.DEVICES -> (devices.size.coerceAtMost(9) - 1).coerceAtLeast(0)
+            Page.DEVICES -> (devices.size - 1).coerceAtLeast(0)
             Page.RECEIVE -> 0
             Page.HISTORY -> readHistoryItems().length()+1
         }
@@ -524,6 +526,13 @@ class QuanLianActivity : Activity() {
             KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_DOWN -> focus = (focus + 1).coerceAtMost(max)
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> activateFocused()
             else -> return super.onKeyDown(keyCode, event)
+        }
+        if (page == Page.DEVICES) {
+            deviceScrollOffset = when {
+                focus < deviceScrollOffset -> focus
+                focus >= deviceScrollOffset + 9 -> focus - 8
+                else -> deviceScrollOffset
+            }.coerceIn(0, (devices.size - 9).coerceAtLeast(0))
         }
         screen.invalidate()
         return true
@@ -722,12 +731,17 @@ class QuanLianActivity : Activity() {
                 drawText(c, "正在搜索。请确认设备处于同一 Wi-Fi 或热点网络。",
                     w * .09f, h * .42f, u * .025f, pale)
             }
-            devices.take(9).forEachIndexed { i, device ->
+            devices.drop(deviceScrollOffset).take(9).forEachIndexed { visibleIndex, device ->
+                val absoluteIndex = deviceScrollOffset + visibleIndex
                 val rowH = h * .065f
-                val row = RectF(w * .07f, h * (.31f + i * .071f), w * .93f, h * (.31f + i * .071f) + rowH)
-                drawCard(c, row, focus == i)
+                val row = RectF(w * .07f, h * (.31f + visibleIndex * .071f), w * .93f, h * (.31f + visibleIndex * .071f) + rowH)
+                drawCard(c, row, focus == absoluteIndex)
                 drawText(c, "${device.name}   ·   ${device.host}:${device.port}",
                     row.left + w * .02f, row.centerY() + u * .008f, u * .021f, -1, true)
+            }
+            if (devices.size > 9) {
+                drawText(c, "${deviceScrollOffset + 1}–${minOf(deviceScrollOffset + 9, devices.size)} / ${devices.size}",
+                    w * .82f, h * .94f, u * .018f, pale)
             }
         }
 
@@ -862,11 +876,12 @@ class QuanLianActivity : Activity() {
                         return true
                     }
                 }
-                Page.DEVICES -> devices.take(9).forEachIndexed { i, device ->
-                    val row = RectF(contentWidth * .07f, height * (.31f + i * .071f),
-                        contentWidth * .93f, height * (.31f + i * .071f) + height * .065f)
+                Page.DEVICES -> devices.drop(deviceScrollOffset).take(9).forEachIndexed { visibleIndex, device ->
+                    val absoluteIndex = deviceScrollOffset + visibleIndex
+                    val row = RectF(contentWidth * .07f, height * (.31f + visibleIndex * .071f),
+                        contentWidth * .93f, height * (.31f + visibleIndex * .071f) + height * .065f)
                     if (row.contains(x, y)) {
-                        focus = i
+                        focus = absoluteIndex
                         page = Page.SEND
                         screen.invalidate()
                         requestSend(device)
