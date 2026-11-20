@@ -88,6 +88,8 @@ class LauncherView(context: Context) : View(context) {
     private var resizeStartScale = 1f
     private var activeWidgetDrag = -1
     private var widgetDragStarted = false
+    private var widgetDragOffsetX = 0f
+    private var widgetDragOffsetY = 0f
     var onChooseWallpaper: (() -> Unit)? = null
     var onRequestDefaultHome: (() -> Unit)? = null
     private val apps = mutableListOf<AppEntry>()
@@ -191,6 +193,12 @@ class LauncherView(context: Context) : View(context) {
         super.onDetachedFromWindow()
     }
 
+    fun refreshInstalledApps() {
+        appIconCache.clear()
+        loadApps()
+        invalidate()
+    }
+
     private fun loadApps() {
         val pm = context.packageManager
         val query = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
@@ -236,10 +244,14 @@ class LauncherView(context: Context) : View(context) {
         val existing = favorites.indexOfFirst { it.packageName == app.packageName }
         if (existing == slot) return false
         if (existing >= 0) {
-            if (slot >= favorites.size) return false
-            val previous = favorites[slot]
-            favorites[slot] = app
-            favorites[existing] = previous
+            if (slot >= favorites.size) {
+                favorites.removeAt(existing)
+                favorites.add(app)
+            } else {
+                val previous = favorites[slot]
+                favorites[slot] = app
+                favorites[existing] = previous
+            }
         } else if (slot < favorites.size) {
             favorites[slot] = app
         } else if (slot == favorites.size && favorites.size < 5) {
@@ -257,7 +269,9 @@ class LauncherView(context: Context) : View(context) {
             val alreadyPinnedAt = favorites.indexOfFirst { it.packageName == app.packageName }
             val changed = replaceFavoriteAt(homeManageSlot, app)
             if (changed) {
-                val message = if (alreadyPinnedAt >= 0) "该应用已在桌面，已与原位置交换"
+                val message = if (alreadyPinnedAt >= 0 && homeManageSlot >= favorites.size)
+                    "已将应用移动到桌面末尾"
+                else if (alreadyPinnedAt >= 0) "该应用已在桌面，已与原位置交换"
                     else "已更换桌面第 ${homeManageSlot + 1} 个应用"
                 android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
             } else {
@@ -675,6 +689,15 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun drawHome(c: Canvas, w: Float, h: Float) {
+        text(c, "小李桌面", w * .055f, h * .035f, h * .022f, 0xFFE5F4FF.toInt(), true)
+        text(c, "↑ 按上键打开应用抽屉", w * .055f, h * .955f, h * .019f, 0xFFDDEEFF.toInt())
+        val networkLabel = if (runCatching {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            cm.activeNetwork != null
+        }.getOrDefault(false)) "网络已连接" else "网络未连接"
+        paint.textAlign = Paint.Align.RIGHT
+        text(c, networkLabel, w * .955f, h * .955f, h * .019f, 0xFFDDEEFF.toInt())
+        paint.textAlign = Paint.Align.LEFT
         // App icons are first-class desktop objects; no enclosing tile/card.
         favorites.take(5).forEachIndexed { i, app ->
             val icon = homeIconCardRect(i, w, h)
@@ -1102,8 +1125,10 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun moveWidget(index: Int, x: Float, y: Float) {
-        val nx = (x / width).coerceIn(.025f, .985f)
-        val ny = (y / height).coerceIn(.035f, .94f)
+        val horizontalExtent = if (index == 0) .24f else .42f
+        val verticalExtent = if (index == 0) .105f * clockScale else .04f
+        val nx = (x / width).coerceIn(.025f, (1f - horizontalExtent).coerceAtLeast(.025f))
+        val ny = (y / height).coerceIn(.045f, (1f - verticalExtent).coerceAtLeast(.045f))
         when (index) {
             0 -> { clockX = nx; clockY = ny; dateX = nx; dateY = ny + .05f * clockScale }
             1 -> { lunarX = nx; lunarY = ny }
@@ -1191,6 +1216,8 @@ class LauncherView(context: Context) : View(context) {
                 touchDownY = event.y
                 touchDragging = false
                 activeWidgetDrag = if (!isSettingsOpen && !isDrawerOpen) widgetIndexAt(event.x, event.y) else -1
+                widgetDragOffsetX = event.x - width * clockX
+                widgetDragOffsetY = event.y - height * clockY
                 widgetDragStarted = false
                 lastDragIndex = if (activeWidgetDrag < 0) homeItemIndexAt(event.x, event.y) else -1
                 return true
@@ -1240,7 +1267,7 @@ class LauncherView(context: Context) : View(context) {
                 val dy = event.y - touchDownY
                 if (activeWidgetDrag >= 0 && event.eventTime - event.downTime > android.view.ViewConfiguration.getLongPressTimeout()) {
                     widgetDragStarted = true
-                    moveWidget(activeWidgetDrag, event.x, event.y)
+                    moveWidget(activeWidgetDrag, event.x - widgetDragOffsetX, event.y - widgetDragOffsetY)
                     return true
                 }
                 if (!isDrawerOpen && lastDragIndex >= 0 &&
@@ -1285,6 +1312,18 @@ class LauncherView(context: Context) : View(context) {
                 activeWidgetDrag = -1
                 if (touchDragging) {
                     touchDragging = false
+                    performClick()
+                    return true
+                }
+                if (!isSettingsOpen && !isDrawerOpen && wifiShortcutRect(width.toFloat(), height.toFloat()).contains(event.x, event.y)) {
+                    runCatching {
+                        context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
+                    performClick()
+                    return true
+                }
+                if (!isSettingsOpen && !isDrawerOpen && settingsShortcutRect(width.toFloat(), height.toFloat()).contains(event.x, event.y)) {
+                    openLauncherSettings()
                     performClick()
                     return true
                 }
@@ -1459,6 +1498,13 @@ class LauncherView(context: Context) : View(context) {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_SETTINGS) {
+            if (widgetEditMode) widgetEditMode = false
+            homeIconEditMode = false
+            homeAppManageMode = false
+            openLauncherSettings()
+            return true
+        }
         if (homeAppManageMode && !isSettingsOpen && !isDrawerOpen) {
             when (keyCode) {
                 KeyEvent.KEYCODE_DPAD_LEFT -> homeManageSlot = (homeManageSlot - 1).coerceAtLeast(0)
@@ -1527,7 +1573,7 @@ class LauncherView(context: Context) : View(context) {
                 KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_MINUS -> {
                     adjustSelectedWidgetScale(-.05f); return true
                 }
-                KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> {
+                KeyEvent.KEYCODE_MENU -> {
                     toggleWidgetEditMode()
                     return true
                 }
@@ -1588,7 +1634,6 @@ class LauncherView(context: Context) : View(context) {
         }
         when (keyCode) {
             KeyEvent.KEYCODE_MENU -> { if (!event.isLongPress) openLauncherSettings(); return true }
-            KeyEvent.KEYCODE_SETTINGS -> { toggleWidgetEditMode(); return true }
             KeyEvent.KEYCODE_DPAD_UP -> {
                 isDrawerOpen = true
                 drawerIndex = 0

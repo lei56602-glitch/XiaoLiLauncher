@@ -32,7 +32,7 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (::launcherView.isInitialized) launcherView.invalidate()
+        if (::launcherView.isInitialized) launcherView.refreshInstalledApps()
     }
 
     @Deprecated("Deprecated in Android API; retained for broad device compatibility")

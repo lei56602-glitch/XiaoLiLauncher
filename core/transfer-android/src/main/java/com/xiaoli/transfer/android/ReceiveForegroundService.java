@@ -226,9 +226,17 @@ public class ReceiveForegroundService extends Service {
         finally{releaseReceiveWakeLock();}
     }
     private int port(){return server==null?-1:server.getLocalPort();}
+    private String mimeTypeForName(String name){
+        String extension = "";
+        int dot = name == null ? -1 : name.lastIndexOf('.');
+        if(dot >= 0 && dot < name.length()-1) extension = name.substring(dot+1).toLowerCase(Locale.ROOT);
+        String mime = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+        return mime == null ? "application/octet-stream" : mime;
+    }
+
     private Uri saveFile(File src,String name)throws Exception{
         if(Build.VERSION.SDK_INT>=29){
-            ContentValues v=new ContentValues();v.put(MediaStore.MediaColumns.DISPLAY_NAME,name);v.put(MediaStore.MediaColumns.MIME_TYPE,"application/octet-stream");v.put(MediaStore.MediaColumns.RELATIVE_PATH,Environment.DIRECTORY_DOWNLOADS+"/小李全联");v.put(MediaStore.MediaColumns.IS_PENDING,1);
+            ContentValues v=new ContentValues();v.put(MediaStore.MediaColumns.DISPLAY_NAME,name);v.put(MediaStore.MediaColumns.MIME_TYPE,mimeTypeForName(name));v.put(MediaStore.MediaColumns.RELATIVE_PATH,Environment.DIRECTORY_DOWNLOADS+"/小李全联");v.put(MediaStore.MediaColumns.IS_PENDING,1);
             Uri u=getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,v);if(u==null)return null;
             try{try(OutputStream out=getContentResolver().openOutputStream(u);InputStream in=new FileInputStream(src)){if(out==null)throw new IOException("无法打开下载目录");byte[] b=new byte[BUF];int n;while((n=in.read(b))!=-1)out.write(b,0,n);}
             v.clear();v.put(MediaStore.MediaColumns.IS_PENDING,0);getContentResolver().update(u,v,null,null);return u;

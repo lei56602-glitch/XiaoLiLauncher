@@ -58,8 +58,7 @@ class QuanLianActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         receiveEnabled = getSharedPreferences("quanlian_runtime", MODE_PRIVATE)
-            .getBoolean("receive_enabled", true)
-        requestNotificationPermissionIfNeeded()
+            .getBoolean("receive_enabled", false)
         screen = QuanLianScreen()
         setContentView(screen)
     }
@@ -75,7 +74,6 @@ class QuanLianActivity : Activity() {
             }
         }
         registerTransferEvents()
-        if (receiveEnabled) startReceive()
     }
 
     private fun requestNotificationPermissionIfNeeded() {
@@ -251,12 +249,41 @@ class QuanLianActivity : Activity() {
     }
 
     private fun startReceive() {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            status = "需要通知权限才能可靠提示接收请求，正在申请…"
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
+            screen.invalidate()
+            return
+        }
+        startReceiveService()
+    }
+
+    private fun startReceiveService() {
         receiveEnabled = true
         getSharedPreferences("quanlian_runtime", MODE_PRIVATE).edit().putBoolean("receive_enabled", true).apply()
         runCatching { ReceiveForegroundService.start(this) }
             .onSuccess { status = "正在启动接收服务…" }
-            .onFailure { status = "接收服务启动失败：${it.message}" }
+            .onFailure {
+                receiveEnabled = false
+                getSharedPreferences("quanlian_runtime", MODE_PRIVATE).edit().putBoolean("receive_enabled", false).apply()
+                status = "接收服务启动失败：${it.message}"
+            }
         screen.invalidate()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_NOTIFICATIONS) {
+            if (grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                startReceiveService()
+            } else {
+                // Foreground service can still run, but incoming-request notifications may be hidden.
+                startReceiveService()
+                status = "接收已开启，但通知权限被拒绝，可能无法及时看到接收请求"
+                screen.invalidate()
+            }
+        }
     }
 
     private fun stopReceive() {
@@ -331,7 +358,6 @@ class QuanLianActivity : Activity() {
         navFocused = false
         focus = 0
         if(target==Page.HISTORY)historyScrollOffset=0
-        if (target == Page.RECEIVE && !receiveEnabled) startReceive()
         screen.invalidate()
     }
 
@@ -394,7 +420,7 @@ class QuanLianActivity : Activity() {
             Page.RECEIVE -> if (focus == 0) {
                 if (receiveEnabled) stopReceive() else startReceive()
             }
-            Page.DEVICES -> devices.getOrNull(focus)?.let { device ->
+            Page.DEVICES -> devices.take(9).getOrNull(focus)?.let { device ->
                 page = Page.SEND
                 screen.invalidate()
                 requestSend(device)
@@ -489,7 +515,7 @@ class QuanLianActivity : Activity() {
         val max = when (page) {
             Page.HOME -> 3
             Page.SEND -> devices.size + if (transferRunning) 1 else 0
-            Page.DEVICES -> (devices.size - 1).coerceAtLeast(0)
+            Page.DEVICES -> (devices.size.coerceAtMost(9) - 1).coerceAtLeast(0)
             Page.RECEIVE -> 0
             Page.HISTORY -> readHistoryItems().length()+1
         }
