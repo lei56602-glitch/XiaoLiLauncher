@@ -184,53 +184,18 @@ public class TransferForegroundService extends Service {
             if (cancelRequested.get()) throw new IOException("已取消发送");
             DiagnosticLog.info(this,"SEND_CONNECT_BEGIN","peer="+peer+", host="+host+", port="+port+", fingerprint="+fingerprint+", files="+files.size());
             updateStatus("文件准备完成，正在连接 " + peer + "…", 0);
-            try (Socket socket = TlsIdentity.connect(this,host,port,fingerprint)) {
-                activeSocket.set(socket);
-                socket.setSoTimeout(180000); socket.setTcpNoDelay(true); socket.setKeepAlive(true);
-                updateStatus("已连接设备，正在等待对方确认…", 0);
-                DataOutputStream out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
-                DataInputStream in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
-                out.writeUTF("QUANLIAN4"); out.writeUTF(deviceName()); out.writeUTF(DeviceIdentity.id(this)); out.writeInt(files.size());
-                for (SendFile file : files) { out.writeUTF(file.name); out.writeLong(file.size); out.writeUTF(file.hash); }
-                out.flush();
-                if (!in.readBoolean()) throw new IOException("对方拒绝接收或接收确认超时");
-                long sent=0, lastUi=0, started=System.currentTimeMillis();
-                int index=0;
-                for (SendFile file : files) {
-                    index++;
-                    updateStatus("正在发送第 " + index + "/" + files.size() + " 个文件：" + file.name, totalBytes==0?0:(int)(sent*1000/totalBytes));
-                    long offset=in.readLong();
-                    if(offset<0||offset>file.size)throw new IOException("接收端续传位置无效");
-                    sent+=offset;
-                    try (InputStream input = new BufferedInputStream(getContentResolver().openInputStream(file.uri))) {
-                        if(input==null)throw new IOException("无法重新读取文件："+file.name);
-                        long skipped=0;while(skipped<offset){long n=input.skip(offset-skipped);if(n<=0){if(input.read()==-1)throw new EOFException("无法定位续传位置");n=1;}skipped+=n;}
-                        byte[] chunk=new byte[4*1024*1024];
-                        long remainingFile=file.size-offset;
-                        // QUANLIAN4 batches data frames and acknowledges each 16 MiB window.
-                        final long ackWindow=16L*1024*1024;
-                        while(remainingFile>0){
-                            if(cancelRequested.get())throw new IOException("已取消发送");
-                            long batchBytes=0;
-                            while(remainingFile>0&&batchBytes<ackWindow){
-                                int wanted=(int)Math.min(chunk.length,remainingFile),n=0;
-                                while(n<wanted){int read=input.read(chunk,n,wanted-n);if(read<0)throw new EOFException("本地文件读取中断");n+=read;}
-                                out.writeInt(n);out.write(chunk,0,n);
-                                offset+=n;remainingFile-=n;sent+=n;batchBytes+=n;
-                                if(cancelRequested.get())throw new IOException("已取消发送");
-                            }
-                            out.flush();
-                            long ack=in.readLong();if(ack!=offset)throw new IOException("接收端批量确认位置不一致");
-                            long now=System.currentTimeMillis();
-                            if(now-lastUi>250||sent==totalBytes){
-                                int progress=totalBytes==0?1000:(int)Math.min(1000,(sent*1000.0/totalBytes));
-                                long elapsed=Math.max(1,now-started),speed=(long)(sent*1000.0/elapsed),remaining=speed>0?(totalBytes-sent)/speed:0;
-                                updateStatus("正在发送："+sizeText(sent)+" / "+sizeText(totalBytes)+" · "+sizeText(speed)+"/秒 · 剩余约 "+etaText(remaining),progress);lastUi=now;
-                            }
-                        }
-                    }
+            try {
+                sendSession(files, host, port, peer, fingerprint, totalBytes, "QUANLIAN4");
+            } catch (EOFException incompatibleV4) {
+                // Older receivers close immediately when they do not recognize QUANLIAN4.
+                // Retry only before receiving the user's acceptance response; never replay a partially sent transfer.
+                DiagnosticLog.info(this, "PROTOCOL_FALLBACK", "QUANLIAN4 rejected before acceptance; retrying QUANLIAN3");
+                try {
+                    sendSession(files, host, port, peer, fingerprint, totalBytes, "QUANLIAN3");
+                } catch (EOFException incompatibleV3) {
+                    DiagnosticLog.info(this, "PROTOCOL_FALLBACK", "QUANLIAN3 rejected before acceptance; retrying QUANLIAN2");
+                    sendSession(files, host, port, peer, fingerprint, totalBytes, "QUANLIAN2");
                 }
-                if (!in.readBoolean()) throw new IOException("接收端未确认完成或文件校验失败");
             }
             for (int i=0;i<files.size();i++) addHistory("发送",files.get(i).name,files.get(i).size,peer,uris.get(i).toString());
         } catch (Exception e) {
@@ -244,6 +209,111 @@ public class TransferForegroundService extends Service {
             DiagnosticLog.info(this,"SEND_FINISHED","success="+(failure==null)+", cancelled="+cancelled+", error="+failure);
             publishResult(failure==null, cancelled, failure);
             mainHandler.post(() -> { stopForeground(true); stopSelf(startId); });
+        }
+    }
+
+    private void sendSession(ArrayList<SendFile> files, String host, int port, String peer,
+                             String fingerprint, long totalBytes, String protocol) throws IOException {
+        boolean legacy = "QUANLIAN2".equals(protocol);
+        boolean batched = "QUANLIAN4".equals(protocol);
+        boolean resumable = !legacy;
+        try (Socket socket = TlsIdentity.connect(this, host, port, fingerprint)) {
+            activeSocket.set(socket);
+            socket.setSoTimeout(180000);
+            socket.setTcpNoDelay(true);
+            socket.setKeepAlive(true);
+            DataOutputStream out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
+            DataInputStream in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
+            out.writeUTF(protocol);
+            out.writeUTF(deviceName());
+            if (!legacy) out.writeUTF(DeviceIdentity.id(this));
+            out.writeInt(files.size());
+            for (SendFile file : files) {
+                out.writeUTF(file.name);
+                out.writeLong(file.size);
+                out.writeUTF(file.hash);
+            }
+            out.flush();
+            // EOF here means an older receiver rejected the protocol before user acceptance.
+            if (!in.readBoolean()) throw new IOException("对方拒绝接收或接收确认超时");
+            long sent = 0, lastUi = 0, started = System.currentTimeMillis();
+            int index = 0;
+            for (SendFile file : files) {
+                index++;
+                updateStatus("正在发送第 " + index + "/" + files.size() + " 个文件：" + file.name,
+                    totalBytes == 0 ? 0 : (int)(sent * 1000 / totalBytes));
+                long offset = resumable ? in.readLong() : 0L;
+                if (offset < 0 || offset > file.size) throw new IOException("接收端续传位置无效");
+                sent += offset;
+                try (InputStream input = new BufferedInputStream(getContentResolver().openInputStream(file.uri))) {
+                    if (input == null) throw new IOException("无法重新读取文件：" + file.name);
+                    long skipped = 0;
+                    while (skipped < offset) {
+                        long n = input.skip(offset - skipped);
+                        if (n <= 0) {
+                            if (input.read() == -1) throw new EOFException("无法定位续传位置");
+                            n = 1;
+                        }
+                        skipped += n;
+                    }
+                    byte[] chunk = new byte[batched || resumable ? 4 * 1024 * 1024 : BUF];
+                    long remaining = file.size - offset;
+                    final long ackWindow = 16L * 1024 * 1024;
+                    while (remaining > 0) {
+                        if (cancelRequested.get()) throw new IOException("已取消发送");
+                        if (batched) {
+                            long batchBytes = 0;
+                            while (remaining > 0 && batchBytes < ackWindow) {
+                                int wanted = (int)Math.min(chunk.length, remaining), n = 0;
+                                while (n < wanted) {
+                                    int read = input.read(chunk, n, wanted - n);
+                                    if (read < 0) throw new EOFException("本地文件读取中断");
+                                    n += read;
+                                }
+                                out.writeInt(n);
+                                out.write(chunk, 0, n);
+                                offset += n; remaining -= n; sent += n; batchBytes += n;
+                                if (cancelRequested.get()) throw new IOException("已取消发送");
+                            }
+                            out.flush();
+                            long ack = in.readLong();
+                            if (ack != offset) throw new IOException("接收端批量确认位置不一致");
+                        } else if (resumable) {
+                            int wanted = (int)Math.min(chunk.length, remaining), n = 0;
+                            while (n < wanted) {
+                                int read = input.read(chunk, n, wanted - n);
+                                if (read < 0) throw new EOFException("本地文件读取中断");
+                                n += read;
+                            }
+                            out.writeInt(n);
+                            out.write(chunk, 0, n);
+                            out.flush();
+                            offset += n; remaining -= n; sent += n;
+                            long ack = in.readLong();
+                            if (ack != offset) throw new IOException("接收端分块确认位置不一致");
+                        } else {
+                            int n = input.read(chunk, 0, (int)Math.min(chunk.length, remaining));
+                            if (n < 0) throw new EOFException("本地文件读取中断");
+                            out.write(chunk, 0, n);
+                            remaining -= n; sent += n;
+                        }
+                        long now = System.currentTimeMillis();
+                        if (now - lastUi > 250 || sent == totalBytes) {
+                            int progress = totalBytes == 0 ? 1000 : (int)Math.min(1000, sent * 1000.0 / totalBytes);
+                            long elapsed = Math.max(1, now - started);
+                            long speed = (long)(sent * 1000.0 / elapsed);
+                            long remainingSeconds = speed > 0 ? (totalBytes - sent) / speed : 0;
+                            updateStatus("正在发送：" + sizeText(sent) + " / " + sizeText(totalBytes)
+                                + " · " + sizeText(speed) + "/秒 · 剩余约 " + etaText(remainingSeconds), progress);
+                            lastUi = now;
+                        }
+                    }
+                    out.flush();
+                }
+            }
+            if (!in.readBoolean()) throw new IOException("接收端未确认完成或文件校验失败");
+        } finally {
+            activeSocket.set(null);
         }
     }
 
