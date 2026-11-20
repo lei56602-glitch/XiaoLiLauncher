@@ -599,35 +599,33 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun drawHome(c: Canvas, w: Float, h: Float) {
+        // App icons are first-class desktop objects; no enclosing tile/card.
         favorites.take(5).forEachIndexed { i, app ->
-            // The translucent card is exclusively the icon viewport. The app name is
-            // laid out in a separate line below it and never consumes icon space.
-            val card = homeIconCardRect(i, w, h)
+            val icon = homeIconCardRect(i, w, h)
             val focused = i == homeIndex
-            paint.color = if (focused) 0xAA0878D8.toInt() else 0x553B8DD0
-            if (focused) paint.setShadowLayer(h * .025f, 0f, h * .008f, 0xAA27BFFF.toInt())
-            c.drawRoundRect(card, h * .035f, h * .035f, paint)
-            paint.clearShadowLayer()
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = (h * .002f).coerceAtLeast(1.5f)
-            paint.color = if (focused) 0xCC7DE5FF.toInt() else 0x557FC9FF
-            c.drawRoundRect(card, h * .035f, h * .035f, paint)
-            paint.style = Paint.Style.FILL
-
-            // Drawable bounds span the card with only a tiny proportional safety inset.
-            val iconInsetX = card.width() * .012f
-            val iconInsetY = card.height() * .012f
-            val iconRect = RectF(card.left + iconInsetX, card.top + iconInsetY,
-                card.right - iconInsetX, card.bottom - iconInsetY)
-            drawUnifiedAppIcon(c, app, iconRect, focused)
-
+            drawUnifiedAppIcon(c, app, icon, focused)
             paint.textAlign = Paint.Align.CENTER
-            text(c, app.label.take(12), card.centerX(), card.bottom + h * .075f,
-                h * .026f, -1, true)
+            text(c, app.label.take(12), icon.centerX(), icon.bottom + h * .038f, h * .024f, -1, true)
             paint.textAlign = Paint.Align.LEFT
         }
+        drawQuickTransferShortcut(c, w, h)
     }
 
+    private fun drawQuickTransferShortcut(c: Canvas, w: Float, h: Float) {
+        val r = quickTransferRect(w, h)
+        paint.color = 0xCC0878D8.toInt()
+        paint.setShadowLayer(h * .012f, 0f, h * .004f, 0x6637C9FF)
+        c.drawRoundRect(r, h * .025f, h * .025f, paint)
+        paint.clearShadowLayer()
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = (h * .0025f).coerceAtLeast(2f)
+        paint.color = 0xFF9BEAFF.toInt()
+        c.drawRoundRect(r, h * .025f, h * .025f, paint)
+        paint.style = Paint.Style.FILL
+        paint.textAlign = Paint.Align.CENTER
+        text(c, "快传", r.centerX(), r.centerY() + h * .009f, h * .027f, -1, true)
+        paint.textAlign = Paint.Align.LEFT
+    }
     private fun drawUnifiedAppIcon(c: Canvas, app: AppEntry, rect: RectF, focused: Boolean) {
         val drawable = appIconCache.getOrPut(app.packageName) {
             runCatching { context.packageManager.getApplicationIcon(app.packageName) }
@@ -932,34 +930,32 @@ class LauncherView(context: Context) : View(context) {
 
     // Full hit target includes the label line; only homeIconCardRect is painted.
     private fun homeItemRect(index: Int, w: Float, h: Float): RectF {
-        val card = homeIconCardRect(index, w, h)
-        return RectF(card.left, card.top, card.right, card.bottom + h * .095f)
+        val icon = homeIconCardRect(index, w, h)
+        return RectF(icon.left - w * .018f, icon.top - h * .012f, icon.right + w * .018f, icon.bottom + h * .055f)
     }
 
     private fun homeIconCardRect(index: Int, w: Float, h: Float): RectF {
+        val size = minOf(w * (if (w >= h) .105f else .19f), h * (if (w >= h) .19f else .105f))
         if (w >= h) {
             val gap = w * .035f
-            val itemW = w * .13f
-            val total = favorites.size * itemW + (favorites.size - 1).coerceAtLeast(0) * gap
-            val left = (w - total) / 2f + index * (itemW + gap)
-            return RectF(left, h * .55f, left + itemW, h * .75f)
+            val total = favorites.size * size + (favorites.size - 1).coerceAtLeast(0) * gap
+            val left = (w - total) / 2f + index * (size + gap)
+            return RectF(left, h * .59f, left + size, h * .59f + size)
         }
         val cols = 3
-        val itemW = w * .27f
-        val itemH = h * .105f
-        val gapX = w * .045f
-        val gapY = h * .035f
-        val total = cols * itemW + (cols - 1) * gapX
+        val gapX = w * .055f
+        val gapY = h * .055f
+        val total = cols * size + (cols - 1) * gapX
         val startX = (w - total) / 2f
         val rows = (favorites.size + cols - 1) / cols
-        val labelGap = h * .095f
-        val totalH = rows * (itemH + labelGap) + (rows - 1).coerceAtLeast(0) * gapY
-        val startY = (h - totalH) / 2f + h * .04f
-        val left = startX + (index % cols) * (itemW + gapX)
-        val top = startY + (index / cols) * (itemH + labelGap + gapY)
-        return RectF(left, top, left + itemW, top + itemH)
+        val totalH = rows * (size + h * .065f) + (rows - 1).coerceAtLeast(0) * gapY
+        val startY = (h - totalH) / 2f + h * .08f
+        val left = startX + (index % cols) * (size + gapX)
+        val top = startY + (index / cols) * (size + h * .065f + gapY)
+        return RectF(left, top, left + size, top + size)
     }
 
+    private fun quickTransferRect(w: Float, h: Float): RectF = RectF(w * .055f, h * .145f, w * .245f, h * .225f)
     private fun widgetIndexAt(x: Float, y: Float): Int {
         val rows = listOf(
             Triple(showClock, clockX, clockY),
@@ -1193,6 +1189,11 @@ class LauncherView(context: Context) : View(context) {
                             else (homeIndex - 1).coerceAtLeast(0)
                     }
                 } else {
+                    if (quickTransferRect(width.toFloat(), height.toFloat()).contains(event.x, event.y)) {
+                        runCatching { context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java)) }
+                        invalidate()
+                        return true
+                    }
                     if (event.x < width * .24f && event.y < height * .14f) {
                         runCatching { context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                             .onFailure { runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
