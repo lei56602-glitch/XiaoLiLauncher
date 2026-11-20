@@ -66,14 +66,14 @@ class LauncherView(context: Context) : View(context) {
     private var weatherLoading = false
     private var showClock = prefs.getBoolean("show_clock", true)
     private var showDate = prefs.getBoolean("show_date", true)
-    private var showLunar = prefs.getBoolean("show_lunar", true)
-    private var showWeather = prefs.getBoolean("show_weather", true)
+    private var showLunar = false
+    private var showWeather = false
     private var use24HourClock = prefs.getBoolean("clock_24_hour", true)
     private var showClockSeconds = prefs.getBoolean("clock_seconds", false)
-    private var clockX = prefs.getFloat("widget_clock_x", .965f)
+    private var clockX = prefs.getFloat("widget_clock_x", .055f)
     private var clockY = prefs.getFloat("widget_clock_y", .085f)
-    private var dateX = prefs.getFloat("widget_date_x", .965f)
-    private var dateY = prefs.getFloat("widget_date_y", .125f)
+    private var dateX = prefs.getFloat("widget_date_x", .055f)
+    private var dateY = prefs.getFloat("widget_date_y", .135f)
     private var lunarX = prefs.getFloat("widget_lunar_x", .965f)
     private var lunarY = prefs.getFloat("widget_lunar_y", .16f)
     private var weatherX = prefs.getFloat("widget_weather_x", .965f)
@@ -97,6 +97,10 @@ class LauncherView(context: Context) : View(context) {
     private var drawerIndex = 0
     private var drawerScrollRow = 0
     private var homeIndex = 0
+    private var homeIconScale = prefs.getFloat("home_icon_scale", 1f).coerceIn(.65f, 1.6f)
+    private var resizingHomeIcons = false
+    private var homeIconResizeStartSpan = 0f
+    private var homeIconResizeStartScale = 1f
     private var touchDownX = 0f
     private var touchDownY = 0f
     private var touchDragging = false
@@ -335,15 +339,12 @@ class LauncherView(context: Context) : View(context) {
         }
         val time = SimpleDateFormat(timePattern, Locale.getDefault()).format(now)
         val date = SimpleDateFormat("MM月dd日  EEEE", Locale.CHINA).format(now)
-        paint.textAlign = Paint.Align.RIGHT
+        paint.textAlign = Paint.Align.LEFT
+        // Clock and date stay in the upper-left; weather and lunar date are removed from the home screen.
         if (showClock) text(c, time, w * clockX, height * clockY, height * .052f * clockScale, -1, true)
         if (showDate) text(c, date, w * dateX, height * dateY, height * .021f * dateScale, 0xFFE2F1FF.toInt())
-        if (showLunar) lunarDateLabel(now.time)?.let {
-            text(c, it, w * lunarX, height * lunarY, height * .019f * lunarScale, 0xFFBDEBFF.toInt())
-        }
-        if (showWeather) text(c, "天气  $weatherSummary", w * weatherX, height * weatherY, height * .019f * weatherScale,
-            if (weatherCity.isBlank()) 0xFFFFE7B0.toInt() else 0xFFD9F5FF.toInt())
         drawWifiShortcut(c, w, height.toFloat())
+        drawSettingsShortcut(c, w, height.toFloat())
         paint.textAlign = Paint.Align.LEFT
         if (widgetEditMode) drawSelectedWidgetOutline(c)
     }
@@ -356,8 +357,8 @@ class LauncherView(context: Context) : View(context) {
             val network = cm.activeNetwork
             network != null && cm.getNetworkCapabilities(network)?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true
         }.getOrDefault(false)
-        val x = w * .055f
-        val y = h * .075f
+        val x = w * .775f
+        val y = h * .078f
         paint.color = if (connected) 0xFF8BE7FF.toInt() else 0xFFFFD28A.toInt()
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = (h * .0035f).coerceAtLeast(2f)
@@ -613,22 +614,15 @@ class LauncherView(context: Context) : View(context) {
 
     // A permanent, clearly labelled desktop entry; never hidden in gestures or the app drawer.
     private fun settingsShortcutRect(w: Float, h: Float) =
-        RectF(w * .805f, h * .255f, w * .965f, h * .325f)
+        RectF(w * .895f, h * .045f, w * .985f, h * .125f)
 
     private fun drawSettingsShortcut(c: Canvas, w: Float, h: Float) {
         val r = settingsShortcutRect(w, h)
         paint.style = Paint.Style.FILL
-        paint.color = 0xCC0757A8.toInt()
-        paint.setShadowLayer(h * .012f, 0f, h * .004f, 0x6637C9FF)
-        c.drawRoundRect(r, h * .018f, h * .018f, paint)
-        paint.clearShadowLayer()
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = (h * .0025f).coerceAtLeast(2f)
-        paint.color = 0xFF9BEAFF.toInt()
-        c.drawRoundRect(r, h * .018f, h * .018f, paint)
-        paint.style = Paint.Style.FILL
+        paint.color = 0xFFBDEBFF.toInt()
         paint.textAlign = Paint.Align.CENTER
-        text(c, "⚙  设置", r.centerX(), r.centerY() + h * .009f, h * .027f, -1, true)
+        text(c, "⚙", r.centerX(), r.top + h * .039f, h * .038f, -1, true)
+        text(c, "设置", r.centerX(), r.bottom - h * .008f, h * .018f, -1, true)
         paint.textAlign = Paint.Align.LEFT
     }
     private fun drawUnifiedAppIcon(c: Canvas, app: AppEntry, rect: RectF, focused: Boolean) {
@@ -691,19 +685,11 @@ class LauncherView(context: Context) : View(context) {
             val cell = RectF(left + cellW * .035f, top + cellH * .025f,
                 left + cellW * .965f, top + cellH * .965f)
             // Icon frame and title line are separate visual elements.
-            val iconSize = minOf(metrics.iconSize(cell.width()), cellH * .66f)
-            val iconTop = cell.top + cellH * .035f
+            // Drawer uses standalone icons and the same persisted size scale as the desktop.
+            val iconSize = minOf(metrics.iconSize(cell.width()) * homeIconScale, cellH * .76f)
+            val iconTop = cell.top + (cellH * .78f - iconSize) / 2f
             val iconRect = RectF(cell.centerX() - iconSize / 2f, iconTop,
                 cell.centerX() + iconSize / 2f, iconTop + iconSize)
-            paint.color = if (i == drawerIndex) 0xAA1686E8.toInt() else 0x553D8DD8
-            if (i == drawerIndex) paint.setShadowLayer(h * .018f, 0f, 0f, 0xAA39C8FF.toInt())
-            c.drawRoundRect(iconRect, h * .025f, h * .025f, paint)
-            paint.clearShadowLayer()
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = (h * .002f).coerceAtLeast(1.5f)
-            paint.color = if (i == drawerIndex) 0xCC7DE5FF.toInt() else 0x557FC9FF
-            c.drawRoundRect(iconRect, h * .025f, h * .025f, paint)
-            paint.style = Paint.Style.FILL
             drawUnifiedAppIcon(c, app, iconRect, i == drawerIndex)
             paint.textAlign = Paint.Align.CENTER
             text(c, app.label.take(12), cell.centerX(), cell.bottom - cellH * .045f, h * .023f, -1, i == drawerIndex)
@@ -940,7 +926,8 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun homeIconCardRect(index: Int, w: Float, h: Float): RectF {
-        val size = minOf(w * (if (w >= h) .105f else .19f), h * (if (w >= h) .19f else .105f))
+        val baseSize = minOf(w * (if (w >= h) .105f else .19f), h * (if (w >= h) .19f else .105f))
+        val size = baseSize * homeIconScale
         if (w >= h) {
             val gap = w * .035f
             val total = favorites.size * size + (favorites.size - 1).coerceAtLeast(0) * gap
