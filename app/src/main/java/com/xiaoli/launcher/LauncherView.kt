@@ -1432,14 +1432,14 @@ class LauncherView(context: Context) : View(context) {
                     return true
                 }
                 if (isSettingsOpen) {
-                    if (settingsHitX in (width * .055f)..(width * .225f) && event.y >= height * .275f && event.y <= height * .912f) {
+                    if (event.x in (width * .055f)..(width * .225f) && event.y >= height * .275f && event.y <= height * .912f) {
                         val category = ((event.y - height * .275f) / (height * .091f)).toInt().coerceIn(0, 6)
                         settingsFocus = 30 + category
                         invalidate()
                         performClick()
                         return true
                     }
-                    val settingsHitX = (settingsHitX - width * .18f) / .80f
+                    val settingsHitX = (event.x - width * .18f) / .80f
                     if (event.y in (height * .275f)..(height * .37f) && settingsHitX in (width * .13f)..(width * .64f)) {
                         settingsFocus = 8
                         cycleHomeIconScale()
