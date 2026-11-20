@@ -884,7 +884,7 @@ class LauncherView(context: Context) : View(context) {
     private fun openLauncherSettings() {
         isDrawerOpen = false
         isSettingsOpen = true
-        settingsFocus = 8
+        settingsFocus = 30
         invalidate()
     }
 
@@ -953,7 +953,57 @@ class LauncherView(context: Context) : View(context) {
                 ?.activityInfo?.packageName == context.packageName
         }
     }
+    private fun settingsCategoryControl(index: Int): Int = when (index) {
+        0 -> 8   // Desktop layout
+        1 -> 3   // Appearance and wallpaper
+        2 -> 21  // App management
+        3 -> 22  // Desktop widgets
+        4 -> 14  // Remote and interaction / home role
+        5 -> 6   // XiaoLi transfer
+        else -> 7 // Android system settings
+    }
+
+    private fun settingsCategoryForControl(focus: Int): Int? = when (focus) {
+        8, 0, 1, 2, 17, 18, 19 -> 0
+        3, 4, 5 -> 1
+        21 -> 2
+        22, 9, 10, 15, 16 -> 3
+        14, 13 -> 4
+        6 -> 5
+        7 -> 6
+        else -> null
+    }
+
+    private fun drawSettingsNavigation(c: Canvas, w: Float, h: Float) {
+        val rail = RectF(w * .055f, h * .14f, w * .225f, h * .97f)
+        paint.color = 0xF0062A62.toInt()
+        c.drawRoundRect(rail, 24f, 24f, paint)
+        text(c, "设置中心", w * .075f, h * .225f, h * .027f, -1, true)
+        val labels = listOf("桌面布局", "外观与壁纸", "应用管理", "桌面组件", "遥控器与操作", "小李全联", "电视系统设置")
+        labels.forEachIndexed { index, label ->
+            val top = h * (.275f + index * .091f)
+            val rect = RectF(w * .067f, top, w * .213f, top + h * .073f)
+            val selected = settingsFocus == 30 + index
+            paint.color = if (selected) 0xFF167FD8.toInt() else 0x443AAFFF
+            c.drawRoundRect(rect, 14f, 14f, paint)
+            if (selected) {
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = (h * .0025f).coerceAtLeast(2f)
+                paint.color = 0xFF8BE7FF.toInt()
+                c.drawRoundRect(rect, 14f, 14f, paint)
+                paint.style = Paint.Style.FILL
+            }
+            paint.textAlign = Paint.Align.CENTER
+            text(c, label, rect.centerX(), rect.centerY() + h * .008f,
+                h * .018f, -1, selected)
+            paint.textAlign = Paint.Align.LEFT
+        }
+    }
+
     private fun drawLauncherSettings(c: Canvas, w: Float, h: Float) {
+        val contentSave = c.save()
+        c.translate(w * .18f, 0f)
+        c.scale(.80f, 1f)
         paint.color = 0xE6052B68.toInt()
         c.drawRoundRect(RectF(w * .08f, h * .14f, w * .92f, h * .97f), 30f, 30f, paint)
 
@@ -1099,6 +1149,9 @@ class LauncherView(context: Context) : View(context) {
         c.drawRoundRect(exit, 16f, 16f, paint)
         text(c, "返回", exit.centerX(), h * .92f, h * .024f, -1, true)
         paint.textAlign = Paint.Align.LEFT
+        c.restoreToCount(contentSave)
+        drawSettingsNavigation(c, w, h)
+
     }
 
     // Full hit target includes the label line; only homeIconCardRect is painted.
@@ -1379,15 +1432,23 @@ class LauncherView(context: Context) : View(context) {
                     return true
                 }
                 if (isSettingsOpen) {
-                    if (event.y in (height * .275f)..(height * .37f) && event.x in (width * .13f)..(width * .64f)) {
+                    if (settingsHitX in (width * .055f)..(width * .225f) && event.y >= height * .275f && event.y <= height * .912f) {
+                        val category = ((event.y - height * .275f) / (height * .091f)).toInt().coerceIn(0, 6)
+                        settingsFocus = 30 + category
+                        invalidate()
+                        performClick()
+                        return true
+                    }
+                    val settingsHitX = (settingsHitX - width * .18f) / .80f
+                    if (event.y in (height * .275f)..(height * .37f) && settingsHitX in (width * .13f)..(width * .64f)) {
                         settingsFocus = 8
                         cycleHomeIconScale()
-                    } else if (event.y in (height * .275f)..(height * .37f) && event.x in (width * .66f)..(width * .87f)) {
+                    } else if (event.y in (height * .275f)..(height * .37f) && settingsHitX in (width * .66f)..(width * .87f)) {
                         settingsFocus = 22; isSettingsOpen = false; toggleWidgetEditMode()
                     } else if (event.y in (height * .415f)..(height * .465f)) {
                         val componentGap = width * .012f
                         val componentW = (width * .74f - componentGap * 3f) / 4f
-                        val selected = ((event.x - width * .13f) / (componentW + componentGap)).toInt()
+                        val selected = ((settingsHitX - width * .13f) / (componentW + componentGap)).toInt()
                         val componentKeys = listOf(9, 10, 15, 16)
                         if (selected in componentKeys.indices) settingsFocus = componentKeys[selected]
                         when (selected) {
@@ -1398,35 +1459,35 @@ class LauncherView(context: Context) : View(context) {
                         }
                     } else if (event.y in (height * .515f)..(height * .575f)) {
                         when {
-                            event.x in (width * .13f)..(width * .445f) -> {
-                                val selected = ((event.x - width * .13f) / (width * .105f)).toInt()
+                            settingsHitX in (width * .13f)..(width * .445f) -> {
+                                val selected = ((settingsHitX - width * .13f) / (width * .105f)).toInt()
                                 if (selected in 0..2) setDrawerColumns(selected + 4)
                             }
-                            event.x in (width * .55f)..(width * .865f) -> {
-                                val selected = ((event.x - width * .55f) / (width * .105f)).toInt()
+                            settingsHitX in (width * .55f)..(width * .865f) -> {
+                                val selected = ((settingsHitX - width * .55f) / (width * .105f)).toInt()
                                 if (selected in 0..2) setDrawerRows(selected + 2)
                             }
                         }
-                    } else if (event.y in (height * .59f)..(height * .68f) && event.x in (width * .13f)..(width * .35f)) {
+                    } else if (event.y in (height * .59f)..(height * .68f) && settingsHitX in (width * .13f)..(width * .35f)) {
                         settingsFocus = 3
                         onChooseWallpaper?.invoke()
-                    } else if (event.y in (height * .59f)..(height * .68f) && event.x in (width * .38f)..(width * .62f)) {
+                    } else if (event.y in (height * .59f)..(height * .68f) && settingsHitX in (width * .38f)..(width * .62f)) {
                         settingsFocus = 4
                         toggleDynamicWallpaper()
-                    } else if (event.y in (height * .59f)..(height * .68f) && event.x in (width * .65f)..(width * .87f)) {
+                    } else if (event.y in (height * .59f)..(height * .68f) && settingsHitX in (width * .65f)..(width * .87f)) {
                         settingsFocus = 5
                         clearWallpaper()
-                    } else if (event.y in (height * .70f)..(height * .84f) && event.x in (width * .13f)..(width * .49f)) {
+                    } else if (event.y in (height * .70f)..(height * .84f) && settingsHitX in (width * .13f)..(width * .49f)) {
                         settingsFocus = 6
                         context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
-                    } else if (event.y in (height * .70f)..(height * .84f) && event.x in (width * .52f)..(width * .87f)) {
+                    } else if (event.y in (height * .70f)..(height * .84f) && settingsHitX in (width * .52f)..(width * .87f)) {
                         settingsFocus = 21
                         isSettingsOpen = false; isDrawerOpen = true; editingFavorites = true; drawerIndex = 0; drawerScrollRow = 0
                     } else if (event.y in (height * .865f)..(height * .945f)) {
                         when {
-                            event.x in (width * .13f)..(width * .36f) -> { settingsFocus = 7; runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
-                            event.x in (width * .385f)..(width * .64f) -> { settingsFocus = 14; onRequestDefaultHome?.invoke() }
-                            event.x in (width * .665f)..(width * .87f) -> { settingsFocus = 13; closeLauncherSettings() }
+                            settingsHitX in (width * .13f)..(width * .36f) -> { settingsFocus = 7; runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
+                            settingsHitX in (width * .385f)..(width * .64f) -> { settingsFocus = 14; onRequestDefaultHome?.invoke() }
+                            settingsHitX in (width * .665f)..(width * .87f) -> { settingsFocus = 13; closeLauncherSettings() }
                         }
                     }
                 } else if (isDrawerOpen) {
@@ -1632,6 +1693,26 @@ class LauncherView(context: Context) : View(context) {
             return true
         }
         if (isSettingsOpen) {
+            if (settingsFocus in 30..36) {
+                when (keyCode) {
+                    KeyEvent.KEYCODE_DPAD_UP -> settingsFocus = (settingsFocus - 1).coerceAtLeast(30)
+                    KeyEvent.KEYCODE_DPAD_DOWN -> settingsFocus = (settingsFocus + 1).coerceAtMost(36)
+                    KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER ->
+                        settingsFocus = settingsCategoryControl(settingsFocus - 30)
+                    KeyEvent.KEYCODE_BACK -> { closeLauncherSettings(); return true }
+                }
+                invalidate()
+                return true
+            }
+            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                settingsCategoryForControl(settingsFocus)?.let { category ->
+                    if (settingsFocus == settingsCategoryControl(category)) {
+                        settingsFocus = 30 + category
+                        invalidate()
+                        return true
+                    }
+                }
+            }
             when (keyCode) {
                 KeyEvent.KEYCODE_BACK -> { closeLauncherSettings(); return true }
                 KeyEvent.KEYCODE_DPAD_LEFT -> moveSettingsFocus(-1)
