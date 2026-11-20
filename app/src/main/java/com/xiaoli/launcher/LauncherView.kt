@@ -15,6 +15,7 @@ import android.graphics.RadialGradient
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.net.ConnectivityManager
+import android.net.wifi.WifiManager
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -342,8 +343,34 @@ class LauncherView(context: Context) : View(context) {
         }
         if (showWeather) text(c, "天气  $weatherSummary", w * weatherX, height * weatherY, height * .019f * weatherScale,
             if (weatherCity.isBlank()) 0xFFFFE7B0.toInt() else 0xFFD9F5FF.toInt())
+        drawWifiShortcut(c, w, height.toFloat())
         paint.textAlign = Paint.Align.LEFT
         if (widgetEditMode) drawSelectedWidgetOutline(c)
+    }
+
+    private fun drawWifiShortcut(c: Canvas, w: Float, h: Float) {
+        val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+        val enabled = runCatching { wifi?.isWifiEnabled == true }.getOrDefault(false)
+        val connected = runCatching {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val network = cm.activeNetwork
+            network != null && cm.getNetworkCapabilities(network)?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true
+        }.getOrDefault(false)
+        val x = w * .055f
+        val y = h * .075f
+        paint.color = if (connected) 0xFF8BE7FF.toInt() else 0xFFFFD28A.toInt()
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = (h * .0035f).coerceAtLeast(2f)
+        val path = Path().apply {
+            moveTo(x - h * .025f, y); quadTo(x, y - h * .027f, x + h * .025f, y)
+            moveTo(x - h * .016f, y + h * .009f); quadTo(x, y - h * .009f, x + h * .016f, y + h * .009f)
+        }
+        c.drawPath(path, paint)
+        paint.style = Paint.Style.FILL
+        c.drawCircle(x, y + h * .017f, h * .0045f, paint)
+        paint.textAlign = Paint.Align.LEFT
+        text(c, if (connected) "Wi-Fi 已连接" else if (enabled) "Wi-Fi 未连接" else "Wi-Fi 已关闭",
+            x + h * .035f, y + h * .012f, h * .018f, -1, true)
     }
 
     private fun drawSelectedWidgetOutline(c: Canvas) {
@@ -482,11 +509,24 @@ class LauncherView(context: Context) : View(context) {
                 val lat: Double
                 val lon: Double
                 if (requestedCity.isBlank()) {
-                    // Coarse IP geolocation avoids requiring runtime location permission on TV.
-                    val location = readWeatherJson("https://ipapi.co/json/")
-                    lat = location.getDouble("latitude")
-                    lon = location.getDouble("longitude")
-                    resolvedCity = location.optString("city").ifBlank { location.optString("country_name") }.ifBlank { "当前位置" }
+                    // TVs commonly lack GPS/Google location services. Try independent IP providers.
+                    val endpoints = listOf("https://ipwho.is/", "https://ipapi.co/json/")
+                    var location: JSONObject? = null
+                    var lastError: Exception? = null
+                    for (endpoint in endpoints) {
+                        try {
+                            val candidate = readWeatherJson(endpoint)
+                            if (candidate.optBoolean("success", true) && candidate.has("latitude") && candidate.has("longitude")) {
+                                location = candidate; break
+                            }
+                            lastError = IllegalStateException(candidate.optString("message", "定位服务未返回坐标"))
+                        } catch (e: Exception) { lastError = e }
+                    }
+                    val resolved = location ?: throw (lastError ?: IllegalStateException("IP 定位服务不可用"))
+                    lat = resolved.getDouble("latitude")
+                    lon = resolved.getDouble("longitude")
+                    resolvedCity = resolved.optString("city").ifBlank { resolved.optString("region") }
+                        .ifBlank { resolved.optString("country") }.ifBlank { "当前位置" }
                 } else {
                     val encoded = URLEncoder.encode(requestedCity, "UTF-8")
                     val geo = readWeatherJson("https://geocoding-api.open-meteo.com/v1/search?name=$encoded&count=1&language=zh&format=json")
@@ -529,16 +569,19 @@ class LauncherView(context: Context) : View(context) {
 
     private fun readWeatherJson(address: String): JSONObject {
         val connection = (URL(address).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 8000
-            readTimeout = 8000
+            connectTimeout = 12000
+            readTimeout = 12000
             requestMethod = "GET"
             setRequestProperty("Accept", "application/json")
+            setRequestProperty("User-Agent", "XiaoLiLauncher/1.0")
         }
         return try {
-            connection.inputStream.bufferedReader(Charsets.UTF_8).use { JSONObject(it.readText()) }
-        } finally {
-            connection.disconnect()
-        }
+            val status = connection.responseCode
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            if (status !in 200..299) throw IllegalStateException("天气服务 HTTP $status")
+            JSONObject(body)
+        } finally { connection.disconnect() }
     }
 
     private fun weatherDescription(code: Int): String = when (code) {
@@ -644,18 +687,23 @@ class LauncherView(context: Context) : View(context) {
             val top = contentTop + (row - drawerScrollRow) * cellH
             val cell = RectF(left + cellW * .035f, top + cellH * .025f,
                 left + cellW * .965f, top + cellH * .965f)
-            paint.color = if (i == drawerIndex) 0xAA1686E8.toInt() else 0x553D8DD8
-            if (i == drawerIndex) paint.setShadowLayer(h * .018f, 0f, 0f, 0xAA39C8FF.toInt())
-            c.drawRoundRect(cell, h * .025f, h * .025f, paint)
-            paint.clearShadowLayer()
-            val iconSize = metrics.iconSize(cell.width())
-            val iconTop = metrics.iconTop(cell.top)
+            // Icon frame and title line are separate visual elements.
+            val iconSize = minOf(metrics.iconSize(cell.width()), cellH * .66f)
+            val iconTop = cell.top + cellH * .035f
             val iconRect = RectF(cell.centerX() - iconSize / 2f, iconTop,
                 cell.centerX() + iconSize / 2f, iconTop + iconSize)
+            paint.color = if (i == drawerIndex) 0xAA1686E8.toInt() else 0x553D8DD8
+            if (i == drawerIndex) paint.setShadowLayer(h * .018f, 0f, 0f, 0xAA39C8FF.toInt())
+            c.drawRoundRect(iconRect, h * .025f, h * .025f, paint)
+            paint.clearShadowLayer()
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = (h * .002f).coerceAtLeast(1.5f)
+            paint.color = if (i == drawerIndex) 0xCC7DE5FF.toInt() else 0x557FC9FF
+            c.drawRoundRect(iconRect, h * .025f, h * .025f, paint)
+            paint.style = Paint.Style.FILL
             drawUnifiedAppIcon(c, app, iconRect, i == drawerIndex)
             paint.textAlign = Paint.Align.CENTER
-            text(c, app.label.take(12), cell.centerX(), cell.bottom - cellH * .105f,
-                h * .023f, -1, i == drawerIndex)
+            text(c, app.label.take(12), cell.centerX(), cell.bottom - cellH * .045f, h * .023f, -1, i == drawerIndex)
             paint.textAlign = Paint.Align.LEFT
         }
         c.restoreToCount(clipSave)
@@ -760,12 +808,18 @@ class LauncherView(context: Context) : View(context) {
         paint.color = 0xE6052B68.toInt()
         c.drawRoundRect(RectF(w * .08f, h * .14f, w * .92f, h * .97f), 30f, 30f, paint)
         text(c, "小李桌面", w * .13f, h * .235f, h * .04f, -1, true)
-        text(c, "桌面设置  ·  个性化与设备管理", w * .13f, h * .265f, h * .021f, 0xFFDDEEFF.toInt())
-        val weatherSetting = RectF(w * .13f, h * .275f, w * .87f, h * .37f)
+        text(c, "桌面设置  ·  个性化与设备管理（长按菜单键可编辑组件）", w * .13f, h * .265f, h * .021f, 0xFFDDEEFF.toInt())
+        val weatherSetting = RectF(w * .13f, h * .275f, w * .64f, h * .37f)
         paint.color = if (settingsFocus == 8) 0xFF31B9FF.toInt() else 0x5544BFFF
         c.drawRoundRect(weatherSetting, 16f, 16f, paint)
-        text(c, "天气城市：${if (weatherCity.isBlank()) "尚未设置" else weatherCity}",
+        text(c, "天气城市：${if (weatherCity.isBlank()) "自动定位" else weatherCity}",
             w * .16f, h * .335f, h * .025f, -1, true)
+        val widgetEditCard = RectF(w * .66f, h * .275f, w * .87f, h * .37f)
+        paint.color = if (settingsFocus == 22) 0xFF31B9FF.toInt() else 0x5544BFFF
+        c.drawRoundRect(widgetEditCard, 16f, 16f, paint)
+        paint.textAlign = Paint.Align.CENTER
+        text(c, "组件布局编辑", widgetEditCard.centerX(), h * .335f, h * .022f, -1, true)
+        paint.textAlign = Paint.Align.LEFT
         text(c, "桌面信息显示", w * .13f, h * .397f, h * .021f, 0xFFDDEEFF.toInt())
         val labels = listOf(if (showClock) "时间：开" else "时间：关",
             if (showDate) "日期：开" else "日期：关",
@@ -850,8 +904,8 @@ class LauncherView(context: Context) : View(context) {
         val card = RectF(w * .13f, h * .70f, w * .49f, h * .84f)
         paint.color = if (settingsFocus == 6) 0xFF167FD8.toInt() else 0x553AAFFF
         c.drawRoundRect(card, 20f, 20f, paint)
-        text(c, "⇄  小李全联 · 快传", w * .16f, h * .755f, h * .027f, -1, true)
-        text(c, "局域网高速互传", w * .16f, h * .805f, h * .019f, 0xFFDDEEFF.toInt())
+        text(c, "⇄  小李全联 · 快传中心", w * .16f, h * .755f, h * .027f, -1, true)
+        text(c, "发送 · 接收 · 附近设备 · 传输历史", w * .16f, h * .805f, h * .019f, 0xFFDDEEFF.toInt())
         val appsCard = RectF(w * .52f, h * .70f, w * .87f, h * .84f)
         paint.color = if (settingsFocus == 21) 0xFF167FD8.toInt() else 0x553AAFFF
         c.drawRoundRect(appsCard, 20f, 20f, paint)
@@ -1057,9 +1111,11 @@ class LauncherView(context: Context) : View(context) {
                     return true
                 }
                 if (isSettingsOpen) {
-                    if (event.y in (height * .275f)..(height * .37f) && event.x in (width * .13f)..(width * .87f)) {
+                    if (event.y in (height * .275f)..(height * .37f) && event.x in (width * .13f)..(width * .64f)) {
                         settingsFocus = 8
                         openWeatherCityDialog()
+                    } else if (event.y in (height * .275f)..(height * .37f) && event.x in (width * .66f)..(width * .87f)) {
+                        settingsFocus = 22; isSettingsOpen = false; toggleWidgetEditMode()
                     } else if (event.y in (height * .415f)..(height * .465f)) {
                         val componentGap = width * .009f
                         val componentW = (width * .74f - componentGap * 5f) / 6f
@@ -1137,6 +1193,11 @@ class LauncherView(context: Context) : View(context) {
                             else (homeIndex - 1).coerceAtLeast(0)
                     }
                 } else {
+                    if (event.x < width * .24f && event.y < height * .14f) {
+                        runCatching { context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                            .onFailure { runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
+                        return true
+                    }
                     if (showWeather && event.x > width * .68f &&
                         event.y in (height * .14f)..(height * .34f)) {
                         openWeatherCityDialog()
@@ -1241,6 +1302,7 @@ class LauncherView(context: Context) : View(context) {
                         prefs.edit().putBoolean("clock_seconds", showClockSeconds).apply()
                         updateClockTick()
                     } else if (settingsFocus == 8) openWeatherCityDialog()
+                    else if (settingsFocus == 22) { isSettingsOpen = false; toggleWidgetEditMode() }
                     else if (settingsFocus in 0..2) setDrawerColumns(settingsFocus + 4)
                     else if (settingsFocus in 17..19) setDrawerRows(settingsFocus - 15)
                     else if (settingsFocus == 3) onChooseWallpaper?.invoke()
