@@ -1000,158 +1000,117 @@ class LauncherView(context: Context) : View(context) {
         }
     }
 
+    private fun drawSettingCard(c: Canvas, rect: RectF, heading: String, detail: String, focused: Boolean) {
+        paint.style = Paint.Style.FILL
+        paint.color = if (focused) 0xFF167FD8.toInt() else 0x553AAFFF
+        c.drawRoundRect(rect, 18f, 18f, paint)
+        if (focused) {
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = (height * .0028f).coerceAtLeast(2f)
+            paint.color = 0xFF8BE7FF.toInt()
+            c.drawRoundRect(rect, 18f, 18f, paint)
+            paint.style = Paint.Style.FILL
+        }
+        text(c, heading, rect.left + rect.width() * .055f, rect.top + rect.height() * .43f,
+            rect.height() * .25f, -1, true)
+        text(c, detail, rect.left + rect.width() * .055f, rect.top + rect.height() * .76f,
+            rect.height() * .16f, 0xFFDDEEFF.toInt())
+    }
+
     private fun drawLauncherSettings(c: Canvas, w: Float, h: Float) {
+        val category = if (settingsFocus in 30..36) settingsFocus - 30
+            else settingsCategoryForControl(settingsFocus) ?: 0
         val contentSave = c.save()
         c.translate(w * .18f, 0f)
         c.scale(.80f, 1f)
         paint.color = 0xE6052B68.toInt()
         c.drawRoundRect(RectF(w * .08f, h * .14f, w * .92f, h * .97f), 30f, 30f, paint)
 
-        // Clear visual grouping for TV viewing distance: each settings domain has
-        // its own spacious surface while the existing controls and actions remain intact.
-        val sectionPaintColor = 0x332B75B5
-        val sectionStrokeColor = 0x335FC5FF
-        val sectionRects = listOf(
-            RectF(w * .11f, h * .265f, w * .89f, h * .38f),
-            RectF(w * .11f, h * .39f, w * .89f, h * .48f),
-            RectF(w * .11f, h * .485f, w * .89f, h * .585f),
-            RectF(w * .11f, h * .59f, w * .89f, h * .69f),
-            RectF(w * .11f, h * .695f, w * .89f, h * .85f),
-            RectF(w * .11f, h * .855f, w * .89f, h * .955f)
+        val headings = listOf("桌面布局", "外观与壁纸", "应用管理", "桌面组件",
+            "遥控器与操作", "小李全联", "电视系统设置")
+        val descriptions = listOf(
+            "调整首页图标尺寸与应用抽屉网格",
+            "选择壁纸、动态背景或恢复默认背景",
+            "管理首页最多五个常用应用",
+            "设置时间日期显示，并编辑组件位置与大小",
+            "查看遥控器操作方式并设置默认主屏幕",
+            "打开内置局域网文件传输中心",
+            "打开 Android 电视系统设置"
         )
-        sectionRects.forEach { rect ->
-            paint.style = Paint.Style.FILL
-            paint.color = sectionPaintColor
-            c.drawRoundRect(rect, 18f, 18f, paint)
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = (h * .0012f).coerceAtLeast(1f)
-            paint.color = sectionStrokeColor
-            c.drawRoundRect(rect, 18f, 18f, paint)
-        }
-        paint.style = Paint.Style.FILL
-        text(c, "小李桌面", w * .13f, h * .225f, h * .04f, -1, true)
-        text(c, "电视设置中心  ·  使用遥控器方向键选择，OK 确认，返回退出",
-            w * .13f, h * .258f, h * .019f, 0xFFDDEEFF.toInt())
-        val iconSizeSetting = RectF(w * .13f, h * .275f, w * .64f, h * .37f)
-        paint.color = if (settingsFocus == 8) 0xFF31B9FF.toInt() else 0x5544BFFF
-        c.drawRoundRect(iconSizeSetting, 16f, 16f, paint)
-        text(c, "应用图标大小：" + (homeIconScale * 100).toInt() + "%  ·  点击调整",
-            w * .16f, h * .335f, h * .025f, -1, true)
-        val widgetEditCard = RectF(w * .66f, h * .275f, w * .87f, h * .37f)
-        paint.color = if (settingsFocus == 22) 0xFF31B9FF.toInt() else 0x5544BFFF
-        c.drawRoundRect(widgetEditCard, 16f, 16f, paint)
-        paint.textAlign = Paint.Align.CENTER
-        text(c, "组件布局编辑", widgetEditCard.centerX(), h * .335f, h * .022f, -1, true)
-        paint.textAlign = Paint.Align.LEFT
-        text(c, "桌面信息显示", w * .13f, h * .397f, h * .021f, 0xFFDDEEFF.toInt())
-        val labels = listOf(if (showClock) "时间：开" else "时间：关",
-            if (showDate) "日期：开" else "日期：关",
-            if (use24HourClock) "24小时制" else "12小时制",
-            if (showClockSeconds) "显示秒数" else "隐藏秒数")
-        val componentKeys = listOf(9, 10, 15, 16)
-        val componentGap = w * .012f
-        val componentW = (w * .74f - componentGap * 3f) / 4f
-        for (i in 0..3) {
-            val left = w * .13f + i * (componentW + componentGap)
-            val rect = RectF(left, h * .415f, left + componentW, h * .465f)
-            paint.color = if (settingsFocus == componentKeys[i]) 0xFF31B9FF.toInt() else 0x5544BFFF
-            c.drawRoundRect(rect, 12f, 12f, paint)
-            paint.textAlign = Paint.Align.CENTER
-            text(c, labels[i], rect.centerX(), h * .447f, h * .018f, -1, true)
-            paint.textAlign = Paint.Align.LEFT
-        }
-        text(c, "应用抽屉网格", w * .13f, h * .492f, h * .023f, 0xFFDDEEFF.toInt())
-        for (i in 0..2) {
-            val columns = i + 4
-            val left = w * (.13f + i * .105f)
-            val rect = RectF(left, h * .515f, left + w * .095f, h * .575f)
-            paint.color = if (drawerColumns() == columns) 0xFF31B9FF.toInt() else 0x44FFFFFF
-            c.drawRoundRect(rect, 14f, 14f, paint)
-            if (settingsFocus == i) {
-                paint.style = Paint.Style.STROKE
-                paint.strokeWidth = (h * .0035f).coerceAtLeast(2f)
-                paint.color = 0xFF8BE7FF.toInt()
-                c.drawRoundRect(rect, 14f, 14f, paint)
-                paint.style = Paint.Style.FILL
+        text(c, headings[category], w * .13f, h * .225f, h * .04f, -1, true)
+        text(c, descriptions[category], w * .13f, h * .258f, h * .019f, 0xFFDDEEFF.toInt())
+
+        when (category) {
+            0 -> {
+                drawSettingCard(c, RectF(w * .13f, h * .32f, w * .87f, h * .45f),
+                    "应用图标大小：${(homeIconScale * 100).toInt()}%",
+                    "桌面与应用抽屉使用同一缩放比例 · 点击调整", settingsFocus == 8)
+                text(c, "应用抽屉列数", w * .13f, h * .515f, h * .022f, 0xFFDDEEFF.toInt(), true)
+                for (i in 0..2) {
+                    val rect = RectF(w * (.13f + i * .105f), h * .54f,
+                        w * (.13f + i * .105f) + w * .095f, h * .63f)
+                    drawSettingCard(c, rect, "${i + 4}列",
+                        if (drawerColumns() == i + 4) "当前" else "选择", settingsFocus == i)
+                }
+                text(c, "应用抽屉行数", w * .13f, h * .685f, h * .022f, 0xFFDDEEFF.toInt(), true)
+                for (i in 0..2) {
+                    val rect = RectF(w * (.13f + i * .105f), h * .71f,
+                        w * (.13f + i * .105f) + w * .095f, h * .80f)
+                    drawSettingCard(c, rect, "${i + 2}行",
+                        if (drawerRows() == i + 2) "当前" else "选择", settingsFocus == i + 17)
+                }
             }
-            paint.textAlign = Paint.Align.CENTER
-            text(c, "${columns}列", rect.centerX(), h * .553f, h * .021f, -1, true)
-            paint.textAlign = Paint.Align.LEFT
-        }
-        for (i in 0..2) {
-            val rows = i + 2
-            val left = w * (.55f + i * .105f)
-            val rect = RectF(left, h * .515f, left + w * .095f, h * .575f)
-            paint.color = if (drawerRows() == rows) 0xFF31B9FF.toInt() else 0x44FFFFFF
-            c.drawRoundRect(rect, 14f, 14f, paint)
-            if (settingsFocus == rows + 15) {
-                paint.style = Paint.Style.STROKE
-                paint.strokeWidth = (h * .0035f).coerceAtLeast(2f)
-                paint.color = 0xFF8BE7FF.toInt()
-                c.drawRoundRect(rect, 14f, 14f, paint)
-                paint.style = Paint.Style.FILL
+            1 -> {
+                drawSettingCard(c, RectF(w * .13f, h * .36f, w * .35f, h * .51f),
+                    "选择壁纸", "从图片中选择", settingsFocus == 3)
+                drawSettingCard(c, RectF(w * .38f, h * .36f, w * .62f, h * .51f),
+                    if (dynamicWallpaperEnabled) "动态壁纸：开" else "动态壁纸：关",
+                    "切换动态光效背景", settingsFocus == 4)
+                drawSettingCard(c, RectF(w * .65f, h * .36f, w * .87f, h * .51f),
+                    "恢复默认", "移除自定义图片", settingsFocus == 5)
+                drawWallpaperPreview(c, RectF(w * .13f, h * .57f, w * .87f, h * .84f))
             }
-            paint.textAlign = Paint.Align.CENTER
-            text(c, "${rows}行", rect.centerX(), h * .553f, h * .021f, -1, true)
-            paint.textAlign = Paint.Align.LEFT
+            2 -> {
+                drawSettingCard(c, RectF(w * .13f, h * .39f, w * .87f, h * .64f),
+                    "管理桌面应用", "从应用抽屉选择、固定或移除首页常用应用（最多五个）",
+                    settingsFocus == 21)
+            }
+            3 -> {
+                val labels = listOf(if (showClock) "时间：开" else "时间：关",
+                    if (showDate) "日期：开" else "日期：关",
+                    if (use24HourClock) "24小时制" else "12小时制",
+                    if (showClockSeconds) "显示秒数" else "隐藏秒数")
+                val ids = listOf(9, 10, 15, 16)
+                val gap = w * .012f
+                val cardW = (w * .74f - gap * 3f) / 4f
+                for (i in 0..3) {
+                    val left = w * .13f + i * (cardW + gap)
+                    drawSettingCard(c, RectF(left, h * .34f, left + cardW, h * .49f),
+                        labels[i], "点击切换", settingsFocus == ids[i])
+                }
+                drawSettingCard(c, RectF(w * .13f, h * .60f, w * .87f, h * .75f),
+                    "组件布局编辑", "拖动时间日期整体位置 · 调整组件大小 · 遥控器方向键微调",
+                    settingsFocus == 22)
+            }
+            4 -> {
+                drawSettingCard(c, RectF(w * .13f, h * .39f, w * .87f, h * .64f),
+                    if (isDefaultHomeLauncher()) "当前已是默认桌面" else "设为默认桌面",
+                    "遥控器：上键打开抽屉 · 长按菜单进入应用管理 · 长按 OK 调整图标大小",
+                    settingsFocus == 14)
+            }
+            5 -> {
+                drawSettingCard(c, RectF(w * .13f, h * .39f, w * .87f, h * .64f),
+                    "打开小李全联", "发送 · 接收 · 附近设备 · 传输历史", settingsFocus == 6)
+            }
+            6 -> {
+                drawSettingCard(c, RectF(w * .13f, h * .39f, w * .87f, h * .64f),
+                    "打开 Android 系统设置", "网络、显示、设备偏好和系统管理", settingsFocus == 7)
+            }
         }
-
-        val wallpaper = RectF(w * .13f, h * .59f, w * .35f, h * .68f)
-        paint.color = if (settingsFocus == 3) 0xFF31B9FF.toInt() else 0x5544BFFF
-        c.drawRoundRect(wallpaper, 16f, 16f, paint)
-        text(c, "更换壁纸", w * .155f, h * .647f, h * .022f, -1, true)
-
-        val dynamic = RectF(w * .38f, h * .59f, w * .62f, h * .68f)
-        paint.color = if (settingsFocus == 4) 0xFF31B9FF.toInt() else 0x5544BFFF
-        c.drawRoundRect(dynamic, 16f, 16f, paint)
-        text(c, if (dynamicWallpaperEnabled) "动态背景：开" else "动态背景：关",
-            w * .405f, h * .647f, h * .021f, -1, true)
-
-        val preview = RectF(w * .65f, h * .59f, w * .87f, h * .68f)
-        drawWallpaperPreview(c, preview)
-        paint.color = 0xB8052B68.toInt()
-        c.drawRoundRect(RectF(preview.left, preview.bottom - h * .035f, preview.right, preview.bottom), 10f, 10f, paint)
-        paint.textAlign = Paint.Align.CENTER
-        text(c, "恢复默认壁纸", preview.centerX(), preview.bottom - h * .011f, h * .016f, -1, true)
-        paint.textAlign = Paint.Align.LEFT
-        if (settingsFocus == 5) {
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = h * .003f
-            paint.color = 0xFF75D7FF.toInt()
-            c.drawRoundRect(preview, 16f, 16f, paint)
-            paint.style = Paint.Style.FILL
-        }
-
-        val card = RectF(w * .13f, h * .70f, w * .49f, h * .84f)
-        paint.color = if (settingsFocus == 6) 0xFF167FD8.toInt() else 0x553AAFFF
-        c.drawRoundRect(card, 20f, 20f, paint)
-        text(c, "⇄  小李全联 · 快传中心", w * .16f, h * .755f, h * .027f, -1, true)
-        text(c, "发送 · 接收 · 附近设备 · 传输历史", w * .16f, h * .805f, h * .019f, 0xFFDDEEFF.toInt())
-        val appsCard = RectF(w * .52f, h * .70f, w * .87f, h * .84f)
-        paint.color = if (settingsFocus == 21) 0xFF167FD8.toInt() else 0x553AAFFF
-        c.drawRoundRect(appsCard, 20f, 20f, paint)
-        text(c, "▦  应用管理", w * .56f, h * .755f, h * .027f, -1, true)
-        text(c, "选择首页常用应用", w * .56f, h * .805f, h * .019f, 0xFFDDEEFF.toInt())
-
-        val sys = RectF(w * .13f, h * .865f, w * .36f, h * .945f)
-        paint.color = if (settingsFocus == 7) 0xFF31B9FF.toInt() else 0x44FFFFFF
-        c.drawRoundRect(sys, 16f, 16f, paint)
-        paint.textAlign = Paint.Align.CENTER
-        text(c, "系统设置", sys.centerX(), h * .92f, h * .024f, -1, true)
-        val home = RectF(w * .385f, h * .865f, w * .64f, h * .945f)
-        paint.color = if (settingsFocus == 14) 0xFF31B9FF.toInt() else 0x44FFFFFF
-        c.drawRoundRect(home, 16f, 16f, paint)
-        val isDefaultHome = isDefaultHomeLauncher()
-        text(c, if (isDefaultHome) "当前默认桌面" else "设为默认桌面",
-            home.centerX(), h * .92f, h * .022f, -1, true)
-        val exit = RectF(w * .665f, h * .865f, w * .87f, h * .945f)
-        paint.color = if (settingsFocus == 13) 0xFF31B9FF.toInt() else 0x44FFFFFF
-        c.drawRoundRect(exit, 16f, 16f, paint)
-        text(c, "返回", exit.centerX(), h * .92f, h * .024f, -1, true)
-        paint.textAlign = Paint.Align.LEFT
+        drawSettingCard(c, RectF(w * .665f, h * .865f, w * .87f, h * .945f),
+            "返回", "关闭设置中心", settingsFocus == 13)
         c.restoreToCount(contentSave)
         drawSettingsNavigation(c, w, h)
-
     }
 
     // Full hit target includes the label line; only homeIconCardRect is painted.
@@ -1432,7 +1391,8 @@ class LauncherView(context: Context) : View(context) {
                     return true
                 }
                 if (isSettingsOpen) {
-                    if (event.x in (width * .055f)..(width * .225f) && event.y >= height * .275f && event.y <= height * .912f) {
+                    if (event.x in (width * .055f)..(width * .225f) &&
+                        event.y >= height * .275f && event.y <= height * .912f) {
                         val category = ((event.y - height * .275f) / (height * .091f)).toInt().coerceIn(0, 6)
                         settingsFocus = 30 + category
                         invalidate()
@@ -1440,54 +1400,86 @@ class LauncherView(context: Context) : View(context) {
                         return true
                     }
                     val settingsHitX = (event.x - width * .18f) / .80f
-                    if (event.y in (height * .275f)..(height * .37f) && settingsHitX in (width * .13f)..(width * .64f)) {
-                        settingsFocus = 8
-                        cycleHomeIconScale()
-                    } else if (event.y in (height * .275f)..(height * .37f) && settingsHitX in (width * .66f)..(width * .87f)) {
-                        settingsFocus = 22; isSettingsOpen = false; toggleWidgetEditMode()
-                    } else if (event.y in (height * .415f)..(height * .465f)) {
-                        val componentGap = width * .012f
-                        val componentW = (width * .74f - componentGap * 3f) / 4f
-                        val selected = ((settingsHitX - width * .13f) / (componentW + componentGap)).toInt()
-                        val componentKeys = listOf(9, 10, 15, 16)
-                        if (selected in componentKeys.indices) settingsFocus = componentKeys[selected]
-                        when (selected) {
-                            0 -> toggleHomeComponent(9)
-                            1 -> toggleHomeComponent(10)
-                            2 -> { use24HourClock = !use24HourClock; prefs.edit().putBoolean("clock_24_hour", use24HourClock).apply() }
-                            3 -> { showClockSeconds = !showClockSeconds; prefs.edit().putBoolean("clock_seconds", showClockSeconds).apply(); updateClockTick() }
-                        }
-                    } else if (event.y in (height * .515f)..(height * .575f)) {
-                        when {
-                            settingsHitX in (width * .13f)..(width * .445f) -> {
-                                val selected = ((settingsHitX - width * .13f) / (width * .105f)).toInt()
-                                if (selected in 0..2) setDrawerColumns(selected + 4)
+                    if (event.y in (height * .865f)..(height * .945f) &&
+                        settingsHitX in (width * .665f)..(width * .87f)) {
+                        settingsFocus = 13
+                        closeLauncherSettings()
+                    } else {
+                        val category = if (settingsFocus in 30..36) settingsFocus - 30
+                            else settingsCategoryForControl(settingsFocus) ?: 0
+                        when (category) {
+                            0 -> {
+                                if (event.y in (height * .32f)..(height * .45f) &&
+                                    settingsHitX in (width * .13f)..(width * .87f)) {
+                                    settingsFocus = 8
+                                    cycleHomeIconScale()
+                                } else if (event.y in (height * .54f)..(height * .63f)) {
+                                    val selected = ((settingsHitX - width * .13f) / (width * .105f)).toInt()
+                                    if (selected in 0..2) setDrawerColumns(selected + 4)
+                                } else if (event.y in (height * .71f)..(height * .80f)) {
+                                    val selected = ((settingsHitX - width * .13f) / (width * .105f)).toInt()
+                                    if (selected in 0..2) setDrawerRows(selected + 2)
+                                }
                             }
-                            settingsHitX in (width * .55f)..(width * .865f) -> {
-                                val selected = ((settingsHitX - width * .55f) / (width * .105f)).toInt()
-                                if (selected in 0..2) setDrawerRows(selected + 2)
+                            1 -> if (event.y in (height * .36f)..(height * .51f)) {
+                                when {
+                                    settingsHitX in (width * .13f)..(width * .35f) -> {
+                                        settingsFocus = 3
+                                        onChooseWallpaper?.invoke()
+                                    }
+                                    settingsHitX in (width * .38f)..(width * .62f) -> {
+                                        settingsFocus = 4
+                                        toggleDynamicWallpaper()
+                                    }
+                                    settingsHitX in (width * .65f)..(width * .87f) -> {
+                                        settingsFocus = 5
+                                        clearWallpaper()
+                                    }
+                                }
                             }
-                        }
-                    } else if (event.y in (height * .59f)..(height * .68f) && settingsHitX in (width * .13f)..(width * .35f)) {
-                        settingsFocus = 3
-                        onChooseWallpaper?.invoke()
-                    } else if (event.y in (height * .59f)..(height * .68f) && settingsHitX in (width * .38f)..(width * .62f)) {
-                        settingsFocus = 4
-                        toggleDynamicWallpaper()
-                    } else if (event.y in (height * .59f)..(height * .68f) && settingsHitX in (width * .65f)..(width * .87f)) {
-                        settingsFocus = 5
-                        clearWallpaper()
-                    } else if (event.y in (height * .70f)..(height * .84f) && settingsHitX in (width * .13f)..(width * .49f)) {
-                        settingsFocus = 6
-                        context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
-                    } else if (event.y in (height * .70f)..(height * .84f) && settingsHitX in (width * .52f)..(width * .87f)) {
-                        settingsFocus = 21
-                        isSettingsOpen = false; isDrawerOpen = true; editingFavorites = true; drawerIndex = 0; drawerScrollRow = 0
-                    } else if (event.y in (height * .865f)..(height * .945f)) {
-                        when {
-                            settingsHitX in (width * .13f)..(width * .36f) -> { settingsFocus = 7; runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
-                            settingsHitX in (width * .385f)..(width * .64f) -> { settingsFocus = 14; onRequestDefaultHome?.invoke() }
-                            settingsHitX in (width * .665f)..(width * .87f) -> { settingsFocus = 13; closeLauncherSettings() }
+                            2 -> if (event.y in (height * .39f)..(height * .64f) &&
+                                settingsHitX in (width * .13f)..(width * .87f)) {
+                                settingsFocus = 21
+                                isSettingsOpen = false
+                                isDrawerOpen = true
+                                editingFavorites = true
+                                drawerIndex = 0
+                                drawerScrollRow = 0
+                            }
+                            3 -> {
+                                if (event.y in (height * .34f)..(height * .49f)) {
+                                    val gap = width * .012f
+                                    val cardW = (width * .74f - gap * 3f) / 4f
+                                    val selected = ((settingsHitX - width * .13f) / (cardW + gap)).toInt()
+                                    settingsFocus = listOf(9, 10, 15, 16).getOrNull(selected) ?: settingsFocus
+                                    when (selected) {
+                                        0 -> toggleHomeComponent(9)
+                                        1 -> toggleHomeComponent(10)
+                                        2 -> { use24HourClock = !use24HourClock; prefs.edit().putBoolean("clock_24_hour", use24HourClock).apply() }
+                                        3 -> { showClockSeconds = !showClockSeconds; prefs.edit().putBoolean("clock_seconds", showClockSeconds).apply(); updateClockTick() }
+                                    }
+                                } else if (event.y in (height * .60f)..(height * .75f) &&
+                                    settingsHitX in (width * .13f)..(width * .87f)) {
+                                    settingsFocus = 22
+                                    isSettingsOpen = false
+                                    toggleWidgetEditMode()
+                                }
+                            }
+                            4 -> if (event.y in (height * .39f)..(height * .64f) &&
+                                settingsHitX in (width * .13f)..(width * .87f)) {
+                                settingsFocus = 14
+                                onRequestDefaultHome?.invoke()
+                            }
+                            5 -> if (event.y in (height * .39f)..(height * .64f) &&
+                                settingsHitX in (width * .13f)..(width * .87f)) {
+                                settingsFocus = 6
+                                context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
+                            }
+                            6 -> if (event.y in (height * .39f)..(height * .64f) &&
+                                settingsHitX in (width * .13f)..(width * .87f)) {
+                                settingsFocus = 7
+                                runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                            }
                         }
                     }
                 } else if (isDrawerOpen) {

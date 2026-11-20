@@ -71,6 +71,10 @@ class QuanLianActivity : Activity() {
         discoveryJob = screenScope.launch {
             discovery.devices.collect {
                 devices = it
+                if (page == Page.DEVICES) {
+                    focus = focus.coerceAtMost((devices.size - 1).coerceAtLeast(0))
+                    deviceScrollOffset = deviceScrollOffset.coerceIn(0, (devices.size - 9).coerceAtLeast(0))
+                }
                 screen.invalidate()
             }
         }
