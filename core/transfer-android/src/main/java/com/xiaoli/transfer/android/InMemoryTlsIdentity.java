@@ -66,7 +66,8 @@ final class InMemoryTlsIdentity {
             KeyPair pair = generator.generateKeyPair();
             long now = System.currentTimeMillis();
             Date notBefore = new Date(now - 5L * 60L * 1000L);
-            Date notAfter = new Date(now + 365L * 24L * 60L * 60L * 1000L);
+            // Self-signed device identity is pinned by peers; a long validity avoids routine annual rotation.
+            Date notAfter = new Date(now + 10L * 365L * 24L * 60L * 60L * 1000L);
             X500Name subject = new X500Name("CN=QuanLian Device");
             BigInteger serial = new BigInteger(159, new SecureRandom()).add(BigInteger.ONE);
             JcaX509v3CertificateBuilder builder = new JcaX509v3CertificateBuilder(subject, serial, notBefore, notAfter, subject, pair.getPublic());

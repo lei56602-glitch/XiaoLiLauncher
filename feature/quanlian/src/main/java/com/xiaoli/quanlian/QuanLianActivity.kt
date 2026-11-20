@@ -75,6 +75,8 @@ class QuanLianActivity : Activity() {
             }
         }
         registerTransferEvents()
+        // A persisted enabled flag represents an earlier explicit user opt-in.
+        if (receiveEnabled) startReceiveService()
     }
 
     private fun requestNotificationPermissionIfNeeded() {

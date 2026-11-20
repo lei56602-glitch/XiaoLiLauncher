@@ -260,14 +260,10 @@ class LauncherView(context: Context) : View(context) {
         val existing = favorites.indexOfFirst { it.packageName == app.packageName }
         if (existing == slot) return false
         if (existing >= 0) {
-            if (slot >= favorites.size) {
-                favorites.removeAt(existing)
-                favorites.add(app)
-            } else {
-                val previous = favorites[slot]
-                favorites[slot] = app
-                favorites[existing] = previous
-            }
+            if (slot >= favorites.size) return false
+            val previous = favorites[slot]
+            favorites[slot] = app
+            favorites[existing] = previous
         } else if (slot < favorites.size) {
             favorites[slot] = app
         } else if (slot == favorites.size && favorites.size < 5) {
@@ -291,8 +287,10 @@ class LauncherView(context: Context) : View(context) {
                     else "已更换桌面第 ${homeManageSlot + 1} 个应用"
                 android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
             } else {
-                android.widget.Toast.makeText(context, "该应用已在此位置，未作更改",
-                    android.widget.Toast.LENGTH_SHORT).show()
+                val message = if (alreadyPinnedAt >= 0)
+                    "该应用已固定在桌面第 ${alreadyPinnedAt + 1} 个位置"
+                else "该应用已在此位置，未作更改"
+                android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
             }
             closeDrawer()
             return
@@ -1269,11 +1267,11 @@ class LauncherView(context: Context) : View(context) {
                 touchDownX = event.x
                 touchDownY = event.y
                 touchDragging = false
-                activeWidgetDrag = if (!isSettingsOpen && !isDrawerOpen) widgetIndexAt(event.x, event.y) else -1
+                activeWidgetDrag = if (!isSettingsOpen && !isDrawerOpen && !homeAppManageMode && !homeIconEditMode) widgetIndexAt(event.x, event.y) else -1
                 widgetDragOffsetX = event.x - width * clockX
                 widgetDragOffsetY = event.y - height * clockY
                 widgetDragStarted = false
-                lastDragIndex = if (activeWidgetDrag < 0) homeItemIndexAt(event.x, event.y) else -1
+                lastDragIndex = if (activeWidgetDrag < 0 && !homeAppManageMode && !homeIconEditMode) homeItemIndexAt(event.x, event.y) else -1
                 if (lastDragIndex >= 0) {
                     val iconRect = homeIconCardRect(lastDragIndex, width.toFloat(), height.toFloat())
                     homeAppDragOffsetX = event.x - iconRect.left
