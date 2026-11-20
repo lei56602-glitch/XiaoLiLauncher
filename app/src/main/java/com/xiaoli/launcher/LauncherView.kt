@@ -231,12 +231,12 @@ class LauncherView(context: Context) : View(context) {
         saveFavorites()
     }
 
-    private fun replaceFavoriteAt(slot: Int, app: AppEntry) {
-        if (slot !in 0..4) return
+    private fun replaceFavoriteAt(slot: Int, app: AppEntry): Boolean {
+        if (slot !in 0..4) return false
         val existing = favorites.indexOfFirst { it.packageName == app.packageName }
-        if (existing == slot) return
+        if (existing == slot) return false
         if (existing >= 0) {
-            if (slot >= favorites.size) return
+            if (slot >= favorites.size) return false
             val previous = favorites[slot]
             favorites[slot] = app
             favorites[existing] = previous
@@ -244,11 +244,37 @@ class LauncherView(context: Context) : View(context) {
             favorites[slot] = app
         } else if (slot == favorites.size && favorites.size < 5) {
             favorites.add(app)
-        }
+        } else return false
         val unique = favorites.distinctBy { it.packageName }.take(5)
         favorites.clear()
         favorites.addAll(unique)
         saveFavorites()
+        return true
+    }
+
+    private fun chooseDrawerApp(app: AppEntry) {
+        if (homeAppManageMode) {
+            val alreadyPinnedAt = favorites.indexOfFirst { it.packageName == app.packageName }
+            val changed = replaceFavoriteAt(homeManageSlot, app)
+            if (changed) {
+                val message = if (alreadyPinnedAt >= 0) "该应用已在桌面，已与原位置交换"
+                    else "已更换桌面第 ${homeManageSlot + 1} 个应用"
+                android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                android.widget.Toast.makeText(context, "该应用已在此位置，未作更改",
+                    android.widget.Toast.LENGTH_SHORT).show()
+            }
+            closeDrawer()
+            return
+        }
+        if (editingFavorites) {
+            val exists = favorites.any { it.packageName == app.packageName }
+            if (exists || favorites.size < 5) toggleFavorite(app)
+            else android.widget.Toast.makeText(context, "首页最多固定 5 个应用，请先移除一个",
+                android.widget.Toast.LENGTH_SHORT).show()
+        } else {
+            runCatching { context.startActivity(app.intent) }
+        }
     }
 
     fun closeDrawer() {
@@ -398,18 +424,24 @@ class LauncherView(context: Context) : View(context) {
             val network = cm.activeNetwork
             network != null && cm.getNetworkCapabilities(network)?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true
         }.getOrDefault(false)
-        val x = w * .865f
+        val x = w * .88f
         val y = h * .078f
         paint.color = if (connected) 0xFFFFFFFF.toInt() else 0xFF111111.toInt()
         paint.style = Paint.Style.STROKE
-        paint.strokeWidth = (h * .0035f).coerceAtLeast(2f)
+        paint.strokeWidth = (h * .0032f).coerceAtLeast(2f)
+        paint.strokeCap = Paint.Cap.ROUND
         val path = Path().apply {
-            moveTo(x - h * .025f, y); quadTo(x, y - h * .027f, x + h * .025f, y)
-            moveTo(x - h * .016f, y + h * .009f); quadTo(x, y - h * .009f, x + h * .016f, y + h * .009f)
+            moveTo(x - h * .024f, y - h * .006f)
+            quadTo(x, y - h * .030f, x + h * .024f, y - h * .006f)
+            moveTo(x - h * .016f, y + h * .004f)
+            quadTo(x, y - h * .014f, x + h * .016f, y + h * .004f)
+            moveTo(x - h * .007f, y + h * .014f)
+            quadTo(x, y + h * .006f, x + h * .007f, y + h * .014f)
         }
         c.drawPath(path, paint)
         paint.style = Paint.Style.FILL
-        c.drawCircle(x, y + h * .017f, h * .0045f, paint)
+        c.drawCircle(x, y + h * .021f, h * .0038f, paint)
+        paint.strokeCap = Paint.Cap.BUTT
     }
 
     private fun drawSelectedWidgetOutline(c: Canvas) {
@@ -672,20 +704,33 @@ class LauncherView(context: Context) : View(context) {
         }
     }
 
-    // A permanent, clearly labelled desktop entry; never hidden in gestures or the app drawer.
+    // Two equally sized, evenly spaced shortcuts share one horizontal optical axis.
     private fun wifiShortcutRect(w: Float, h: Float) =
-        RectF(w * .82f, h * .025f, w * .90f, h * .13f)
+        RectF(w * .85f, h * .028f, w * .91f, h * .128f)
 
     private fun settingsShortcutRect(w: Float, h: Float) =
-        RectF(w * .915f, h * .025f, w * .985f, h * .13f)
+        RectF(w * .93f, h * .028f, w * .99f, h * .128f)
 
     private fun drawSettingsShortcut(c: Canvas, w: Float, h: Float) {
-        val r = settingsShortcutRect(w, h)
-        paint.style = Paint.Style.FILL
+        val cx = w * .96f
+        val cy = h * .078f
+        val outerRadius = h * .024f
+        val innerRadius = h * .017f
         paint.color = 0xFFFFFFFF.toInt()
-        paint.textAlign = Paint.Align.CENTER
-        text(c, "⚙", r.centerX(), r.centerY() + h * .014f, h * .048f, -1, true)
-        paint.textAlign = Paint.Align.LEFT
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = (h * .0032f).coerceAtLeast(2f)
+        val gear = Path()
+        for (i in 0 until 24) {
+            val angle = Math.PI * 2.0 * i / 24.0 - Math.PI / 2.0
+            val radius = if (i % 2 == 0) outerRadius else outerRadius * .82f
+            val px = cx + kotlin.math.cos(angle).toFloat() * radius
+            val py = cy + kotlin.math.sin(angle).toFloat() * radius
+            if (i == 0) gear.moveTo(px, py) else gear.lineTo(px, py)
+        }
+        gear.close()
+        c.drawPath(gear, paint)
+        c.drawCircle(cx, cy, innerRadius, paint)
+        paint.style = Paint.Style.FILL
     }
     private fun drawUnifiedAppIcon(c: Canvas, app: AppEntry, rect: RectF, focused: Boolean) {
         val drawable = appIconCache.getOrPut(app.packageName) {
@@ -720,10 +765,20 @@ class LauncherView(context: Context) : View(context) {
         val panel = RectF(w * .035f, h * .12f, w * .965f, h * .94f)
         paint.color = 0xE6052B68.toInt()
         c.drawRoundRect(panel, h * .035f, h * .035f, paint)
-        text(c, if (editingFavorites) "首页常用应用" else "应用", w * .075f, h * .215f, h * .042f, -1, true)
+        val replacingDesktopSlot = homeAppManageMode
+        text(c, when {
+            replacingDesktopSlot -> "更换桌面应用"
+            editingFavorites -> "首页常用应用"
+            else -> "应用"
+        }, w * .075f, h * .215f, h * .042f, -1, true)
         paint.textAlign = Paint.Align.RIGHT
-        text(c, if (editingFavorites) "完成" else "管理", w * .925f, h * .215f, h * .027f, 0xFFBDEBFF.toInt(), true)
+        text(c, if (replacingDesktopSlot) "取消" else if (editingFavorites) "完成" else "管理",
+            w * .925f, h * .215f, h * .027f, 0xFFBDEBFF.toInt(), true)
         paint.textAlign = Paint.Align.LEFT
+        if (replacingDesktopSlot) {
+            text(c, "选择下方应用，替换桌面第 ${homeManageSlot + 1} 个位置",
+                w * .075f, h * .255f, h * .022f, 0xFFBDEBFF.toInt(), true)
+        }
 
         val metrics = drawerMetrics()
         val cols = metrics.columns
@@ -1286,25 +1341,13 @@ class LauncherView(context: Context) : View(context) {
                     }
                 } else if (isDrawerOpen) {
                     if (event.y in (height * .19f)..(height * .29f) && event.x > width * .68f) {
-                        editingFavorites = !editingFavorites
+                        if (homeAppManageMode) closeDrawer() else editingFavorites = !editingFavorites
                     } else {
                         val index = drawerItemIndexAt(event.x, event.y)
                         if (index >= 0) {
                             drawerIndex = index
                             val app = apps[index]
-                            if (editingFavorites) {
-                                if (homeAppManageMode) {
-                                    replaceFavoriteAt(homeManageSlot, app)
-                                    homeAppManageMode = false
-                                    closeDrawer()
-                                } else {
-                                    val exists = favorites.any { it.packageName == app.packageName }
-                                    if (exists || favorites.size < 5) toggleFavorite(app)
-                                    else android.widget.Toast.makeText(context, "首页最多固定 5 个应用，请先移除一个", android.widget.Toast.LENGTH_SHORT).show()
-                                }
-                            } else {
-                                runCatching { context.startActivity(app.intent) }
-                            }
+                            chooseDrawerApp(app)
                         } else if (event.x < width * .06f || event.x > width * .94f ||
                             event.y < height * .18f || event.y > height * .9f) {
                             closeDrawer()
@@ -1525,27 +1568,15 @@ class LauncherView(context: Context) : View(context) {
         if (isDrawerOpen) {
             when (keyCode) {
                 KeyEvent.KEYCODE_BACK -> { closeDrawer(); return true }
-                KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> editingFavorites = !editingFavorites
+                KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> {
+                    if (!homeAppManageMode) editingFavorites = !editingFavorites
+                }
                 KeyEvent.KEYCODE_DPAD_LEFT -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, -1, apps.size)
                 KeyEvent.KEYCODE_DPAD_RIGHT -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, 1, apps.size)
                 KeyEvent.KEYCODE_DPAD_UP -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, -2, apps.size)
                 KeyEvent.KEYCODE_DPAD_DOWN -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, 2, apps.size)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                    apps.getOrNull(drawerIndex)?.let { app ->
-                        if (editingFavorites) {
-                            if (homeAppManageMode) {
-                                replaceFavoriteAt(homeManageSlot, app)
-                                homeAppManageMode = false
-                                closeDrawer()
-                            } else {
-                                val exists = favorites.any { it.packageName == app.packageName }
-                                if (exists || favorites.size < 5) toggleFavorite(app)
-                                else android.widget.Toast.makeText(context, "首页最多固定 5 个应用，请先移除一个", android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        } else {
-                            runCatching { context.startActivity(app.intent) }
-                        }
-                    }
+                    apps.getOrNull(drawerIndex)?.let { app -> chooseDrawerApp(app) }
                 }
             }
             val metrics = drawerMetrics()
