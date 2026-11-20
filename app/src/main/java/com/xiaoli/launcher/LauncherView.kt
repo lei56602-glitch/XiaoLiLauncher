@@ -1239,8 +1239,8 @@ class LauncherView(context: Context) : View(context) {
                     } else if (event.y in (height * .275f)..(height * .37f) && event.x in (width * .66f)..(width * .87f)) {
                         settingsFocus = 22; isSettingsOpen = false; toggleWidgetEditMode()
                     } else if (event.y in (height * .415f)..(height * .465f)) {
-                        val componentGap = width * .009f
-                        val componentW = (width * .74f - componentGap * 5f) / 6f
+                        val componentGap = width * .012f
+                        val componentW = (width * .74f - componentGap * 3f) / 4f
                         val selected = ((event.x - width * .13f) / (componentW + componentGap)).toInt()
                         val componentKeys = listOf(9, 10, 15, 16)
                         if (selected in componentKeys.indices) settingsFocus = componentKeys[selected]
