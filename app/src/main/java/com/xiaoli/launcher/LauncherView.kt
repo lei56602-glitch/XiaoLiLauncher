@@ -487,6 +487,14 @@ class LauncherView(context: Context) : View(context) {
         invalidate()
     }
 
+    private fun cycleHomeIconScale() {
+        val steps = listOf(.65f, .8f, 1f, 1.2f, 1.4f, 1.6f)
+        val next = steps.firstOrNull { it > homeIconScale + .04f } ?: steps.first()
+        homeIconScale = next
+        prefs.edit().putFloat("home_icon_scale", homeIconScale).apply()
+        invalidate()
+    }
+
     private fun openWeatherCityDialog() {
         val field = EditText(context).apply {
             setSingleLine(true)
@@ -812,10 +820,10 @@ class LauncherView(context: Context) : View(context) {
         c.drawRoundRect(RectF(w * .08f, h * .14f, w * .92f, h * .97f), 30f, 30f, paint)
         text(c, "小李桌面", w * .13f, h * .235f, h * .04f, -1, true)
         text(c, "桌面设置  ·  个性化与设备管理（长按菜单键可编辑组件）", w * .13f, h * .265f, h * .021f, 0xFFDDEEFF.toInt())
-        val weatherSetting = RectF(w * .13f, h * .275f, w * .64f, h * .37f)
+        val iconSizeSetting = RectF(w * .13f, h * .275f, w * .64f, h * .37f)
         paint.color = if (settingsFocus == 8) 0xFF31B9FF.toInt() else 0x5544BFFF
-        c.drawRoundRect(weatherSetting, 16f, 16f, paint)
-        text(c, "天气城市：${if (weatherCity.isBlank()) "自动定位" else weatherCity}",
+        c.drawRoundRect(iconSizeSetting, 16f, 16f, paint)
+        text(c, "应用图标大小：" + (homeIconScale * 100).toInt() + "%  ·  点击调整",
             w * .16f, h * .335f, h * .025f, -1, true)
         val widgetEditCard = RectF(w * .66f, h * .275f, w * .87f, h * .37f)
         paint.color = if (settingsFocus == 22) 0xFF31B9FF.toInt() else 0x5544BFFF
@@ -826,14 +834,12 @@ class LauncherView(context: Context) : View(context) {
         text(c, "桌面信息显示", w * .13f, h * .397f, h * .021f, 0xFFDDEEFF.toInt())
         val labels = listOf(if (showClock) "时间：开" else "时间：关",
             if (showDate) "日期：开" else "日期：关",
-            if (showLunar) "农历：开" else "农历：关",
-            if (showWeather) "天气：开" else "天气：关",
             if (use24HourClock) "24小时制" else "12小时制",
             if (showClockSeconds) "显示秒数" else "隐藏秒数")
-        val componentKeys = listOf(9, 10, 11, 12, 15, 16)
-        val componentGap = w * .009f
-        val componentW = (w * .74f - componentGap * 5f) / 6f
-        for (i in 0..5) {
+        val componentKeys = listOf(9, 10, 15, 16)
+        val componentGap = w * .012f
+        val componentW = (w * .74f - componentGap * 3f) / 4f
+        for (i in 0..3) {
             val left = w * .13f + i * (componentW + componentGap)
             val rect = RectF(left, h * .415f, left + componentW, h * .465f)
             paint.color = if (settingsFocus == componentKeys[i]) 0xFF31B9FF.toInt() else 0x5544BFFF
@@ -1149,22 +1155,20 @@ class LauncherView(context: Context) : View(context) {
                 if (isSettingsOpen) {
                     if (event.y in (height * .275f)..(height * .37f) && event.x in (width * .13f)..(width * .64f)) {
                         settingsFocus = 8
-                        openWeatherCityDialog()
+                        cycleHomeIconScale()
                     } else if (event.y in (height * .275f)..(height * .37f) && event.x in (width * .66f)..(width * .87f)) {
                         settingsFocus = 22; isSettingsOpen = false; toggleWidgetEditMode()
                     } else if (event.y in (height * .415f)..(height * .465f)) {
                         val componentGap = width * .009f
                         val componentW = (width * .74f - componentGap * 5f) / 6f
                         val selected = ((event.x - width * .13f) / (componentW + componentGap)).toInt()
-                        val componentKeys = listOf(9, 10, 11, 12, 15, 16)
+                        val componentKeys = listOf(9, 10, 15, 16)
                         if (selected in componentKeys.indices) settingsFocus = componentKeys[selected]
                         when (selected) {
                             0 -> toggleHomeComponent(9)
                             1 -> toggleHomeComponent(10)
-                            2 -> toggleHomeComponent(11)
-                            3 -> toggleHomeComponent(12)
-                            4 -> { use24HourClock = !use24HourClock; prefs.edit().putBoolean("clock_24_hour", use24HourClock).apply() }
-                            5 -> { showClockSeconds = !showClockSeconds; prefs.edit().putBoolean("clock_seconds", showClockSeconds).apply(); updateClockTick() }
+                            2 -> { use24HourClock = !use24HourClock; prefs.edit().putBoolean("clock_24_hour", use24HourClock).apply() }
+                            3 -> { showClockSeconds = !showClockSeconds; prefs.edit().putBoolean("clock_seconds", showClockSeconds).apply(); updateClockTick() }
                         }
                     } else if (event.y in (height * .515f)..(height * .575f)) {
                         when {
@@ -1334,7 +1338,7 @@ class LauncherView(context: Context) : View(context) {
                 KeyEvent.KEYCODE_DPAD_UP -> moveSettingsFocus(-2)
                 KeyEvent.KEYCODE_DPAD_DOWN -> moveSettingsFocus(2)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                    if (settingsFocus in 9..12) toggleHomeComponent(settingsFocus)
+                    if (settingsFocus == 9 || settingsFocus == 10) toggleHomeComponent(settingsFocus)
                     else if (settingsFocus == 15) {
                         use24HourClock = !use24HourClock
                         prefs.edit().putBoolean("clock_24_hour", use24HourClock).apply()
