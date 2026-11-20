@@ -98,6 +98,8 @@ class LauncherView(context: Context) : View(context) {
     private var drawerScrollRow = 0
     private var homeIndex = 0
     private var homeIconScale = prefs.getFloat("home_icon_scale", 1f).coerceIn(.65f, 1.6f)
+    private var homeIconEditMode = false
+    private var homeIconScaleBeforeEdit = 1f
     private var resizingHomeIcons = false
     private var homeIconResizeStartSpan = 0f
     private var homeIconResizeStartScale = 1f
@@ -628,6 +630,12 @@ class LauncherView(context: Context) : View(context) {
             drawUnifiedAppIcon(c, app, icon, focused)
             paint.textAlign = Paint.Align.CENTER
             text(c, app.label.take(12), icon.centerX(), icon.bottom + h * .038f, h * .024f, -1, true)
+            paint.textAlign = Paint.Align.LEFT
+        }
+        if (homeIconEditMode) {
+            paint.textAlign = Paint.Align.CENTER
+            text(c, "图标大小调整：↑ 放大   ↓ 缩小   ←→ 选择图标   OK 保存   返回取消",
+                w * .5f, h * .91f, h * .023f, 0xFFBDEBFF.toInt(), true)
             paint.textAlign = Paint.Align.LEFT
         }
     }
@@ -1286,6 +1294,14 @@ class LauncherView(context: Context) : View(context) {
     }
 
     override fun onKeyLongPress(keyCode: Int, event: KeyEvent): Boolean {
+        if (!widgetEditMode && !isSettingsOpen && !isDrawerOpen && !homeIconEditMode &&
+            (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
+            favorites.isNotEmpty()) {
+            homeIconEditMode = true
+            homeIconScaleBeforeEdit = homeIconScale
+            invalidate()
+            return true
+        }
         if (widgetEditMode && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
                 keyCode == KeyEvent.KEYCODE_ENTER)) {
             resetSelectedWidget()
@@ -1300,6 +1316,30 @@ class LauncherView(context: Context) : View(context) {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (homeIconEditMode && !isSettingsOpen && !isDrawerOpen) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_UP -> homeIconScale = (homeIconScale + .05f).coerceAtMost(1.6f)
+                KeyEvent.KEYCODE_DPAD_DOWN -> homeIconScale = (homeIconScale - .05f).coerceAtLeast(.65f)
+                KeyEvent.KEYCODE_DPAD_LEFT -> homeIndex = (homeIndex - 1).coerceAtLeast(0)
+                KeyEvent.KEYCODE_DPAD_RIGHT -> homeIndex = (homeIndex + 1).coerceAtMost(favorites.lastIndex)
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                    prefs.edit().putFloat("home_icon_scale", homeIconScale).apply()
+                    homeIconEditMode = false
+                }
+                KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> {
+                    homeIconScale = homeIconScaleBeforeEdit
+                    homeIconEditMode = false
+                }
+            }
+            invalidate()
+            return true
+        }
+        if (!widgetEditMode && !isSettingsOpen && !isDrawerOpen &&
+            (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
+            favorites.isNotEmpty() && !event.isLongPress) {
+            if (event.repeatCount == 0) event.startTracking()
+            return true
+        }
         if (widgetEditMode && !isSettingsOpen && !isDrawerOpen) {
             when (keyCode) {
                 KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> {
