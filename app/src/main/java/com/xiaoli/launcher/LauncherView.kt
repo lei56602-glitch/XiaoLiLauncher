@@ -152,6 +152,21 @@ class LauncherView(context: Context) : View(context) {
     }
 
     init {
+        // One-time migration moves legacy right-aligned clock/date widgets to the approved upper-left layout.
+        if (!prefs.getBoolean("home_layout_v2_migrated", false)) {
+            clockX = .055f
+            clockY = .085f
+            dateX = .055f
+            dateY = .135f
+            showLunar = false
+            showWeather = false
+            prefs.edit()
+                .putFloat("widget_clock_x", clockX).putFloat("widget_clock_y", clockY)
+                .putFloat("widget_date_x", dateX).putFloat("widget_date_y", dateY)
+                .putBoolean("show_lunar", false).putBoolean("show_weather", false)
+                .putBoolean("home_layout_v2_migrated", true)
+                .apply()
+        }
         isFocusable = true
         isFocusableInTouchMode = true
         loadApps()
