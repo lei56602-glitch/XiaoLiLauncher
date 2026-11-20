@@ -383,8 +383,10 @@ class LauncherView(context: Context) : View(context) {
         val date = SimpleDateFormat("MM月dd日  EEEE", Locale.CHINA).format(now)
         paint.textAlign = Paint.Align.LEFT
         // Clock and date stay in the upper-left; weather and lunar date are removed from the home screen.
+        // Time and date are one desktop component: one anchor and one shared scale.
         if (showClock) text(c, time, w * clockX, height * clockY, height * .052f * clockScale, -1, true)
-        if (showDate) text(c, date, w * dateX, height * dateY, height * .021f * dateScale, 0xFFE2F1FF.toInt())
+        if (showDate) text(c, date, w * clockX, height * (clockY + .05f * clockScale),
+            height * .021f * clockScale, 0xFFE2F1FF.toInt())
         drawWifiShortcut(c, w, height.toFloat())
         drawSettingsShortcut(c, w, height.toFloat())
         paint.textAlign = Paint.Align.LEFT
@@ -399,9 +401,9 @@ class LauncherView(context: Context) : View(context) {
             val network = cm.activeNetwork
             network != null && cm.getNetworkCapabilities(network)?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true
         }.getOrDefault(false)
-        val x = w * .775f
+        val x = w * .865f
         val y = h * .078f
-        paint.color = if (connected) 0xFF8BE7FF.toInt() else 0xFFFFD28A.toInt()
+        paint.color = if (connected) 0xFFFFFFFF.toInt() else 0xFF111111.toInt()
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = (h * .0035f).coerceAtLeast(2f)
         val path = Path().apply {
@@ -411,21 +413,16 @@ class LauncherView(context: Context) : View(context) {
         c.drawPath(path, paint)
         paint.style = Paint.Style.FILL
         c.drawCircle(x, y + h * .017f, h * .0045f, paint)
-        paint.textAlign = Paint.Align.LEFT
-        text(c, if (connected) "Wi-Fi 已连接" else if (enabled) "Wi-Fi 未连接" else "Wi-Fi 已关闭",
-            x + h * .035f, y + h * .012f, h * .018f, -1, true)
     }
 
     private fun drawSelectedWidgetOutline(c: Canvas) {
-        val visible = listOf(showClock, showDate, showLunar, showWeather)
+        val visible = listOf(showClock || showDate, showLunar, showWeather)
         if (selectedEditWidget !in visible.indices || !visible[selectedEditWidget]) return
-        val positions = listOf(
-            Pair(clockX, clockY), Pair(dateX, dateY),
-            Pair(lunarX, lunarY), Pair(weatherX, weatherY)
-        )
+        val positions = listOf(Pair(clockX, clockY), Pair(lunarX, lunarY), Pair(weatherX, weatherY))
         val p = positions[selectedEditWidget]
+        val bottomY = if (selectedEditWidget == 0) p.second + .05f * clockScale + .018f else p.second + .012f
         val rect = RectF(width * (p.first - .39f), height * (p.second - .045f),
-            width * (p.first + .012f), height * (p.second + .012f))
+            width * (p.first + .025f), height * bottomY)
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = (height * .0035f).coerceAtLeast(2f)
         paint.color = 0xFF55D9FF.toInt()
@@ -437,7 +434,7 @@ class LauncherView(context: Context) : View(context) {
             rect.left to rect.top, rect.right to rect.top,
             rect.left to rect.bottom, rect.right to rect.bottom
         ).forEach { (x, y) -> c.drawCircle(x, y, handle, paint) }
-        val widgetName = listOf("时间", "日期", "农历", "天气")[selectedEditWidget]
+        val widgetName = listOf("时间与日历", "农历", "天气")[selectedEditWidget]
         paint.color = 0xCC063B78.toInt()
         val hintRect = RectF(rect.left, rect.bottom + height * .012f,
             rect.left + width * .31f, rect.bottom + height * .062f)
@@ -451,10 +448,9 @@ class LauncherView(context: Context) : View(context) {
 
     private fun resetSelectedWidget() {
         when (selectedEditWidget) {
-            0 -> { clockX = .965f; clockY = .085f; clockScale = 1f }
-            1 -> { dateX = .965f; dateY = .125f; dateScale = 1f }
-            2 -> { lunarX = .965f; lunarY = .16f; lunarScale = 1f }
-            3 -> { weatherX = .965f; weatherY = .195f; weatherScale = 1f }
+            0 -> { clockX = .055f; clockY = .085f; dateX = clockX; dateY = clockY + .05f; clockScale = 1f; dateScale = 1f }
+            1 -> { lunarX = .965f; lunarY = .16f; lunarScale = 1f }
+            2 -> { weatherX = .965f; weatherY = .195f; weatherScale = 1f }
         }
         saveWidgetPositions()
         invalidate()
@@ -463,17 +459,16 @@ class LauncherView(context: Context) : View(context) {
     private fun toggleWidgetEditMode() {
         widgetEditMode = !widgetEditMode
         if (!widgetEditMode) saveWidgetPositions()
-        selectedEditWidget = selectedEditWidget.coerceIn(0, 3)
+        selectedEditWidget = selectedEditWidget.coerceIn(0, 2)
         invalidate()
     }
 
     private fun cycleEditableWidget() {
-        repeat(4) {
-            selectedEditWidget = (selectedEditWidget + 1) % 4
+        repeat(3) {
+            selectedEditWidget = (selectedEditWidget + 1) % 3
             val visible = when (selectedEditWidget) {
-                0 -> showClock
-                1 -> showDate
-                2 -> showLunar
+                0 -> showClock || showDate
+                1 -> showLunar
                 else -> showWeather
             }
             if (visible) return
@@ -485,14 +480,12 @@ class LauncherView(context: Context) : View(context) {
         val stepY = .012f
         val x = when (selectedEditWidget) {
             0 -> clockX
-            1 -> dateX
-            2 -> lunarX
+            1 -> lunarX
             else -> weatherX
         }
         val y = when (selectedEditWidget) {
             0 -> clockY
-            1 -> dateY
-            2 -> lunarY
+            1 -> lunarY
             else -> weatherY
         }
         moveWidget(selectedEditWidget, (x + dx * stepX) * width, (y + dy * stepY) * height)
@@ -680,16 +673,18 @@ class LauncherView(context: Context) : View(context) {
     }
 
     // A permanent, clearly labelled desktop entry; never hidden in gestures or the app drawer.
+    private fun wifiShortcutRect(w: Float, h: Float) =
+        RectF(w * .82f, h * .025f, w * .90f, h * .13f)
+
     private fun settingsShortcutRect(w: Float, h: Float) =
-        RectF(w * .895f, h * .045f, w * .985f, h * .125f)
+        RectF(w * .915f, h * .025f, w * .985f, h * .13f)
 
     private fun drawSettingsShortcut(c: Canvas, w: Float, h: Float) {
         val r = settingsShortcutRect(w, h)
         paint.style = Paint.Style.FILL
-        paint.color = 0xFFBDEBFF.toInt()
+        paint.color = 0xFFFFFFFF.toInt()
         paint.textAlign = Paint.Align.CENTER
-        text(c, "⚙", r.centerX(), r.top + h * .039f, h * .038f, -1, true)
-        text(c, "设置", r.centerX(), r.bottom - h * .008f, h * .018f, -1, true)
+        text(c, "⚙", r.centerX(), r.centerY() + h * .014f, h * .048f, -1, true)
         paint.textAlign = Paint.Align.LEFT
     }
     private fun drawUnifiedAppIcon(c: Canvas, app: AppEntry, rect: RectF, focused: Boolean) {
@@ -1037,15 +1032,15 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun widgetIndexAt(x: Float, y: Float): Int {
-        val rows = listOf(
-            Triple(showClock, clockX, clockY),
-            Triple(showDate, dateX, dateY),
-            Triple(showLunar, lunarX, lunarY),
-            Triple(showWeather, weatherX, weatherY)
-        )
+        val left = width * (clockX - .39f)
+        val right = width * (clockX + .025f)
+        val top = height * (clockY - .045f)
+        val bottom = height * (clockY + .05f * clockScale + .018f)
+        if ((showClock || showDate) && x in left..right && y in top..bottom) return 0
+        val rows = listOf(Triple(showLunar, lunarX, lunarY), Triple(showWeather, weatherX, weatherY))
         rows.forEachIndexed { index, item ->
             if (item.first && x in (width * (item.second - .38f))..(width * item.second + width * .015f) &&
-                kotlin.math.abs(y - height * item.third) <= height * .035f) return index
+                kotlin.math.abs(y - height * item.third) <= height * .035f) return index + 1
         }
         return -1
     }
@@ -1054,29 +1049,26 @@ class LauncherView(context: Context) : View(context) {
         val nx = (x / width).coerceIn(.025f, .985f)
         val ny = (y / height).coerceIn(.035f, .94f)
         when (index) {
-            0 -> { clockX = nx; clockY = ny }
-            1 -> { dateX = nx; dateY = ny }
-            2 -> { lunarX = nx; lunarY = ny }
-            3 -> { weatherX = nx; weatherY = ny }
+            0 -> { clockX = nx; clockY = ny; dateX = nx; dateY = ny + .05f * clockScale }
+            1 -> { lunarX = nx; lunarY = ny }
+            2 -> { weatherX = nx; weatherY = ny }
         }
         invalidate()
     }
 
     private fun widgetScale(index: Int): Float = when (index) {
         0 -> clockScale
-        1 -> dateScale
-        2 -> lunarScale
-        3 -> weatherScale
+        1 -> lunarScale
+        2 -> weatherScale
         else -> 1f
     }
 
     private fun setWidgetScale(index: Int, value: Float) {
         val scale = value.coerceIn(.55f, 2.4f)
         when (index) {
-            0 -> clockScale = scale
-            1 -> dateScale = scale
-            2 -> lunarScale = scale
-            3 -> weatherScale = scale
+            0 -> { clockScale = scale; dateScale = scale; dateX = clockX; dateY = clockY + .05f * scale }
+            1 -> lunarScale = scale
+            2 -> weatherScale = scale
         }
         invalidate()
     }
@@ -1088,7 +1080,7 @@ class LauncherView(context: Context) : View(context) {
             .putFloat("widget_lunar_x", lunarX).putFloat("widget_lunar_y", lunarY)
             .putFloat("widget_weather_x", weatherX).putFloat("widget_weather_y", weatherY)
             .putFloat("widget_clock_scale", clockScale)
-            .putFloat("widget_date_scale", dateScale)
+            .putFloat("widget_date_scale", clockScale)
             .putFloat("widget_lunar_scale", lunarScale)
             .putFloat("widget_weather_scale", weatherScale)
             .apply()
@@ -1339,7 +1331,7 @@ class LauncherView(context: Context) : View(context) {
                         invalidate()
                         return true
                     }
-                    if (event.x > width * .70f && event.x < width * .88f && event.y < height * .16f) {
+                    if (wifiShortcutRect(width.toFloat(), height.toFloat()).contains(event.x, event.y)) {
                         runCatching { context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                             .onFailure { runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
                         return true
