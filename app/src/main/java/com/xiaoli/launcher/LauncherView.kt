@@ -1198,8 +1198,7 @@ class LauncherView(context: Context) : View(context) {
                             .onFailure { runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
                         return true
                     }
-                    if (showWeather && event.x > width * .68f &&
-                        event.y in (height * .14f)..(height * .34f)) {
+                    if (showWeather && widgetIndexAt(event.x, event.y) == 3) {
                         openWeatherCityDialog()
                         invalidate()
                         return true
