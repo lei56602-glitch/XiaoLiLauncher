@@ -1560,15 +1560,42 @@ class LauncherView(context: Context) : View(context) {
         }
     }.getOrDefault("网络状态未知")
 
+    private val xgimiDisplayManagerClass by lazy {
+        runCatching { Class.forName("com.xgimi.gmpf.api.DisplayManager") }.getOrNull()
+    }
+
+    private fun xgimiDisplayManager(): Any? {
+        val clazz = xgimiDisplayManagerClass ?: return null
+        return runCatching { clazz.getMethod("getInstance").invoke(null) }.getOrNull()
+            ?: runCatching { clazz.getDeclaredConstructor().also { it.isAccessible = true }.newInstance() }.getOrNull()
+    }
+
+    private fun xgimiBrightnessLevel(): Int? = runCatching {
+        val manager = xgimiDisplayManager() ?: return@runCatching null
+        val getter = xgimiDisplayManagerClass?.getMethod("getDlpLumensLevel") ?: return@runCatching null
+        ((getter.invoke(manager) as? Number)?.toInt()?.and(0xFF))?.coerceIn(1, 10)
+    }.getOrNull()
+
+    private fun setXgimiBrightnessLevel(level: Int): Boolean = runCatching {
+        val clazz = xgimiDisplayManagerClass ?: return@runCatching false
+        val manager = xgimiDisplayManager() ?: return@runCatching false
+        clazz.getMethod("setDlpLumensLevel", java.lang.Byte.TYPE).invoke(manager, level.coerceIn(1, 10).toByte())
+        true
+    }.getOrDefault(false)
+
     private fun hasVendorBrightnessBackend(): Boolean {
         val packages = listOf(
             "com.xiaomi.mitv.settings", "com.tcl.settings", "com.sony.dtv.configsettings",
-            "com.jamdeo.tv.vod", "com.hisense.vidaaassistant", "com.xgimi.xhplayer",
+            "com.jamdeo.tv.vod", "com.hisense.vidaaassistant",
             "com.konka.tvsettings", "com.skyworth.tv"
         )
-        return Build.MANUFACTURER.equals("Sony", true) || packages.any {
+        val otherVendor = Build.MANUFACTURER.equals("Sony", true) || packages.any {
             runCatching { context.packageManager.getPackageInfo(it, 0) }.isSuccess
         }
+        val xgimiInstalled = runCatching {
+            context.packageManager.getPackageInfo("com.android.newsettings", 0)
+        }.isSuccess
+        return otherVendor || xgimiInstalled && xgimiBrightnessLevel() == null
     }
 
     private fun openPictureSettings() {
@@ -1585,7 +1612,7 @@ class LauncherView(context: Context) : View(context) {
         Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, level.coerceIn(1, 255))
     }
 
-    private fun brightnessLevel(): Int = runCatching {
+    private fun brightnessLevel(): Int = xgimiBrightnessLevel()?.let { it * 255 / 10 } ?: runCatching {
         Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128).coerceIn(1, 255)
     }.getOrDefault(128)
 
@@ -1593,6 +1620,15 @@ class LauncherView(context: Context) : View(context) {
         if (isPlaybackDevice()) {
             android.widget.Toast.makeText(context, "此设备是电视盒/电视棒，没有本机屏幕背光可调节",
                 android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        val xgimiLevel = xgimiBrightnessLevel()
+        if (xgimiLevel != null) {
+            if (!setXgimiBrightnessLevel(xgimiLevel + direction)) {
+                android.widget.Toast.makeText(context, "XGIMI 光源亮度接口当前不可用",
+                    android.widget.Toast.LENGTH_SHORT).show()
+            }
+            invalidate()
             return
         }
         if (hasVendorBrightnessBackend()) {
