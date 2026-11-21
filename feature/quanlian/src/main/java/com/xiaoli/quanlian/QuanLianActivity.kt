@@ -64,6 +64,22 @@ class QuanLianActivity : Activity() {
         setContentView(screen)
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (::screen.isInitialized) screen.requestFocus()
+    }
+
+    override fun onBackPressed() {
+        if (::screen.isInitialized) {
+            if (navFocused) {
+                navFocused = false
+                screen.invalidate()
+            } else goBack()
+            return
+        }
+        super.onBackPressed()
+    }
+
     override fun onStart() {
         super.onStart()
         getSharedPreferences("quanlian_runtime", MODE_PRIVATE).edit().putBoolean("activity_visible", true).apply()
