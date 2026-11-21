@@ -1494,14 +1494,34 @@ class LauncherView(context: Context) : View(context) {
         } else if (controlCenterPage == 1 || controlCenterPage == 4) {
             val shownInputs = (if (controlCenterPage == 1) visibleControlInputs() else controlInputs)
                 .drop(controlCenterInputOffset)
+            if (controlCenterPage == 4) {
+                val cecRect = RectF(panel.left + panel.width() * .065f,
+                    panel.top + panel.height() * .205f, panel.right - panel.width() * .065f,
+                    panel.top + panel.height() * .295f)
+                paint.color = if (controlCenterFocus == 0) 0x775AB9F2 else 0x334D91C8
+                canvas.drawRoundRect(cecRect, h * .016f, h * .016f, paint)
+                if (controlCenterFocus == 0) {
+                    paint.style = Paint.Style.STROKE
+                    paint.strokeWidth = (h * .0025f).coerceAtLeast(2f)
+                    paint.color = 0xFFD8F4FF.toInt()
+                    canvas.drawRoundRect(cecRect, h * .016f, h * .016f, paint)
+                    paint.style = Paint.Style.FILL
+                }
+                text(canvas, "HDMI-CEC 自动切源", cecRect.left + cecRect.width() * .07f,
+                    cecRect.top + cecRect.height() * .44f, h * .019f, 0xFFF4FAFF.toInt(), true)
+                text(canvas, if (controlCecEnabled) "已开启" else "已关闭",
+                    cecRect.right - cecRect.width() * .22f, cecRect.top + cecRect.height() * .65f,
+                    h * .014f, 0xBFD5E9FA.toInt())
+            }
             if (shownInputs.isEmpty()) {
                 text(canvas, "系统没有向应用公开可用的电视信源列表。", left,
                     panel.top + panel.height() * .31f, h * .018f, 0xFFEAF7FF.toInt())
                 text(canvas, "请通过电视系统设置管理输入源。", left,
                     panel.top + panel.height() * .36f, h * .015f, 0xBFE0F1FF.toInt())
             } else {
-                shownInputs.take(6).forEachIndexed { index, input ->
-                    val rowTop = panel.top + panel.height() * (.225f + index * .112f)
+                shownInputs.take(if (controlCenterPage == 4) 5 else 6).forEachIndexed { index, input ->
+                    val rowTop = panel.top + panel.height() *
+                        (if (controlCenterPage == 4) .315f + index * .102f else .225f + index * .112f)
                     val rect = RectF(panel.left + panel.width() * .065f, rowTop,
                         panel.right - panel.width() * .065f, rowTop + panel.height() * .092f)
                     paint.color = if (index == controlCenterFocus) 0x775AB9F2 else 0x334D91C8
