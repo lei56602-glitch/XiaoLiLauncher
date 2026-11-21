@@ -2357,8 +2357,9 @@ class LauncherView(context: Context) : View(context) {
                 KeyEvent.KEYCODE_DPAD_RIGHT -> if (!drawerHeaderFocused) drawerIndex = drawerMetrics().moveFocus(drawerIndex, 1, apps.size)
                 KeyEvent.KEYCODE_DPAD_UP -> {
                     val metrics = drawerMetrics()
-                    val firstVisibleIndex = drawerScrollRow * metrics.columns
-                    if (!drawerHeaderFocused && (apps.isEmpty() || drawerIndex < firstVisibleIndex + metrics.columns)) {
+                    // Enter the header only from the absolute first row of the app list.
+                    // The first visible row may be scrolled; it must remain part of the grid.
+                    if (!drawerHeaderFocused && (apps.isEmpty() || drawerIndex < metrics.columns)) {
                         drawerHeaderFocused = true
                     } else if (!drawerHeaderFocused) {
                         drawerIndex = metrics.moveFocus(drawerIndex, -metrics.columns, apps.size)
