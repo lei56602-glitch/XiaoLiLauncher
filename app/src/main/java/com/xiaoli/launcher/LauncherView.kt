@@ -425,7 +425,7 @@ class LauncherView(context: Context) : View(context) {
             panel.left + panel.width() * .09f, panel.top + panel.height() * (if (actionMenuSource == "home") .16f else .20f), h * .031f, -1, true)
         options.forEachIndexed { i, label ->
             val top = panel.top + panel.height() * (if (actionMenuSource == "home") .25f + i * .17f else .29f + i * .22f)
-            val rowHeight = panel.height() * if (actionMenuSource == "home") .14f else .18f
+            val rowHeight = panel.height() * (if (actionMenuSource == "home") .14f else .18f)
             val row = RectF(panel.left + panel.width() * .07f, top,
                 panel.right - panel.width() * .07f, top + rowHeight)
             paint.color = if (i == actionMenuChoice) 0xFF1688E8.toInt() else 0x554D9BEA
@@ -1660,8 +1660,8 @@ class LauncherView(context: Context) : View(context) {
                 }
                 if (actionMenuOpen) {
                     val count = if (actionMenuSource == "home") 4 else 2
-                    val top = height * if (actionMenuSource == "home") .20f else .31f
-                    val bottom = height * if (actionMenuSource == "home") .80f else .70f
+                    val top = height * (if (actionMenuSource == "home") .20f else .31f)
+                    val bottom = height * (if (actionMenuSource == "home") .80f else .70f)
                     val rowStart = if (actionMenuSource == "home") .25f else .29f
                     val rowStep = if (actionMenuSource == "home") .17f else .22f
                     if (event.x in (width * .34f)..(width * .66f) && event.y in top..bottom) {
