@@ -472,7 +472,7 @@ class QuanLianActivity : Activity() {
                 KeyEvent.KEYCODE_DPAD_LEFT -> { backFocused = false; navFocused = true; navIndex = page.ordinal }
                 KeyEvent.KEYCODE_DPAD_UP -> Unit
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> { goBack(); return true }
-                KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> { backFocused = false; return true }
+                KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> { goBack(); return true }
                 else -> return super.onKeyDown(keyCode, event)
             }
             screen.invalidate()
