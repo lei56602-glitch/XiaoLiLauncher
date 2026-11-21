@@ -1,6 +1,7 @@
 package com.xiaoli.launcher
 
 import android.content.Context
+import android.content.ComponentName
 import android.app.role.RoleManager
 import android.content.Intent
 import android.annotation.SuppressLint
