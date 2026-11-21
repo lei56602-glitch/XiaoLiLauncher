@@ -195,6 +195,10 @@ class LauncherView(context: Context) : View(context) {
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        // The launcher is a single custom-drawn surface; keep it as the TV remote key target.
+        isFocusable = true
+        isFocusableInTouchMode = true
+        requestFocus()
         handler.removeCallbacks(clockTick)
         handler.post(clockTick)
         updateAnimationLoop()
@@ -383,6 +387,28 @@ class LauncherView(context: Context) : View(context) {
             text(c, label, row.centerX(), row.centerY() + h * .009f, h * .026f, -1, i == actionMenuChoice)
             paint.textAlign = Paint.Align.LEFT
         }
+    }
+
+    fun handleBack(): Boolean {
+        when {
+            actionMenuOpen -> actionMenuOpen = false
+            isSettingsOpen -> closeLauncherSettings()
+            isDrawerOpen -> closeDrawer()
+            widgetEditMode -> toggleWidgetEditMode()
+            homeIconEditMode -> {
+                homeIconScale = homeIconScaleBeforeEdit
+                homeIconEditMode = false
+            }
+            homeAppManageMode -> homeAppManageMode = false
+            homeTopFocus in 0..2 -> homeTopFocus = -1
+            else -> {
+                // Back on the launcher home screen should not close the default Home activity.
+                invalidate()
+                return true
+            }
+        }
+        invalidate()
+        return true
     }
 
     fun closeDrawer() {
@@ -1853,6 +1879,9 @@ class LauncherView(context: Context) : View(context) {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) {
+            return handleBack()
+        }
         if (actionMenuOpen) {
             when (keyCode) {
                 KeyEvent.KEYCODE_DPAD_UP -> actionMenuChoice = (actionMenuChoice - 1).coerceAtLeast(0)
