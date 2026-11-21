@@ -1795,7 +1795,7 @@ class LauncherView(context: Context) : View(context) {
             1 -> "由 Android TV InputManager 实时识别"
             2 -> "左右键调节 · OK 切换静音"
             3 -> "系统允许时调节屏幕亮度"
-            else -> "OK 切换 HDMI-CEC/固定 · 左键显示/隐藏"
+            else -> "OK 切换 HDMI-CEC/固定 · 左键隐藏 · 右键设为开机默认"
         }
         text(canvas, title, left, top, h * .037f, 0xFFF3FAFF.toInt(), true)
         text(canvas, subtitle, left, top + h * .045f, h * .018f, 0xBFE0F1FF.toInt())
@@ -1882,7 +1882,8 @@ class LauncherView(context: Context) : View(context) {
                     } else {
                         val pinned = input.id in pinnedControlInputIds()
                         val hidden = input.id in hiddenControlInputIds()
-                        (if (pinned) "已固定" else "未固定") + " · " + (if (hidden) "已隐藏" else "显示中")
+                        (if (pinned) "已固定" else "未固定") + " · " + (if (hidden) "已隐藏" else "显示中") +
+                            (if (input.id == controlBootInputId) " · 开机默认" else "")
                     }
                     text(canvas, detail, rect.left + rect.width() * .07f,
                         rect.top + rect.height() * .76f, h * .013f, 0xBFD5E9FA.toInt())
@@ -3098,6 +3099,8 @@ class LauncherView(context: Context) : View(context) {
                     1 -> activateControlCenterItem()
                     2 -> adjustControlVolume(1)
                     3 -> adjustControlBrightness(1)
+                    4 -> if (controlCenterFocus > 0)
+                        controlInputs.getOrNull(controlCenterInputOffset + controlCenterFocus - 1)?.let(::toggleControlBootInput)
                 }
             }
             invalidate()
