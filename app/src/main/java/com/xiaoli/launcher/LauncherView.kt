@@ -1332,6 +1332,34 @@ class LauncherView(context: Context) : View(context) {
         clockEditChoice = SpatialFocusNavigator.next(clockEditChoice, direction, targets)
     }
 
+    private fun moveDrawerSpatialFocus(direction: Int) {
+        val metrics = drawerMetrics()
+        val w = width.toFloat().coerceAtLeast(1f)
+        val h = height.toFloat().coerceAtLeast(1f)
+        val targets = buildList {
+            apps.indices.forEach { index ->
+                val row = index / metrics.columns
+                val column = index % metrics.columns
+                val centerX = metrics.gridLeft + (column + .5f) * metrics.cellWidth
+                val centerY = metrics.contentTop +
+                    (row - drawerScrollVisualRow + .5f) * metrics.cellHeight
+                add(FocusTarget(index, centerX / w, centerY / h))
+            }
+            add(FocusTarget(-1, .8875f, .21f))
+        }
+        val currentId = if (drawerHeaderFocused) -1 else drawerIndex
+        val eligibleTargets = if (direction == SpatialFocusNavigator.UP &&
+            !drawerHeaderFocused && drawerIndex >= metrics.columns) {
+            targets.filter { it.id != -1 }
+        } else targets
+        val next = SpatialFocusNavigator.next(currentId, direction, eligibleTargets)
+        if (next == -1) drawerHeaderFocused = true
+        else if (next >= 0) {
+            drawerHeaderFocused = false
+            drawerIndex = next
+        }
+    }
+
     private fun drawerMetrics(): DrawerGridMetrics =
         DrawerGridMetrics(width.toFloat(), height.toFloat(), drawerColumns(), drawerRows())
 
@@ -2398,22 +2426,13 @@ class LauncherView(context: Context) : View(context) {
                 KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> {
                     if (!homeAppManageMode) editingFavorites = !editingFavorites
                 }
-                KeyEvent.KEYCODE_DPAD_LEFT -> if (!drawerHeaderFocused) drawerIndex = drawerMetrics().moveFocus(drawerIndex, -1, apps.size)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> if (!drawerHeaderFocused) drawerIndex = drawerMetrics().moveFocus(drawerIndex, 1, apps.size)
+                KeyEvent.KEYCODE_DPAD_LEFT -> moveDrawerSpatialFocus(SpatialFocusNavigator.LEFT)
+                KeyEvent.KEYCODE_DPAD_RIGHT -> moveDrawerSpatialFocus(SpatialFocusNavigator.RIGHT)
                 KeyEvent.KEYCODE_DPAD_UP -> {
-                    val metrics = drawerMetrics()
-                    // Enter the header only from the absolute first row of the app list.
-                    // The first visible row may be scrolled; it must remain part of the grid.
-                    if (!drawerHeaderFocused && (apps.isEmpty() || drawerIndex < metrics.columns)) {
-                        drawerHeaderFocused = true
-                    } else if (!drawerHeaderFocused) {
-                        drawerIndex = metrics.moveFocus(drawerIndex, -metrics.columns, apps.size)
-                    }
+                    if (apps.isEmpty() && !drawerHeaderFocused) drawerHeaderFocused = true
+                    else moveDrawerSpatialFocus(SpatialFocusNavigator.UP)
                 }
-                KeyEvent.KEYCODE_DPAD_DOWN -> {
-                    if (drawerHeaderFocused) drawerHeaderFocused = false
-                    else drawerIndex = drawerMetrics().moveFocus(drawerIndex, drawerMetrics().columns, apps.size)
-                }
+                KeyEvent.KEYCODE_DPAD_DOWN -> moveDrawerSpatialFocus(SpatialFocusNavigator.DOWN)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     if (event.repeatCount == 0) {
                         event.startTracking()
