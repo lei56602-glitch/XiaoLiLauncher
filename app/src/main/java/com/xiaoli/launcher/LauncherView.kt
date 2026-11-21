@@ -1437,11 +1437,13 @@ class LauncherView(context: Context) : View(context) {
     private fun setDrawerRows(rows: Int) {
         prefs.edit().putInt("drawer_rows", rows.coerceIn(2, 4)).apply()
         settingsFocus = rows + 15
+        animateSpatialFocus()
         invalidate()
     }
     private fun setDrawerColumns(columns: Int) {
         prefs.edit().putInt("drawer_columns", columns.coerceIn(4, 6)).apply()
         settingsFocus = columns - 4
+        animateSpatialFocus()
         invalidate()
     }
 
@@ -2007,6 +2009,7 @@ class LauncherView(context: Context) : View(context) {
                         event.y >= height * .275f && event.y <= height * .912f) {
                         val category = ((event.y - height * .275f) / (height * .091f)).toInt().coerceIn(0, 6)
                         settingsFocus = 30 + category
+                        animateSpatialFocus()
                         invalidate()
                         performClick()
                         return true
@@ -2452,8 +2455,10 @@ class LauncherView(context: Context) : View(context) {
                 when (keyCode) {
                     KeyEvent.KEYCODE_DPAD_UP -> moveSettingsCategoryFocus(SpatialFocusNavigator.UP)
                     KeyEvent.KEYCODE_DPAD_DOWN -> moveSettingsCategoryFocus(SpatialFocusNavigator.DOWN)
-                    KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER ->
+                    KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                         settingsFocus = settingsCategoryControl(settingsFocus - 30)
+                        animateSpatialFocus()
+                    }
                     KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> { closeLauncherSettings(); return true }
                 }
                 invalidate()
