@@ -1642,6 +1642,42 @@ class LauncherView(context: Context) : View(context) {
         }
     }
 
+    private val xgimiDisplayManagerClass by lazy {
+        runCatching { Class.forName("com.xgimi.gmpf.api.DisplayManager") }.getOrNull()
+    }
+
+    private fun xgimiDisplayManager(): Any? {
+        val clazz = xgimiDisplayManagerClass ?: return null
+        return runCatching { clazz.getMethod("getInstance").invoke(null) }.getOrNull()
+            ?: runCatching {
+                clazz.getDeclaredConstructor().also { it.isAccessible = true }.newInstance()
+            }.getOrNull()
+    }
+
+    private fun xgimiBrightnessLevel(): Int? {
+        val now = SystemClock.elapsedRealtime()
+        if (xgimiBrightnessHasBeenRead && now - xgimiBrightnessCheckedAt < 500L) return xgimiBrightnessCached
+        xgimiBrightnessHasBeenRead = true
+        xgimiBrightnessCheckedAt = now
+        xgimiBrightnessCached = runCatching {
+            val manager = xgimiDisplayManager() ?: return@runCatching null
+            val getter = xgimiDisplayManagerClass?.getMethod("getDlpLumensLevel") ?: return@runCatching null
+            ((getter.invoke(manager) as? Number)?.toInt()?.and(0xFF))?.coerceIn(1, 10)
+        }.getOrNull()
+        return xgimiBrightnessCached
+    }
+
+    private fun setXgimiBrightnessLevel(level: Int): Boolean = runCatching {
+        val clazz = xgimiDisplayManagerClass ?: return@runCatching false
+        val manager = xgimiDisplayManager() ?: return@runCatching false
+        val target = level.coerceIn(1, 10)
+        clazz.getMethod("setDlpLumensLevel", java.lang.Byte.TYPE).invoke(manager, target.toByte())
+        xgimiBrightnessCached = target
+        xgimiBrightnessHasBeenRead = true
+        xgimiBrightnessCheckedAt = SystemClock.elapsedRealtime()
+        true
+    }.getOrDefault(false)
+
     private fun hasVendorBrightnessBackend(): Boolean {
         if (hisenseLaserLevel() != null || xgimiBrightnessLevel() != null) return false
         val packages = listOf(
