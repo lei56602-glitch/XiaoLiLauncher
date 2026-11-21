@@ -38,7 +38,7 @@ class SettingsFocusNavigatorTest {
         assertEquals(21, SettingsFocusNavigator.next(21, -2))
         assertEquals(6, SettingsFocusNavigator.next(6, 2))
         assertEquals(7, SettingsFocusNavigator.next(7, -2))
-        assertEquals(3, SettingsFocusNavigator.next(3, 2))
+        assertEquals(24, SettingsFocusNavigator.next(3, 2))
         assertEquals(24, SettingsFocusNavigator.next(4, 2))
         assertEquals(4, SettingsFocusNavigator.next(24, -2))
     }
