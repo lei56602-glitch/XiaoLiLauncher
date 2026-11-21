@@ -39,7 +39,7 @@ internal object SpatialFocusNavigator {
                 val secondary = if (horizontal) abs(dy) else abs(dx)
                 // Prefer targets in the same visual lane, while still allowing
                 // diagonal movement when a row/column has no target.
-                val score = primary + secondary * 1.75f
+                val score = primary + secondary * .35f
                 Triple(candidate.id, score, secondary)
             }
             .minWithOrNull(compareBy<Triple<Int, Float, Float>> { it.second }.thenBy { it.third })
