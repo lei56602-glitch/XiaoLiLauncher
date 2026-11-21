@@ -1670,6 +1670,7 @@ class LauncherView(context: Context) : View(context) {
     }.getOrDefault(false)
 
     private fun hasVendorBrightnessBackend(): Boolean {
+        if (hisenseLaserLevel() != null || xgimiBrightnessLevel() != null) return false
         val packages = listOf(
             "com.xiaomi.mitv.settings", "com.tcl.settings", "com.sony.dtv.configsettings",
             "com.jamdeo.tv.vod", "com.hisense.vidaaassistant",
@@ -1681,7 +1682,7 @@ class LauncherView(context: Context) : View(context) {
         val xgimiInstalled = runCatching {
             context.packageManager.getPackageInfo("com.android.newsettings", 0)
         }.isSuccess
-        return otherVendor || xgimiInstalled && xgimiBrightnessLevel() == null
+        return otherVendor || xgimiInstalled
     }
 
     private fun openPictureSettings() {
@@ -1698,7 +1699,8 @@ class LauncherView(context: Context) : View(context) {
         Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, level.coerceIn(1, 255))
     }
 
-    private fun brightnessLevel(): Int = xgimiBrightnessLevel()?.let { it * 255 / 10 } ?: runCatching {
+    private fun brightnessLevel(): Int = hisenseLaserLevel()?.let { it * 255 / 10 }
+        ?: xgimiBrightnessLevel()?.let { it * 255 / 10 } ?: runCatching {
         Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128).coerceIn(1, 255)
     }.getOrDefault(128)
 
@@ -1706,6 +1708,15 @@ class LauncherView(context: Context) : View(context) {
         if (isPlaybackDevice()) {
             android.widget.Toast.makeText(context, "此设备是电视盒/电视棒，没有本机屏幕背光可调节",
                 android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        val hisenseLevel = hisenseLaserLevel()
+        if (hisenseLevel != null) {
+            if (!setHisenseLaserLevel(hisenseLevel + direction)) {
+                android.widget.Toast.makeText(context, "Hisense 背光接口当前不可用",
+                    android.widget.Toast.LENGTH_SHORT).show()
+            }
+            invalidate()
             return
         }
         val xgimiLevel = xgimiBrightnessLevel()
