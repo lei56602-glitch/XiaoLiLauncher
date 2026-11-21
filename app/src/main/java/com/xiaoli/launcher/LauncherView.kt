@@ -155,6 +155,8 @@ class LauncherView(context: Context) : View(context) {
     private var controlCenterFocus = 0
     private var controlCenterInputOffset = 0
     private var controlCecEnabled = prefs.getBoolean("control_cec_switch", false)
+    private var controlExternalVolume = false
+    private var controlStuckVolumeSteps = 0
     private var controlCenterReturnFocus = -1
     private data class ControlInput(val id: String, val label: String, val kind: String, val switchIntent: Intent?, val setupIntent: Intent?)
     private var controlInputs: List<ControlInput> = emptyList()
@@ -1339,8 +1341,19 @@ class LauncherView(context: Context) : View(context) {
     }.getOrDefault(0 to 1)
 
     private fun adjustControlVolume(direction: Int) {
-        val (level, max) = volumeLevel()
-        runCatching { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (level + direction).coerceIn(0, max), 0) }
+        val (before, max) = volumeLevel()
+        runCatching {
+            audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC,
+                if (direction > 0) AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER, 0)
+        }.onFailure {
+            runCatching { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC,
+                (before + direction).coerceIn(0, max), 0) }
+        }
+        val (after, currentMax) = volumeLevel()
+        val muted = runCatching { audioManager.isStreamMute(AudioManager.STREAM_MUSIC) }.getOrDefault(false)
+        val stuck = before == after && !muted && (if (direction > 0) before < max else before > 0)
+        controlStuckVolumeSteps = if (stuck) controlStuckVolumeSteps + 1 else 0
+        controlExternalVolume = controlStuckVolumeSteps >= 2 || (controlExternalVolume && before == after)
         invalidate()
     }
 
@@ -1390,6 +1403,12 @@ class LauncherView(context: Context) : View(context) {
         }
     }
 
+    private fun setControlBrightnessLevel(level: Int) {
+        Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE,
+            Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
+        Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, level.coerceIn(1, 255))
+    }
+
     private fun brightnessLevel(): Int = runCatching {
         Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128).coerceIn(1, 255)
     }.getOrDefault(128)
@@ -1410,9 +1429,7 @@ class LauncherView(context: Context) : View(context) {
         }
         val next = (brightnessLevel() + direction * 13).coerceIn(1, 255)
         runCatching {
-            Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE,
-                Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
-            Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, next)
+            setControlBrightnessLevel(next)
         }.onFailure {
             android.widget.Toast.makeText(context, "当前电视固件不允许应用直接调节背光",
                 android.widget.Toast.LENGTH_LONG).show()
@@ -1597,7 +1614,8 @@ class LauncherView(context: Context) : View(context) {
             } else brightnessLevel() / 255f
             val valueLabel = if (isVolume) {
                 val (level, max) = volumeLevel()
-                "$level / $max"
+                if (controlExternalVolume) "外接音响" else if (audioManager.isStreamMute(AudioManager.STREAM_MUSIC))
+                    "已静音" else "$level / $max"
             } else "${brightnessLevel()} / 255"
             val slider = RectF(panel.left + panel.width() * .10f, panel.top + panel.height() * .43f,
                 panel.right - panel.width() * .10f, panel.top + panel.height() * .49f)
@@ -2252,8 +2270,7 @@ class LauncherView(context: Context) : View(context) {
                             adjustControlBrightness(0)
                         } else {
                             val target = (fraction * 255f).toInt().coerceIn(1, 255)
-                            runCatching { Settings.System.putInt(context.contentResolver,
-                                Settings.System.SCREEN_BRIGHTNESS, target) }
+                            runCatching { setControlBrightnessLevel(target) }
                         }
                     } else {
                         val row = if (controlCenterPage == 0) {
