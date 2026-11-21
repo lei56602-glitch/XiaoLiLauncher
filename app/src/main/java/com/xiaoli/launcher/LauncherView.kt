@@ -113,8 +113,8 @@ class LauncherView(context: Context) : View(context) {
     private var drawerScrollRow = 0
     private var drawerScrollVisualRow = 0f
     private var drawerScrollAnimator: ValueAnimator? = null
-    private var drawerFocusAnimator: ValueAnimator? = null
-    private var drawerFocusScale = 1f
+    private var spatialFocusAnimator: ValueAnimator? = null
+    private var spatialFocusScale = 1f
     // Header action is a first-class D-pad target, separate from the app grid.
     private var drawerHeaderFocused = false
     private var homeIndex = 0
@@ -142,6 +142,8 @@ class LauncherView(context: Context) : View(context) {
     var isDrawerOpen = false
         private set
     private var isSettingsOpen = false
+    private var settingsReturnHomeFocus = -1
+    private var returnToSettingsAfterDrawer = false
     val isLauncherSettingsOpen: Boolean get() = isSettingsOpen
     private var settingsFocus = 0
     private val handler = Handler(Looper.getMainLooper())
@@ -159,6 +161,28 @@ class LauncherView(context: Context) : View(context) {
         }
     }
 
+    private fun animateSpatialFocus() {
+        spatialFocusAnimator?.cancel()
+        spatialFocusScale = 1f
+        spatialFocusAnimator = ValueAnimator.ofFloat(1f, 1.08f).apply {
+            duration = 150L
+            interpolator = DecelerateInterpolator(1.2f)
+            addUpdateListener { animator ->
+                spatialFocusScale = animator.animatedValue as Float
+                invalidate()
+            }
+            start()
+        }
+    }
+
+    private fun scaledFocusRect(rect: RectF): RectF {
+        val scale = spatialFocusScale.coerceAtLeast(1f)
+        val halfWidth = rect.width() * scale / 2f
+        val halfHeight = rect.height() * scale / 2f
+        return RectF(rect.centerX() - halfWidth, rect.centerY() - halfHeight,
+            rect.centerX() + halfWidth, rect.centerY() + halfHeight)
+    }
+
     private fun animateDrawerScrollTo(targetRow: Int) {
         drawerScrollAnimator?.cancel()
         val target = targetRow.toFloat().coerceAtLeast(0f)
@@ -172,20 +196,6 @@ class LauncherView(context: Context) : View(context) {
             interpolator = DecelerateInterpolator(1.6f)
             addUpdateListener { animator ->
                 drawerScrollVisualRow = animator.animatedValue as Float
-                invalidate()
-            }
-            start()
-        }
-    }
-
-    private fun animateDrawerFocus() {
-        drawerFocusAnimator?.cancel()
-        drawerFocusScale = 1f
-        drawerFocusAnimator = ValueAnimator.ofFloat(1f, 1.08f).apply {
-            duration = 150L
-            interpolator = DecelerateInterpolator(1.2f)
-            addUpdateListener { animator ->
-                drawerFocusScale = animator.animatedValue as Float
                 invalidate()
             }
             start()
@@ -457,6 +467,7 @@ class LauncherView(context: Context) : View(context) {
         actionMenuPackage = app.packageName
         actionMenuChoice = 0
         actionMenuOpen = true
+        animateSpatialFocus()
         invalidate()
     }
 
@@ -520,8 +531,9 @@ class LauncherView(context: Context) : View(context) {
         options.forEachIndexed { i, label ->
             val top = panel.top + panel.height() * (if (actionMenuSource == "home") .25f + i * .17f else .29f + i * .22f)
             val rowHeight = panel.height() * (if (actionMenuSource == "home") .14f else .18f)
-            val row = RectF(panel.left + panel.width() * .07f, top,
+            val baseRow = RectF(panel.left + panel.width() * .07f, top,
                 panel.right - panel.width() * .07f, top + rowHeight)
+            val row = if (i == actionMenuChoice) scaledFocusRect(baseRow) else baseRow
             paint.color = if (i == actionMenuChoice) 0xFF1688E8.toInt() else 0x554D9BEA
             c.drawRoundRect(row, h * .012f, h * .012f, paint)
             paint.textAlign = Paint.Align.CENTER
@@ -556,12 +568,16 @@ class LauncherView(context: Context) : View(context) {
     }
 
     fun closeDrawer() {
-        drawerFocusAnimator?.cancel()
-        drawerFocusScale = 1f
         isDrawerOpen = false
         drawerHeaderFocused = false
         editingFavorites = false
         if (homeAppManageMode) homeAppManageMode = false
+        if (returnToSettingsAfterDrawer) {
+            isSettingsOpen = true
+            settingsFocus = 21
+            returnToSettingsAfterDrawer = false
+            animateSpatialFocus()
+        }
         invalidate()
     }
 
@@ -649,7 +665,16 @@ class LauncherView(context: Context) : View(context) {
         c.drawRect(0f, 0f, w, h, paint)
         paint.shader = null
     }
-    fun closeLauncherSettings() { isSettingsOpen = false; invalidate() }
+    fun closeLauncherSettings() {
+        isSettingsOpen = false
+        when (settingsReturnHomeFocus) {
+            in 100..102 -> homeTopFocus = settingsReturnHomeFocus - 100
+            in 0..4 -> { homeIndex = settingsReturnHomeFocus; homeTopFocus = -1 }
+        }
+        settingsReturnHomeFocus = -1
+        animateSpatialFocus()
+        invalidate()
+    }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
@@ -732,8 +757,9 @@ class LauncherView(context: Context) : View(context) {
             text(c, "时间与日历", panel.left + panel.width() * .10f, panel.top + panel.height() * .25f, h * .034f, -1, true)
             val labels = listOf("调整大小", "移动位置")
             labels.forEachIndexed { i, label ->
-                val row = RectF(panel.left + panel.width() * .09f, panel.top + panel.height() * (.36f + i * .28f),
+                val baseRow = RectF(panel.left + panel.width() * .09f, panel.top + panel.height() * (.36f + i * .28f),
                     panel.right - panel.width() * .09f, panel.top + panel.height() * (.57f + i * .28f))
+                val row = if (clockEditChoice == i) scaledFocusRect(baseRow) else baseRow
                 paint.color = if (clockEditChoice == i) 0xFF087FD1.toInt() else 0x554D9BEA
                 c.drawRoundRect(row, h * .014f, h * .014f, paint)
                 paint.textAlign = Paint.Align.CENTER
@@ -753,6 +779,7 @@ class LauncherView(context: Context) : View(context) {
     private fun openClockEditMenu() {
         clockEditMenuOpen = true
         clockEditChoice = 0
+        animateSpatialFocus()
         invalidate()
     }
 
@@ -1041,7 +1068,8 @@ class LauncherView(context: Context) : View(context) {
         // App icons are first-class desktop objects; no enclosing tile/card.
         favorites.take(5).forEachIndexed { i, app ->
             val icon = homeIconCardRect(i, w, h)
-            val focused = i == homeIndex && homeTopFocus == -1
+            val focused = if (homeAppManageMode) i == homeManageSlot
+                else i == homeIndex && homeTopFocus == -1
             if (app.packageName == emptySlot.packageName) {
                 paint.style = Paint.Style.STROKE
                 paint.strokeWidth = (h * .003f).coerceAtLeast(2f)
@@ -1080,8 +1108,8 @@ class LauncherView(context: Context) : View(context) {
                 paint.style = Paint.Style.STROKE
                 paint.strokeWidth = (h * .006f).coerceAtLeast(3f)
                 paint.color = 0xFFFFD166.toInt()
-                c.drawRoundRect(RectF(selected.left - 8f, selected.top - 8f,
-                    selected.right + 8f, selected.bottom + 8f), 18f, 18f, paint)
+                c.drawRoundRect(scaledFocusRect(RectF(selected.left - 8f, selected.top - 8f,
+                    selected.right + 8f, selected.bottom + 8f)), 18f, 18f, paint)
                 paint.style = Paint.Style.FILL
             }
             paint.textAlign = Paint.Align.LEFT
@@ -1109,7 +1137,8 @@ class LauncherView(context: Context) : View(context) {
         paint.strokeWidth = (h * .004f).coerceAtLeast(2.5f)
         paint.color = 0xFF8BE7FF.toInt()
         paint.setShadowLayer((h * .012f).coerceAtLeast(5f), 0f, 0f, 0xAA27BFFF.toInt())
-        c.drawRoundRect(rect, (h * .018f).coerceAtLeast(10f), (h * .018f).coerceAtLeast(10f), paint)
+        val focusRect = scaledFocusRect(rect)
+        c.drawRoundRect(focusRect, (h * .018f).coerceAtLeast(10f), (h * .018f).coerceAtLeast(10f), paint)
         paint.clearShadowLayer()
         paint.style = Paint.Style.FILL
     }
@@ -1120,27 +1149,53 @@ class LauncherView(context: Context) : View(context) {
         else -> w * .96f
     }
 
-    private fun moveHomeFocusToTop() {
+    private fun homeFocusTargets(): List<FocusTarget> {
         val w = width.toFloat()
-        val appX = homeIconCardRect(homeIndex, w, height.toFloat()).centerX()
+        val h = height.toFloat()
         val targets = buildList {
-            if (showClock || showDate) add(0)
-            add(1)
-            add(2)
+            favorites.indices.forEach { index ->
+                val rect = homeIconCardRect(index, w, h)
+                add(FocusTarget(index, rect.centerX(), rect.centerY()))
+            }
+            if (showClock || showDate) {
+                val rect = RectF(w * (clockX - .025f), h * (clockY - .045f),
+                    w * (clockX + .245f), h * (clockY + .065f * clockScale))
+                add(FocusTarget(100, rect.centerX(), rect.centerY()))
+            }
+            val wifi = wifiShortcutRect(w, h)
+            val settings = settingsShortcutRect(w, h)
+            add(FocusTarget(101, wifi.centerX(), wifi.centerY()))
+            add(FocusTarget(102, settings.centerX(), settings.centerY()))
         }
-        homeTopFocus = targets.minByOrNull { kotlin.math.abs(homeTopFocusCenterX(it, w) - appX) } ?: 1
+        return targets
+    }
+
+    private fun moveHomeAppFocus(currentIndex: Int, direction: Int): Int {
+        val targets = favorites.indices.map { index ->
+            val rect = homeIconCardRect(index, width.toFloat(), height.toFloat())
+            FocusTarget(index, rect.centerX(), rect.centerY())
+        }
+        return SpatialFocusNavigator.next(currentIndex, direction, targets)
+    }
+
+    private fun moveHomeSpatialFocus(direction: Int) {
+        val targets = homeFocusTargets()
+        val currentId = if (homeTopFocus in 0..2) 100 + homeTopFocus else homeIndex
+        val current = targets.firstOrNull { it.id == currentId } ?: return
+        val next = SpatialFocusNavigator.next(currentId, direction, targets)
+        if (next != currentId) {
+            when (next) {
+                in 0..4 -> { homeIndex = next; homeTopFocus = -1 }
+                in 100..102 -> homeTopFocus = next - 100
+            }
+            animateSpatialFocus()
+        }
         invalidate()
     }
 
-    private fun moveHomeFocusToApps() {
-        if (homeTopFocus !in 0..2) return
-        val x = homeTopFocusCenterX(homeTopFocus, width.toFloat())
-        homeIndex = favorites.indices.minByOrNull {
-            kotlin.math.abs(homeIconCardRect(it, width.toFloat(), height.toFloat()).centerX() - x)
-        } ?: homeIndex
-        homeTopFocus = -1
-        invalidate()
-    }
+    private fun moveHomeFocusToTop() = moveHomeSpatialFocus(SpatialFocusNavigator.UP)
+
+    private fun moveHomeFocusToApps() = moveHomeSpatialFocus(SpatialFocusNavigator.DOWN)
 
     private fun activateHomeTopFocus() {
         when (homeTopFocus) {
@@ -1183,14 +1238,7 @@ class LauncherView(context: Context) : View(context) {
                 .getOrNull() ?: android.graphics.drawable.ColorDrawable(0xFF1B74C8.toInt())
         }
         // Fill the icon viewport, clipping only its corners to the same rounded-card silhouette.
-        val target = RectF(rect)
-        if (focused) {
-            val scale = drawerFocusScale.coerceAtLeast(1f)
-            val halfWidth = rect.width() * scale / 2f
-            val halfHeight = rect.height() * scale / 2f
-            target.set(rect.centerX() - halfWidth, rect.centerY() - halfHeight,
-                rect.centerX() + halfWidth, rect.centerY() + halfHeight)
-        }
+        val target = if (focused) scaledFocusRect(rect) else RectF(rect)
         val radius = target.width() * .20f
         val save = c.save()
         val clip = Path().apply {
@@ -1231,7 +1279,8 @@ class LauncherView(context: Context) : View(context) {
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = (h * .0035f).coerceAtLeast(2f)
             paint.color = 0xFF8BE7FF.toInt()
-            c.drawRoundRect(RectF(w * .835f, h * .175f, w * .94f, h * .245f), h * .012f, h * .012f, paint)
+            c.drawRoundRect(scaledFocusRect(RectF(w * .835f, h * .175f, w * .94f, h * .245f)),
+                h * .012f, h * .012f, paint)
             paint.style = Paint.Style.FILL
         }
         paint.textAlign = Paint.Align.LEFT
@@ -1301,15 +1350,88 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun openLauncherSettings(initialFocus: Int = 30) {
+        if (!isSettingsOpen) {
+            settingsReturnHomeFocus = if (homeTopFocus in 0..2) 100 + homeTopFocus else homeIndex
+        }
         isDrawerOpen = false
         isSettingsOpen = true
         homeTopFocus = -1
         settingsFocus = initialFocus
+        animateSpatialFocus()
         invalidate()
     }
 
     private fun moveSettingsFocus(direction: Int) {
-        settingsFocus = SettingsFocusNavigator.next(settingsFocus, direction)
+        val next = SettingsFocusNavigator.next(settingsFocus, direction)
+        if (next != settingsFocus) {
+            settingsFocus = next
+            animateSpatialFocus()
+        }
+    }
+
+    private fun moveSettingsCategoryFocus(direction: Int) {
+        val targets = (0..6).map { index ->
+            FocusTarget(30 + index, .5f, index.toFloat())
+        }
+        val next = SpatialFocusNavigator.next(settingsFocus, direction, targets)
+        if (next != settingsFocus) {
+            settingsFocus = next
+            animateSpatialFocus()
+        }
+    }
+
+    private fun moveActionMenuFocus(direction: Int) {
+        val count = if (actionMenuSource == "home") 4 else 2
+        val targets = (0 until count).map { index ->
+            val y = if (actionMenuSource == "home") .25f + index * .17f
+                else .29f + index * .22f
+            FocusTarget(index, .5f, y)
+        }
+        val next = SpatialFocusNavigator.next(actionMenuChoice, direction, targets)
+        if (next != actionMenuChoice) {
+            actionMenuChoice = next
+            animateSpatialFocus()
+        }
+    }
+
+    private fun moveClockMenuFocus(direction: Int) {
+        val targets = listOf(FocusTarget(0, .5f, .35f), FocusTarget(1, .5f, .65f))
+        val next = SpatialFocusNavigator.next(clockEditChoice, direction, targets)
+        if (next != clockEditChoice) {
+            clockEditChoice = next
+            animateSpatialFocus()
+        }
+    }
+
+    private fun moveDrawerSpatialFocus(direction: Int) {
+        val metrics = drawerMetrics()
+        val w = width.toFloat().coerceAtLeast(1f)
+        val h = height.toFloat().coerceAtLeast(1f)
+        val targets = buildList {
+            apps.indices.forEach { index ->
+                val row = index / metrics.columns
+                val column = index % metrics.columns
+                val centerX = metrics.gridLeft + (column + .5f) * metrics.cellWidth
+                val centerY = metrics.contentTop +
+                    (row - drawerScrollVisualRow + .5f) * metrics.cellHeight
+                add(FocusTarget(index, centerX / w, centerY / h))
+            }
+            add(FocusTarget(-1, .8875f, .21f))
+        }
+        val currentId = if (drawerHeaderFocused) -1 else drawerIndex
+        val eligibleTargets = if (direction == SpatialFocusNavigator.UP &&
+            !drawerHeaderFocused && drawerIndex >= metrics.columns) {
+            targets.filter { it.id != -1 }
+        } else targets
+        val next = SpatialFocusNavigator.next(currentId, direction, eligibleTargets)
+        if (next != currentId) {
+            if (next == -1) drawerHeaderFocused = true
+            else if (next >= 0) {
+                drawerHeaderFocused = false
+                drawerIndex = next
+            }
+            animateSpatialFocus()
+        }
     }
 
     private fun drawerMetrics(): DrawerGridMetrics =
@@ -1320,11 +1442,13 @@ class LauncherView(context: Context) : View(context) {
     private fun setDrawerRows(rows: Int) {
         prefs.edit().putInt("drawer_rows", rows.coerceIn(2, 4)).apply()
         settingsFocus = rows + 15
+        animateSpatialFocus()
         invalidate()
     }
     private fun setDrawerColumns(columns: Int) {
         prefs.edit().putInt("drawer_columns", columns.coerceIn(4, 6)).apply()
         settingsFocus = columns - 4
+        animateSpatialFocus()
         invalidate()
     }
 
@@ -1413,11 +1537,13 @@ class LauncherView(context: Context) : View(context) {
             val rect = RectF(rail.left + w * .014f, top, rail.right - w * .014f, top + h * .066f)
             val selected = settingsFocus == 30 + index || settingsCategoryForControl(settingsFocus) == index
             if (selected) {
+                val selectedRect = if (settingsFocus == 30 + index) scaledFocusRect(rect) else rect
                 paint.color = 0xFF164D78.toInt()
-                c.drawRoundRect(rect, h * .012f, h * .012f, paint)
+                c.drawRoundRect(selectedRect, h * .012f, h * .012f, paint)
                 paint.color = 0xFF68D9FF.toInt()
-                c.drawRoundRect(RectF(rect.left, rect.top + h * .012f,
-                    rect.left + w * .004f, rect.bottom - h * .012f), h * .002f, h * .002f, paint)
+                c.drawRoundRect(RectF(selectedRect.left, selectedRect.top + h * .012f,
+                    selectedRect.left + w * .004f, selectedRect.bottom - h * .012f),
+                    h * .002f, h * .002f, paint)
             }
             paint.color = if (selected) 0xFF8BE7FF.toInt() else 0xFF7693B2.toInt()
             c.drawCircle(rect.left + w * .025f, rect.centerY(), h * .0045f, paint)
@@ -1428,7 +1554,8 @@ class LauncherView(context: Context) : View(context) {
             h * .011f, 0xFF829BB7.toInt())
     }
 
-    private fun drawSettingCard(c: Canvas, rect: RectF, heading: String, detail: String, focused: Boolean) {
+    private fun drawSettingCard(c: Canvas, bounds: RectF, heading: String, detail: String, focused: Boolean) {
+        val rect = if (focused) scaledFocusRect(bounds) else RectF(bounds)
         val radius = rect.height() * .16f
         paint.style = Paint.Style.FILL
         paint.color = if (focused) 0xFF153F68.toInt() else 0xC9122945.toInt()
@@ -1887,6 +2014,7 @@ class LauncherView(context: Context) : View(context) {
                         event.y >= height * .275f && event.y <= height * .912f) {
                         val category = ((event.y - height * .275f) / (height * .091f)).toInt().coerceIn(0, 6)
                         settingsFocus = 30 + category
+                        animateSpatialFocus()
                         invalidate()
                         performClick()
                         return true
@@ -2178,8 +2306,8 @@ class LauncherView(context: Context) : View(context) {
         }
         if (clockEditMenuOpen) {
             when (keyCode) {
-                KeyEvent.KEYCODE_DPAD_UP -> clockEditChoice = (clockEditChoice - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_DOWN -> clockEditChoice = (clockEditChoice + 1).coerceAtMost(1)
+                KeyEvent.KEYCODE_DPAD_UP -> moveClockMenuFocus(SpatialFocusNavigator.UP)
+                KeyEvent.KEYCODE_DPAD_DOWN -> moveClockMenuFocus(SpatialFocusNavigator.DOWN)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> beginClockComponentEdit(if (clockEditChoice == 0) "resize" else "move")
                 KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> clockEditMenuOpen = false
             }
@@ -2204,8 +2332,8 @@ class LauncherView(context: Context) : View(context) {
         }
         if (actionMenuOpen) {
             when (keyCode) {
-                KeyEvent.KEYCODE_DPAD_UP -> actionMenuChoice = (actionMenuChoice - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_DOWN -> actionMenuChoice = (actionMenuChoice + 1).coerceAtMost(if (actionMenuSource == "home") 3 else 1)
+                KeyEvent.KEYCODE_DPAD_UP -> moveActionMenuFocus(SpatialFocusNavigator.UP)
+                KeyEvent.KEYCODE_DPAD_DOWN -> moveActionMenuFocus(SpatialFocusNavigator.DOWN)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     actionMenuSelectionConsumed = true
                     runAppAction()
@@ -2239,8 +2367,14 @@ class LauncherView(context: Context) : View(context) {
         }
         if (homeAppManageMode && !isSettingsOpen && !isDrawerOpen) {
             when (keyCode) {
-                KeyEvent.KEYCODE_DPAD_LEFT -> homeManageSlot = (homeManageSlot - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> homeManageSlot = (homeManageSlot + 1).coerceAtMost(favorites.size.coerceAtMost(4))
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    val next = moveHomeAppFocus(homeManageSlot, SpatialFocusNavigator.LEFT)
+                    if (next != homeManageSlot) { homeManageSlot = next; animateSpatialFocus() }
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    val next = moveHomeAppFocus(homeManageSlot, SpatialFocusNavigator.RIGHT)
+                    if (next != homeManageSlot) { homeManageSlot = next; animateSpatialFocus() }
+                }
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     isDrawerOpen = true
                     editingFavorites = true
@@ -2256,8 +2390,14 @@ class LauncherView(context: Context) : View(context) {
             when (keyCode) {
                 KeyEvent.KEYCODE_DPAD_UP -> homeIconScale = (homeIconScale + .05f).coerceAtMost(1.6f)
                 KeyEvent.KEYCODE_DPAD_DOWN -> homeIconScale = (homeIconScale - .05f).coerceAtLeast(.65f)
-                KeyEvent.KEYCODE_DPAD_LEFT -> homeIndex = (homeIndex - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> homeIndex = (homeIndex + 1).coerceAtMost(favorites.lastIndex)
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    val next = moveHomeAppFocus(homeIndex, SpatialFocusNavigator.LEFT)
+                    if (next != homeIndex) { homeIndex = next; animateSpatialFocus() }
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    val next = moveHomeAppFocus(homeIndex, SpatialFocusNavigator.RIGHT)
+                    if (next != homeIndex) { homeIndex = next; animateSpatialFocus() }
+                }
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     // Consume the long-press repeat that opened edit mode; only a fresh OK saves.
                     if (event.repeatCount == 0) {
@@ -2318,10 +2458,12 @@ class LauncherView(context: Context) : View(context) {
         if (isSettingsOpen) {
             if (settingsFocus in 30..36) {
                 when (keyCode) {
-                    KeyEvent.KEYCODE_DPAD_UP -> settingsFocus = (settingsFocus - 1).coerceAtLeast(30)
-                    KeyEvent.KEYCODE_DPAD_DOWN -> settingsFocus = (settingsFocus + 1).coerceAtMost(36)
-                    KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER ->
+                    KeyEvent.KEYCODE_DPAD_UP -> moveSettingsCategoryFocus(SpatialFocusNavigator.UP)
+                    KeyEvent.KEYCODE_DPAD_DOWN -> moveSettingsCategoryFocus(SpatialFocusNavigator.DOWN)
+                    KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                         settingsFocus = settingsCategoryControl(settingsFocus - 30)
+                        animateSpatialFocus()
+                    }
                     KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> { closeLauncherSettings(); return true }
                 }
                 invalidate()
@@ -2364,7 +2506,14 @@ class LauncherView(context: Context) : View(context) {
                         Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java)
                             .putExtra(com.xiaoli.quanlian.QuanLianActivity.EXTRA_WALLPAPER_MODE, true))
                     else if (settingsFocus == 6) context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
-                    else if (settingsFocus == 21) { isSettingsOpen = false; isDrawerOpen = true; editingFavorites = true; drawerIndex = 0; resetDrawerScroll() }
+                    else if (settingsFocus == 21) {
+                        isSettingsOpen = false
+                        isDrawerOpen = true
+                        returnToSettingsAfterDrawer = true
+                        editingFavorites = true
+                        drawerIndex = 0
+                        resetDrawerScroll()
+                    }
                     else if (settingsFocus == 13) closeLauncherSettings()
                     else if (settingsFocus == 14) onRequestDefaultHome?.invoke()
                     else if (settingsFocus == 7) runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
@@ -2378,37 +2527,13 @@ class LauncherView(context: Context) : View(context) {
                 KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> {
                     if (!homeAppManageMode) editingFavorites = !editingFavorites
                 }
-                KeyEvent.KEYCODE_DPAD_LEFT -> if (!drawerHeaderFocused) {
-                    val next = drawerMetrics().moveFocus(drawerIndex, -1, apps.size)
-                    if (next != drawerIndex) { drawerIndex = next; animateDrawerFocus() }
-                }
-                KeyEvent.KEYCODE_DPAD_RIGHT -> if (!drawerHeaderFocused) {
-                    val next = drawerMetrics().moveFocus(drawerIndex, 1, apps.size)
-                    if (next != drawerIndex) { drawerIndex = next; animateDrawerFocus() }
-                }
+                KeyEvent.KEYCODE_DPAD_LEFT -> moveDrawerSpatialFocus(SpatialFocusNavigator.LEFT)
+                KeyEvent.KEYCODE_DPAD_RIGHT -> moveDrawerSpatialFocus(SpatialFocusNavigator.RIGHT)
                 KeyEvent.KEYCODE_DPAD_UP -> {
-                    val metrics = drawerMetrics()
-                    // Enter the header only from the absolute first row of the app list.
-                    // The first visible row may be scrolled; it must remain part of the grid.
-                    if (!drawerHeaderFocused && (apps.isEmpty() || drawerIndex < metrics.columns)) {
-                        drawerHeaderFocused = true
-                        drawerFocusAnimator?.cancel()
-                        drawerFocusScale = 1f
-                    } else if (!drawerHeaderFocused) {
-                        val next = metrics.moveFocus(drawerIndex, -metrics.columns, apps.size)
-                        if (next != drawerIndex) { drawerIndex = next; animateDrawerFocus() }
-                    }
+                    if (apps.isEmpty() && !drawerHeaderFocused) drawerHeaderFocused = true
+                    else moveDrawerSpatialFocus(SpatialFocusNavigator.UP)
                 }
-                KeyEvent.KEYCODE_DPAD_DOWN -> {
-                    if (drawerHeaderFocused) {
-                        drawerHeaderFocused = false
-                        animateDrawerFocus()
-                    } else {
-                        val metrics = drawerMetrics()
-                        val next = metrics.moveFocus(drawerIndex, metrics.columns, apps.size)
-                        if (next != drawerIndex) { drawerIndex = next; animateDrawerFocus() }
-                    }
-                }
+                KeyEvent.KEYCODE_DPAD_DOWN -> moveDrawerSpatialFocus(SpatialFocusNavigator.DOWN)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     if (event.repeatCount == 0) {
                         event.startTracking()
@@ -2435,7 +2560,7 @@ class LauncherView(context: Context) : View(context) {
             KeyEvent.KEYCODE_DPAD_UP -> {
                 if (homeTopFocus == -1) moveHomeFocusToTop()
                 else {
-                    // A second UP from the top shortcuts retains the existing UP-to-open-drawer gesture.
+                    // Preserve the launcher's established UP gesture for opening the app drawer.
                     isDrawerOpen = true
                     homeTopFocus = -1
                     drawerIndex = 0
@@ -2451,19 +2576,11 @@ class LauncherView(context: Context) : View(context) {
                 }
             }
             KeyEvent.KEYCODE_DPAD_LEFT -> {
-                if (homeTopFocus in 0..2) {
-                    homeTopFocus = (homeTopFocus - 1).coerceAtLeast(0)
-                    if (homeTopFocus == 0 && !showClock && !showDate) homeTopFocus = 1
-                } else if (favorites.isNotEmpty()) homeIndex = (homeIndex - 1).coerceAtLeast(0)
-                invalidate()
+                moveHomeSpatialFocus(SpatialFocusNavigator.LEFT)
                 return true
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if (homeTopFocus in 0..2) {
-                    homeTopFocus = (homeTopFocus + 1).coerceAtMost(2)
-                    if (homeTopFocus == 0 && !showClock && !showDate) homeTopFocus = 1
-                } else if (favorites.isNotEmpty()) homeIndex = (homeIndex + 1).coerceAtMost(favorites.lastIndex)
-                invalidate()
+                moveHomeSpatialFocus(SpatialFocusNavigator.RIGHT)
                 return true
             }
         }

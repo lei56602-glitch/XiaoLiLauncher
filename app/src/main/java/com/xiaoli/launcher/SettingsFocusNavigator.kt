@@ -1,8 +1,8 @@
 package com.xiaoli.launcher
 
 /**
- * Directional focus graph for the TV settings screen.
- * Each category has its own graph because only that category's controls are visible.
+ * Settings page adapter for the shared spatial D-pad engine.
+ * Only controls visible in the selected category are registered as targets.
  */
 internal object SettingsFocusNavigator {
     private val rowsByCategory = mapOf(
@@ -34,24 +34,18 @@ internal object SettingsFocusNavigator {
         7 to .22f, 14 to .52f, 13 to .82f
     )
 
+    private fun targets(category: Int): List<FocusTarget> {
+        val rows = rowsByCategory[category] ?: return emptyList()
+        return rows.flatMapIndexed { rowIndex, row ->
+            row.map { id ->
+                FocusTarget(id, horizontalPosition[id] ?: .5f, rowIndex.toFloat())
+            }
+        }
+    }
+
     fun next(currentFocus: Int, direction: Int): Int {
         val category = categoryByFocus[currentFocus] ?: return currentFocus
-        val rows = rowsByCategory[category] ?: return currentFocus
-        val rowIndex = rows.indexOfFirst { currentFocus in it }
-        if (rowIndex < 0) return currentFocus
-
-        val row = rows[rowIndex]
-        return if (direction == -1 || direction == 1) {
-            val index = row.indexOf(currentFocus)
-            row[(index + direction).coerceIn(0, row.lastIndex)]
-        } else {
-            val targetRow = (rowIndex + if (direction < 0) -1 else 1)
-                .coerceIn(0, rows.lastIndex)
-            val currentX = horizontalPosition[currentFocus] ?: .5f
-            rows[targetRow].minByOrNull {
-                kotlin.math.abs((horizontalPosition[it] ?: .5f) - currentX)
-            } ?: currentFocus
-        }
+        return SpatialFocusNavigator.next(currentFocus, direction, targets(category))
     }
 
     fun supportedFocusIds(): Set<Int> = categoryByFocus.keys
