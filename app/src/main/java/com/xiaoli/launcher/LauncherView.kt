@@ -1398,27 +1398,29 @@ class LauncherView(context: Context) : View(context) {
             0 -> "控制中心"
             1 -> "电视信源"
             2 -> "音量控制"
-            else -> "屏幕亮度"
+            3 -> "屏幕亮度"
+            else -> "信源管理"
         }
         val subtitle = when (controlCenterPage) {
             0 -> "设备连接与快捷设置"
             1 -> "由 Android TV InputManager 实时识别"
             2 -> "左右键调节 · OK 切换静音"
-            else -> "系统允许时调节屏幕亮度"
+            3 -> "系统允许时调节屏幕亮度"
+            else -> "OK 固定/取消固定 · 左键显示/隐藏"
         }
         text(canvas, title, left, top, h * .037f, 0xFFF3FAFF.toInt(), true)
         text(canvas, subtitle, left, top + h * .045f, h * .018f, 0xBFE0F1FF.toInt())
 
         if (controlCenterPage == 0) {
-            val labels = listOf("网络与 Wi-Fi", "电视信源", "音量控制", "屏幕亮度", "小李桌面设置", "系统设置")
-            val subtitles = listOf("打开系统网络配置", "检测到 ${controlInputs.size} 个电视输入",
-                "媒体音量与静音", "系统允许时调节亮度", "壁纸、桌面与应用管理", "Android 设备设置")
-            val icons = listOf("◉", "▣", "♪", "☼", "⚙", "⌘")
-            val startY = panel.top + panel.height() * .225f
-            val gap = panel.height() * .116f
+            val labels = listOf("网络与 Wi-Fi", "电视信源", "信源管理", "音量控制", "屏幕亮度", "小李桌面设置", "系统设置")
+            val subtitles = listOf("打开系统网络配置", "检测到 ${visibleControlInputs().size} 个可显示输入",
+                "隐藏、固定电视输入", "媒体音量与静音", "系统允许时调节亮度", "壁纸、桌面与应用管理", "Android 设备设置")
+            val icons = listOf("◉", "▣", "☷", "♪", "☼", "⚙", "⌘")
+            val startY = panel.top + panel.height() * .205f
+            val gap = panel.height() * .099f
             labels.forEachIndexed { index, label ->
                 val rect = RectF(panel.left + panel.width() * .065f, startY + index * gap,
-                    panel.right - panel.width() * .065f, startY + index * gap + panel.height() * .095f)
+                    panel.right - panel.width() * .065f, startY + index * gap + panel.height() * .082f)
                 paint.color = if (index == controlCenterFocus) 0x775AB9F2 else 0x334D91C8
                 canvas.drawRoundRect(rect, h * .018f, h * .018f, paint)
                 if (index == controlCenterFocus) {
@@ -1437,14 +1439,15 @@ class LauncherView(context: Context) : View(context) {
                 text(canvas, "›", rect.right - rect.width() * .075f, rect.centerY() + h * .012f,
                     h * .034f, 0xFFEAF8FF.toInt(), true)
             }
-        } else if (controlCenterPage == 1) {
-            if (controlInputs.isEmpty()) {
+        } else if (controlCenterPage == 1 || controlCenterPage == 4) {
+            val shownInputs = if (controlCenterPage == 1) visibleControlInputs() else controlInputs
+            if (shownInputs.isEmpty()) {
                 text(canvas, "系统没有向应用公开可用的电视信源列表。", left,
                     panel.top + panel.height() * .31f, h * .018f, 0xFFEAF7FF.toInt())
                 text(canvas, "请通过电视系统设置管理输入源。", left,
                     panel.top + panel.height() * .36f, h * .015f, 0xBFE0F1FF.toInt())
             } else {
-                controlInputs.take(6).forEachIndexed { index, input ->
+                shownInputs.take(6).forEachIndexed { index, input ->
                     val rowTop = panel.top + panel.height() * (.225f + index * .112f)
                     val rect = RectF(panel.left + panel.width() * .065f, rowTop,
                         panel.right - panel.width() * .065f, rowTop + panel.height() * .092f)
@@ -1459,7 +1462,12 @@ class LauncherView(context: Context) : View(context) {
                     }
                     text(canvas, input.label, rect.left + rect.width() * .07f,
                         rect.top + rect.height() * .44f, h * .020f, 0xFFF4FAFF.toInt(), true)
-                    text(canvas, input.kind, rect.left + rect.width() * .07f,
+                    val detail = if (controlCenterPage == 1) input.kind else {
+                        val pinned = input.id in pinnedControlInputIds()
+                        val hidden = input.id in hiddenControlInputIds()
+                        (if (pinned) "已固定" else "未固定") + " · " + (if (hidden) "已隐藏" else "显示中")
+                    }
+                    text(canvas, detail, rect.left + rect.width() * .07f,
                         rect.top + rect.height() * .76f, h * .013f, 0xBFD5E9FA.toInt())
                     text(canvas, "›", rect.right - rect.width() * .08f,
                         rect.centerY() + h * .010f, h * .032f, 0xFFEAF8FF.toInt(), true)
