@@ -149,6 +149,7 @@ class LauncherView(context: Context) : View(context) {
     private var controlCenterOpen = false
     private var controlCenterPage = 0
     private var controlCenterFocus = 0
+    private var controlCenterInputOffset = 0
     private var controlCenterReturnFocus = -1
     private data class ControlInput(val id: String, val label: String, val kind: String, val setupIntent: Intent?)
     private var controlInputs: List<ControlInput> = emptyList()
@@ -560,8 +561,9 @@ class LauncherView(context: Context) : View(context) {
             actionMenuOpen -> actionMenuOpen = false
             controlCenterOpen -> {
                 if (controlCenterPage != 0) {
+                    val previousPage = controlCenterPage
                     controlCenterPage = 0
-                    controlCenterFocus = 0
+                    controlCenterFocus = when (previousPage) { 1 -> 1; 4 -> 2; 2 -> 3; 3 -> 4; else -> 0 }
                 } else {
                     controlCenterOpen = false
                     homeTopFocus = controlCenterReturnFocus
@@ -1347,21 +1349,21 @@ class LauncherView(context: Context) : View(context) {
                         runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                     }
                 }
-                1 -> { refreshControlInputs(); controlCenterPage = 1; controlCenterFocus = 0 }
-                2 -> { refreshControlInputs(); controlCenterPage = 4; controlCenterFocus = 0 }
+                1 -> { refreshControlInputs(); controlCenterPage = 1; controlCenterFocus = 0; controlCenterInputOffset = 0 }
+                2 -> { refreshControlInputs(); controlCenterPage = 4; controlCenterFocus = 0; controlCenterInputOffset = 0 }
                 3 -> { controlCenterPage = 2; controlCenterFocus = 0 }
                 4 -> { controlCenterPage = 3; controlCenterFocus = 0 }
                 5 -> { controlCenterOpen = false; openLauncherSettings() }
                 6 -> runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             }
             1 -> {
-                val input = visibleControlInputs().getOrNull(controlCenterFocus)
+                val input = visibleControlInputs().getOrNull(controlCenterInputOffset + controlCenterFocus)
                 if (input != null) openControlInput(input)
                 else runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             }
             2 -> toggleControlMute()
             3 -> adjustControlBrightness(0)
-            4 -> visibleControlInputs().getOrNull(controlCenterFocus)?.let(::toggleControlInputPinned)
+            4 -> controlInputs.getOrNull(controlCenterInputOffset + controlCenterFocus)?.let(::toggleControlInputPinned)
         }
         invalidate()
     }
@@ -1440,7 +1442,8 @@ class LauncherView(context: Context) : View(context) {
                     h * .034f, 0xFFEAF8FF.toInt(), true)
             }
         } else if (controlCenterPage == 1 || controlCenterPage == 4) {
-            val shownInputs = if (controlCenterPage == 1) visibleControlInputs() else controlInputs
+            val shownInputs = (if (controlCenterPage == 1) visibleControlInputs() else controlInputs)
+                .drop(controlCenterInputOffset)
             if (shownInputs.isEmpty()) {
                 text(canvas, "系统没有向应用公开可用的电视信源列表。", left,
                     panel.top + panel.height() * .31f, h * .018f, 0xFFEAF7FF.toInt())
@@ -2632,7 +2635,7 @@ class LauncherView(context: Context) : View(context) {
                     1 -> { controlCenterPage = 0; controlCenterFocus = 1 }
                     2 -> adjustControlVolume(-1)
                     3 -> adjustControlBrightness(-1)
-                    4 -> controlInputs.getOrNull(controlCenterFocus)?.let(::toggleControlInputHidden)
+                    4 -> controlInputs.getOrNull(controlCenterInputOffset + controlCenterFocus)?.let(::toggleControlInputHidden)
                 }
                 KeyEvent.KEYCODE_DPAD_RIGHT -> when (controlCenterPage) {
                     1 -> activateControlCenterItem()
