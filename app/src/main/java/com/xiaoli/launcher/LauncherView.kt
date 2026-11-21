@@ -1603,82 +1603,44 @@ class LauncherView(context: Context) : View(context) {
         invalidate()
     }
 
-    private fun controlNetworkLabel(): String = runCatching {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val network = cm.activeNetwork ?: return@runCatching "未连接网络"
-        val caps = cm.getNetworkCapabilities(network) ?: return@runCatching "网络状态未知"
-        when {
-            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET) -> "以太网已连接"
-            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> {
-                @Suppress("DEPRECATION")
-                val ssid = (context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager)
-                    .connectionInfo?.ssid?.trim('"')?.takeUnless { it.isBlank() || it == "<unknown ssid>" }
-                ssid?.let { "Wi-Fi · $it" } ?: "Wi-Fi 已连接"
+    private fun controlNetworkLabel(): String {
+        val now = SystemClock.elapsedRealtime()
+        if (now - networkLabelCheckedAt < 3000L) return cachedNetworkLabel
+        networkLabelCheckedAt = now
+        cachedNetworkLabel = runCatching {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val network = cm.activeNetwork ?: return@runCatching "未连接网络"
+            val caps = cm.getNetworkCapabilities(network) ?: return@runCatching "网络状态未知"
+            when {
+                caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET) -> "以太网已连接"
+                caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> {
+                    @Suppress("DEPRECATION")
+                    val ssid = (context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager)
+                        .connectionInfo?.ssid?.trim('"')?.takeUnless { it.isBlank() || it == "<unknown ssid>" }
+                    ssid?.let { "Wi-Fi · $it" } ?: "Wi-Fi 已连接"
+                }
+                else -> "网络已连接"
             }
-            else -> "网络已连接"
-        }
-    }.getOrDefault("网络状态未知")
-
-    private val hisenseTvManagerClass by lazy {
-        runCatching { Class.forName("com.jamdeo.tv.TvManager") }.getOrNull()
+        }.getOrDefault("网络状态未知")
+        return cachedNetworkLabel
     }
-    @Volatile
-    private var hisensePictureManager: Any? = null
 
-    private fun hisensePictureManager(): Any? {
-        hisensePictureManager?.let { return it }
-        synchronized(this) {
-            hisensePictureManager?.let { return it }
-            val clazz = hisenseTvManagerClass ?: return null
-            val manager = runCatching {
-                val tv = clazz.getMethod("getInstance").invoke(null) ?: return null
-                tv.javaClass.getMethod("getPictureManager", Context::class.java)
-                    .invoke(tv, context.applicationContext)
-            }.getOrNull() ?: return null
-            hisensePictureManager = manager
-            return manager
+    private fun openControlNetworkSettings() {
+        val xgimi = Intent("com.xgimi.settings.SETTINGS")
+            .setComponent(ComponentName("com.android.newsettings", "com.xgimi.newsettings.SettingService"))
+            .putExtra("data", "Settings://com.xgimi.settings.net/wifi_misckey")
+            .putExtra("packageName", "com.xgimi.misckey")
+            .putExtra("unlocked", false)
+        if (runCatching {
+                context.packageManager.resolveService(xgimi, 0)?.serviceInfo?.exported == true &&
+                    context.startService(xgimi) != null
+            }.getOrDefault(false)) return
+        for (action in listOf(Settings.ACTION_WIFI_SETTINGS, Settings.ACTION_WIRELESS_SETTINGS, Settings.ACTION_SETTINGS)) {
+            if (runCatching {
+                    context.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }.isSuccess) return
         }
     }
-
-    private fun hisenseMethod(target: Any, name: String): java.lang.reflect.Method? =
-        runCatching { target.javaClass.getMethod(name) }.getOrNull()
-
-    private fun hisenseLaserLevel(): Int? = runCatching {
-        val manager = hisensePictureManager() ?: return@runCatching null
-        if (hisenseMethod(manager, "getLaserOverLapOrCL0Mode") == null) return@runCatching null
-        (hisenseMethod(manager, "getCustomBacklight")?.invoke(manager) as? Int)?.takeIf { it in 0..10 }
-    }.getOrNull()
-
-    private fun setHisenseLaserLevel(level: Int): Boolean = runCatching {
-        val manager = hisensePictureManager() ?: return@runCatching false
-        val intType = Int::class.javaPrimitiveType ?: return@runCatching false
-        manager.javaClass.getMethod("setBacklightMode", intType).invoke(manager, 0)
-        manager.javaClass.getMethod("setCustomBacklight", intType).invoke(manager, level.coerceIn(0, 10))
-        true
-    }.getOrDefault(false)
-
-    private val xgimiDisplayManagerClass by lazy {
-        runCatching { Class.forName("com.xgimi.gmpf.api.DisplayManager") }.getOrNull()
-    }
-
-    private fun xgimiDisplayManager(): Any? {
-        val clazz = xgimiDisplayManagerClass ?: return null
-        return runCatching { clazz.getMethod("getInstance").invoke(null) }.getOrNull()
-            ?: runCatching { clazz.getDeclaredConstructor().also { it.isAccessible = true }.newInstance() }.getOrNull()
-    }
-
-    private fun xgimiBrightnessLevel(): Int? = runCatching {
-        val manager = xgimiDisplayManager() ?: return@runCatching null
-        val getter = xgimiDisplayManagerClass?.getMethod("getDlpLumensLevel") ?: return@runCatching null
-        ((getter.invoke(manager) as? Number)?.toInt()?.and(0xFF))?.coerceIn(1, 10)
-    }.getOrNull()
-
-    private fun setXgimiBrightnessLevel(level: Int): Boolean = runCatching {
-        val clazz = xgimiDisplayManagerClass ?: return@runCatching false
-        val manager = xgimiDisplayManager() ?: return@runCatching false
-        clazz.getMethod("setDlpLumensLevel", java.lang.Byte.TYPE).invoke(manager, level.coerceIn(1, 10).toByte())
-        true
-    }.getOrDefault(false)
 
     private fun hasVendorBrightnessBackend(): Boolean {
         if (hisenseLaserLevel() != null || xgimiBrightnessLevel() != null) return false
