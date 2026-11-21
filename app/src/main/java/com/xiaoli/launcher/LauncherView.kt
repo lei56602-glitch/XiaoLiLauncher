@@ -2503,6 +2503,8 @@ class LauncherView(context: Context) : View(context) {
                                 val target = (fraction * max).toInt().coerceIn(0, max)
                                 runCatching { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0) }
                             }
+                        } else if (xgimiBrightnessLevel() != null) {
+                            setXgimiBrightnessLevel((fraction * 10f).toInt().coerceIn(1, 10))
                         } else if (isPlaybackDevice() || hasVendorBrightnessBackend() ||
                             Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context)) {
                             adjustControlBrightness(0)
