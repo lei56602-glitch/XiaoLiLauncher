@@ -2140,13 +2140,15 @@ class LauncherView(context: Context) : View(context) {
                         }
                     } else {
                         val row = if (controlCenterPage == 0) {
-                            val first = height * .075f + height * .85f * .225f
-                            val gap = height * .85f * .116f
-                            ((event.y - first) / gap).toInt().coerceIn(0, 5)
+                            val first = height * .075f + height * .85f * .205f
+                            val gap = height * .85f * .099f
+                            ((event.y - first) / gap).toInt().coerceIn(0, 6)
                         } else {
                             val first = height * .075f + height * .85f * .225f
                             val gap = height * .85f * .112f
-                            ((event.y - first) / gap).toInt().coerceIn(0, minOf(5, controlInputs.lastIndex.coerceAtLeast(0)))
+                            val maxIndex = if (controlCenterPage == 1)
+                                visibleControlInputs().lastIndex else controlInputs.lastIndex
+                            ((event.y - first) / gap).toInt().coerceIn(0, minOf(5, maxIndex.coerceAtLeast(0)))
                         }
                         controlCenterFocus = row
                         activateControlCenterItem()
@@ -2617,8 +2619,9 @@ class LauncherView(context: Context) : View(context) {
         }
         if (controlCenterOpen) {
             val count = when (controlCenterPage) {
-                0 -> 6
-                1 -> controlInputs.size.coerceAtLeast(1).coerceAtMost(6)
+                0 -> 7
+                1 -> visibleControlInputs().size.coerceAtLeast(1).coerceAtMost(6)
+                4 -> controlInputs.size.coerceAtLeast(1).coerceAtMost(6)
                 else -> 1
             }
             when (keyCode) {
@@ -2629,6 +2632,7 @@ class LauncherView(context: Context) : View(context) {
                     1 -> { controlCenterPage = 0; controlCenterFocus = 1 }
                     2 -> adjustControlVolume(-1)
                     3 -> adjustControlBrightness(-1)
+                    4 -> controlInputs.getOrNull(controlCenterFocus)?.let(::toggleControlInputHidden)
                 }
                 KeyEvent.KEYCODE_DPAD_RIGHT -> when (controlCenterPage) {
                     1 -> activateControlCenterItem()
