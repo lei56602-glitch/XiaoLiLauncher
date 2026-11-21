@@ -577,7 +577,7 @@ class LauncherView(context: Context) : View(context) {
                 homeIconEditMode = false
             }
             homeAppManageMode -> homeAppManageMode = false
-            homeTopFocus in 0..2 -> homeTopFocus = -1
+            homeTopFocus in 0..1 -> homeTopFocus = -1
             else -> {
                 // Back on the launcher home screen should not close the default Home activity.
                 invalidate()
@@ -689,7 +689,7 @@ class LauncherView(context: Context) : View(context) {
     fun closeLauncherSettings() {
         isSettingsOpen = false
         when (settingsReturnHomeFocus) {
-            in 100..102 -> homeTopFocus = settingsReturnHomeFocus - 100
+            in 100..101 -> homeTopFocus = settingsReturnHomeFocus - 100
             in 0..4 -> { homeIndex = settingsReturnHomeFocus; homeTopFocus = -1 }
         }
         settingsReturnHomeFocus = -1
@@ -826,32 +826,6 @@ class LauncherView(context: Context) : View(context) {
         clockComponentEditMode = false
         clockEditOriginal = emptyList()
         invalidate()
-    }
-
-    private fun drawWifiShortcut(c: Canvas, w: Float, h: Float) {
-        val connected = runCatching {
-            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            val network = cm.activeNetwork
-            network != null && cm.getNetworkCapabilities(network)?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) == true
-        }.getOrDefault(false)
-        val x = w * .88f
-        val y = h * .078f
-        paint.color = if (connected) 0xFFFFFFFF.toInt() else 0xFF111111.toInt()
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = (h * .0032f).coerceAtLeast(2f)
-        paint.strokeCap = Paint.Cap.ROUND
-        val path = Path().apply {
-            moveTo(x - h * .024f, y - h * .006f)
-            quadTo(x, y - h * .030f, x + h * .024f, y - h * .006f)
-            moveTo(x - h * .016f, y + h * .004f)
-            quadTo(x, y - h * .014f, x + h * .016f, y + h * .004f)
-            moveTo(x - h * .007f, y + h * .014f)
-            quadTo(x, y + h * .006f, x + h * .007f, y + h * .014f)
-        }
-        c.drawPath(path, paint)
-        paint.style = Paint.Style.FILL
-        c.drawCircle(x, y + h * .021f, h * .0038f, paint)
-        paint.strokeCap = Paint.Cap.BUTT
     }
 
     private fun drawSelectedWidgetOutline(c: Canvas) {
@@ -1172,13 +1146,12 @@ class LauncherView(context: Context) : View(context) {
 
     private fun drawHomeTopFocus(c: Canvas, w: Float, h: Float) {
         if (isDrawerOpen || isSettingsOpen || widgetEditMode || homeIconEditMode || homePositionEditMode ||
-            homeAppManageMode || homeTopFocus !in 0..2) return
+            homeAppManageMode || homeTopFocus !in 0..1) return
         if (homeTopFocus == 0 && !showClock && !showDate) return
         val rect = when (homeTopFocus) {
             0 -> RectF(w * (clockX - .025f), h * (clockY - .045f),
                 w * (clockX + .245f), h * (clockY + .065f * clockScale))
-            1 -> wifiShortcutRect(w, h)
-            else -> settingsShortcutRect(w, h)
+            else -> controlCenterShortcutRect(w, h)
         }
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = (h * .004f).coerceAtLeast(2.5f)
@@ -1192,7 +1165,7 @@ class LauncherView(context: Context) : View(context) {
 
     private fun homeTopFocusCenterX(target: Int, w: Float): Float = when (target) {
         0 -> w * (clockX + .10f)
-        1, 2 -> w * .94f
+        1 -> w * .94f
         else -> w * .94f
     }
 
@@ -1225,13 +1198,13 @@ class LauncherView(context: Context) : View(context) {
 
     private fun moveHomeSpatialFocus(direction: Int) {
         val targets = homeFocusTargets()
-        val currentId = if (homeTopFocus in 0..2) 100 + homeTopFocus else homeIndex
+        val currentId = if (homeTopFocus in 0..1) 100 + homeTopFocus else homeIndex
         val current = targets.firstOrNull { it.id == currentId } ?: return
         val next = SpatialFocusNavigator.next(currentId, direction, targets)
         if (next != currentId) {
             when (next) {
                 in 0..4 -> { homeIndex = next; homeTopFocus = -1 }
-                in 100..102 -> homeTopFocus = next - 100
+                in 100..101 -> homeTopFocus = next - 100
             }
             animateSpatialFocus()
         }
@@ -1356,7 +1329,7 @@ class LauncherView(context: Context) : View(context) {
     private fun activateHomeTopFocus() {
         when (homeTopFocus) {
             0 -> openClockEditMenu()
-            1, 2 -> openControlCenter()
+            1 -> openControlCenter()
         }
     }
 
@@ -1485,27 +1458,6 @@ class LauncherView(context: Context) : View(context) {
         paint.textAlign = Paint.Align.LEFT
     }
 
-    private fun drawSettingsShortcut(c: Canvas, w: Float, h: Float) {
-        val cx = w * .96f
-        val cy = h * .078f
-        val outerRadius = h * .024f
-        val innerRadius = h * .017f
-        paint.color = 0xFFFFFFFF.toInt()
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = (h * .0032f).coerceAtLeast(2f)
-        val gear = Path()
-        for (i in 0 until 24) {
-            val angle = Math.PI * 2.0 * i / 24.0 - Math.PI / 2.0
-            val radius = if (i % 2 == 0) outerRadius else outerRadius * .82f
-            val px = cx + kotlin.math.cos(angle).toFloat() * radius
-            val py = cy + kotlin.math.sin(angle).toFloat() * radius
-            if (i == 0) gear.moveTo(px, py) else gear.lineTo(px, py)
-        }
-        gear.close()
-        c.drawPath(gear, paint)
-        c.drawCircle(cx, cy, innerRadius, paint)
-        paint.style = Paint.Style.FILL
-    }
     private fun drawUnifiedAppIcon(c: Canvas, app: AppEntry, rect: RectF, focused: Boolean) {
         val drawable = appIconCache.getOrPut(app.packageName) {
             runCatching { context.packageManager.getApplicationIcon(app.packageName) }
@@ -1625,7 +1577,7 @@ class LauncherView(context: Context) : View(context) {
 
     private fun openLauncherSettings(initialFocus: Int = 30) {
         if (!isSettingsOpen) {
-            settingsReturnHomeFocus = if (homeTopFocus in 0..2) 100 + homeTopFocus else homeIndex
+            settingsReturnHomeFocus = if (homeTopFocus in 0..1) 100 + homeTopFocus else homeIndex
         }
         isDrawerOpen = false
         isSettingsOpen = true
@@ -2578,7 +2530,7 @@ class LauncherView(context: Context) : View(context) {
         if ((keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
             !event.isCanceled && !event.isLongPress && !actionMenuOpen &&
             !isSettingsOpen && !widgetEditMode && !homeIconEditMode && !homePositionEditMode) {
-            if (!isDrawerOpen && homeTopFocus in 0..2) {
+            if (!isDrawerOpen && homeTopFocus in 0..1) {
                 if (homeTopFocus == 0) openClockEditMenu() else activateHomeTopFocus()
                 return true
             }
@@ -2755,7 +2707,7 @@ class LauncherView(context: Context) : View(context) {
         }
         if (!widgetEditMode && !isSettingsOpen && !isDrawerOpen &&
             (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
-            (homeTopFocus in 0..2 || favorites.isNotEmpty()) && !event.isLongPress) {
+            (homeTopFocus in 0..1 || favorites.isNotEmpty()) && !event.isLongPress) {
             if (event.repeatCount == 0) {
                 event.startTracking()
                 if (homeTopFocus == -1) beginOkPressTracking("home", homeIndex)
@@ -2905,7 +2857,7 @@ class LauncherView(context: Context) : View(context) {
                 return true
             }
             KeyEvent.KEYCODE_DPAD_DOWN -> {
-                if (homeTopFocus in 0..2) {
+                if (homeTopFocus in 0..1) {
                     moveHomeFocusToApps()
                     return true
                 }
