@@ -30,6 +30,8 @@ import android.provider.Settings
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.animation.ValueAnimator
+import android.view.animation.DecelerateInterpolator
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -104,6 +106,8 @@ class LauncherView(context: Context) : View(context) {
     private val appIconCache = mutableMapOf<String, android.graphics.drawable.Drawable>()
     private var drawerIndex = 0
     private var drawerScrollRow = 0
+    private var drawerScrollVisualRow = 0f
+    private var drawerScrollAnimator: ValueAnimator? = null
     // Header action is a first-class D-pad target, separate from the app grid.
     private var drawerHeaderFocused = false
     private var homeIndex = 0
@@ -137,6 +141,7 @@ class LauncherView(context: Context) : View(context) {
     private val okLongPressRunnable = Runnable {
         if (okPressPending && !okLongPressTriggered) {
             okLongPressTriggered = true
+            longPressReleaseConsumed = true
             when (okPressSource) {
                 "home" -> favorites.getOrNull(okPressIndex)?.takeIf { it.packageName != emptySlot.packageName }
                     ?.let { openAppActionMenu("home", okPressIndex, it) }
@@ -145,6 +150,31 @@ class LauncherView(context: Context) : View(context) {
             }
             invalidate()
         }
+    }
+
+    private fun animateDrawerScrollTo(targetRow: Int) {
+        drawerScrollAnimator?.cancel()
+        val target = targetRow.toFloat().coerceAtLeast(0f)
+        if (kotlin.math.abs(drawerScrollVisualRow - target) < .01f) {
+            drawerScrollVisualRow = target
+            invalidate()
+            return
+        }
+        drawerScrollAnimator = ValueAnimator.ofFloat(drawerScrollVisualRow, target).apply {
+            duration = 260L
+            interpolator = DecelerateInterpolator(1.6f)
+            addUpdateListener { animator ->
+                drawerScrollVisualRow = animator.animatedValue as Float
+                invalidate()
+            }
+            start()
+        }
+    }
+
+    private fun resetDrawerScroll() {
+        drawerScrollAnimator?.cancel()
+        resetDrawerScroll()
+        drawerScrollVisualRow = 0f
     }
 
     private fun beginOkPressTracking(source: String, index: Int) {
@@ -297,6 +327,7 @@ class LauncherView(context: Context) : View(context) {
     private var okPressSource = ""
     private var okPressIndex = -1
     private var actionMenuSelectionConsumed = false
+    private var longPressReleaseConsumed = false
 
     private fun saveFavorites() {
         while (favorites.size < 5) favorites.add(emptySlot)
@@ -419,7 +450,7 @@ class LauncherView(context: Context) : View(context) {
                     isDrawerOpen = true
                     editingFavorites = true
                     drawerIndex = 0
-                    drawerScrollRow = 0
+                    resetDrawerScroll()
                 }
                 1 -> { hideDesktopApp(actionMenuIndex); actionMenuOpen = false }
                 2 -> { actionMenuOpen = false; beginHomePositionEdit(actionMenuIndex) }
@@ -428,13 +459,16 @@ class LauncherView(context: Context) : View(context) {
                     isDrawerOpen = true
                     editingFavorites = false
                     drawerIndex = 0
-                    drawerScrollRow = 0
+                    resetDrawerScroll()
                 }
             }
         } else {
             if (actionMenuChoice == 0 && app != null) {
-                if (favorites.any { it.packageName == app.packageName }) {
-                    android.widget.Toast.makeText(context, "该应用已经在桌面", android.widget.Toast.LENGTH_SHORT).show()
+                val existing = favorites.indexOfFirst { it.packageName == app.packageName }
+                if (existing >= 0) {
+                    favorites[existing] = emptySlot
+                    saveFavorites()
+                    android.widget.Toast.makeText(context, "已从主屏幕移除", android.widget.Toast.LENGTH_SHORT).show()
                 } else {
                     val slot = favorites.indexOfFirst { it.packageName == emptySlot.packageName }
                     if (slot >= 0) {
@@ -458,7 +492,8 @@ class LauncherView(context: Context) : View(context) {
             else RectF(w * .34f, h * .31f, w * .66f, h * .70f)
         paint.color = 0xF20A3470.toInt()
         c.drawRoundRect(panel, h * .025f, h * .025f, paint)
-        val options = if (actionMenuSource == "home") listOf("移动 APP", "隐藏 APP", "调整位置", "返回抽屉") else listOf("加入主屏幕", "返回")
+        val drawerAppAlreadyPinned = actionMenuSource == "drawer" && favorites.any { it.packageName == actionMenuPackage }
+        val options = if (actionMenuSource == "home") listOf("移动 APP", "隐藏 APP", "调整位置", "返回抽屉") else listOf(if (drawerAppAlreadyPinned) "从主屏幕移除" else "加入主屏幕", "返回")
         text(c, if (actionMenuSource == "home") "桌面应用管理" else "添加到主屏幕",
             panel.left + panel.width() * .09f, panel.top + panel.height() * (if (actionMenuSource == "home") .16f else .20f), h * .031f, -1, true)
         options.forEachIndexed { i, label ->
@@ -1106,13 +1141,14 @@ class LauncherView(context: Context) : View(context) {
         val totalRows = metrics.totalRows(apps.size)
         val maxScroll = metrics.maxScroll(apps.size)
         drawerScrollRow = drawerScrollRow.coerceIn(0, maxScroll)
+        drawerScrollVisualRow = drawerScrollVisualRow.coerceIn(0f, maxScroll.toFloat())
         val clipSave = c.save()
         c.clipRect(gridLeft, contentTop, gridRight, contentBottom)
         apps.forEachIndexed { i, app ->
             val row = i / cols
             val col = i % cols
             val left = gridLeft + col * cellW
-            val top = contentTop + (row - drawerScrollRow) * cellH
+            val top = contentTop + (row - drawerScrollVisualRow) * cellH
             val cell = RectF(left + cellW * .035f, top + cellH * .025f,
                 left + cellW * .965f, top + cellH * .965f)
             // Icon frame and title line are separate visual elements.
@@ -1785,7 +1821,7 @@ class LauncherView(context: Context) : View(context) {
                                 isDrawerOpen = true
                                 editingFavorites = true
                                 drawerIndex = 0
-                                drawerScrollRow = 0
+                                resetDrawerScroll()
                             }
                             3 -> {
                                 if (event.y in (height * .34f)..(height * .49f)) {
@@ -1855,11 +1891,11 @@ class LauncherView(context: Context) : View(context) {
                     isDrawerOpen = true
                     editingFavorites = true
                     drawerIndex = 0
-                    drawerScrollRow = 0
+                    resetDrawerScroll()
                 } else if (dy < -height * .06f) {
                     isDrawerOpen = true
                     drawerIndex = 0
-                    drawerScrollRow = 0
+                    resetDrawerScroll()
                 } else if (kotlin.math.abs(dx) > width * .08f && kotlin.math.abs(dx) > kotlin.math.abs(dy)) {
                     if (favorites.isNotEmpty()) {
                         homeIndex = if (dx < 0) (homeIndex + 1).coerceAtMost(favorites.lastIndex)
@@ -1899,12 +1935,12 @@ class LauncherView(context: Context) : View(context) {
                             isDrawerOpen = true
                             editingFavorites = true
                             drawerIndex = 0
-                            drawerScrollRow = 0
+                            resetDrawerScroll()
                         } else app?.let { runCatching { context.startActivity(it.intent) } }
                     } else if (event.y > height * .78f && event.x < width * .42f) {
                         isDrawerOpen = true
                         drawerIndex = 0
-                        drawerScrollRow = 0
+                        resetDrawerScroll()
                     } else if (event.y < height * .16f && event.x < width * .28f) {
                         openLauncherSettings()
                     }
@@ -1943,6 +1979,7 @@ class LauncherView(context: Context) : View(context) {
             handler.removeCallbacks(okLongPressRunnable)
             okPressPending = false
             okLongPressTriggered = true
+            longPressReleaseConsumed = true
             favorites.getOrNull(homeIndex)?.let { openAppActionMenu("home", homeIndex, it) }
             return true
         }
@@ -1951,6 +1988,7 @@ class LauncherView(context: Context) : View(context) {
             handler.removeCallbacks(okLongPressRunnable)
             okPressPending = false
             okLongPressTriggered = true
+            longPressReleaseConsumed = true
             apps.getOrNull(drawerIndex)?.let { openAppActionMenu("drawer", drawerIndex, it) }
             return true
         }
@@ -1970,6 +2008,11 @@ class LauncherView(context: Context) : View(context) {
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if ((keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) && longPressReleaseConsumed) {
+            longPressReleaseConsumed = false
+            finishOkPressTracking()
+            return true
+        }
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
             if (actionMenuSelectionConsumed) {
                 actionMenuSelectionConsumed = false
@@ -1997,7 +2040,7 @@ class LauncherView(context: Context) : View(context) {
                         isDrawerOpen = true
                         editingFavorites = true
                         drawerIndex = 0
-                        drawerScrollRow = 0
+                        resetDrawerScroll()
                         invalidate()
                     } else runCatching { context.startActivity(app.intent) }
                 }
@@ -2058,7 +2101,7 @@ class LauncherView(context: Context) : View(context) {
                     isDrawerOpen = true
                     editingFavorites = true
                     drawerIndex = 0
-                    drawerScrollRow = 0
+                    resetDrawerScroll()
                 }
                 KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> homeAppManageMode = false
             }
@@ -2174,7 +2217,7 @@ class LauncherView(context: Context) : View(context) {
                     else if (settingsFocus == 4) toggleDynamicWallpaper()
                     else if (settingsFocus == 5) clearWallpaper()
                     else if (settingsFocus == 6) context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
-                    else if (settingsFocus == 21) { isSettingsOpen = false; isDrawerOpen = true; editingFavorites = true; drawerIndex = 0; drawerScrollRow = 0 }
+                    else if (settingsFocus == 21) { isSettingsOpen = false; isDrawerOpen = true; editingFavorites = true; drawerIndex = 0; resetDrawerScroll() }
                     else if (settingsFocus == 13) closeLauncherSettings()
                     else if (settingsFocus == 14) onRequestDefaultHome?.invoke()
                     else if (settingsFocus == 7) runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
@@ -2221,6 +2264,7 @@ class LauncherView(context: Context) : View(context) {
                 focusedRow >= drawerScrollRow + visibleRows -> focusedRow - visibleRows + 1
                 else -> drawerScrollRow
             }.coerceIn(0, maxScroll)
+            animateDrawerScrollTo(drawerScrollRow)
             invalidate(); return true
         }
         when (keyCode) {
@@ -2232,7 +2276,7 @@ class LauncherView(context: Context) : View(context) {
                     isDrawerOpen = true
                     homeTopFocus = -1
                     drawerIndex = 0
-                    drawerScrollRow = 0
+                    resetDrawerScroll()
                     invalidate()
                 }
                 return true
