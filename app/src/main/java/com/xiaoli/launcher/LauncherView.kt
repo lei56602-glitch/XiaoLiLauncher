@@ -142,6 +142,11 @@ class LauncherView(context: Context) : View(context) {
     var isDrawerOpen = false
         private set
     private var isSettingsOpen = false
+    // Unified Aerial-style glass control center. Page 0 is the overview; page 1 is inputs.
+    private var controlCenterOpen = false
+    private var controlCenterPage = 0
+    private var controlCenterFocus = 0
+    private var controlCenterReturnFocus = -1
     private var settingsReturnHomeFocus = -1
     private var returnToSettingsAfterDrawer = false
     val isLauncherSettingsOpen: Boolean get() = isSettingsOpen
@@ -547,6 +552,17 @@ class LauncherView(context: Context) : View(context) {
             clockEditMenuOpen -> clockEditMenuOpen = false
             clockComponentEditMode -> finishClockComponentEdit(false)
             actionMenuOpen -> actionMenuOpen = false
+            controlCenterOpen -> {
+                if (controlCenterPage != 0) {
+                    controlCenterPage = 0
+                    controlCenterFocus = 0
+                } else {
+                    controlCenterOpen = false
+                    homeTopFocus = controlCenterReturnFocus
+                    controlCenterReturnFocus = -1
+                    animateSpatialFocus()
+                }
+            }
             isSettingsOpen -> closeLauncherSettings()
             isDrawerOpen -> closeDrawer()
             widgetEditMode -> toggleWidgetEditMode()
@@ -691,6 +707,7 @@ class LauncherView(context: Context) : View(context) {
             else -> drawHome(canvas, w, h)
         }
         if (actionMenuOpen) drawAppActionMenu(canvas)
+        if (controlCenterOpen) drawControlCenter(canvas)
         if (clockEditMenuOpen || clockComponentEditMode) drawClockEditOverlay(canvas)
     }
 
@@ -1197,18 +1214,126 @@ class LauncherView(context: Context) : View(context) {
 
     private fun moveHomeFocusToApps() = moveHomeSpatialFocus(SpatialFocusNavigator.DOWN)
 
+    private fun openControlCenter() {
+        if (!controlCenterOpen) controlCenterReturnFocus = homeTopFocus
+        controlCenterOpen = true
+        controlCenterPage = 0
+        controlCenterFocus = 0
+        homeTopFocus = -1
+        animateSpatialFocus()
+        invalidate()
+    }
+
+    private fun activateControlCenterItem() {
+        when (controlCenterPage) {
+            0 -> when (controlCenterFocus) {
+                0 -> {
+                    val intent = Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    runCatching { context.startActivity(intent) }.onFailure {
+                        runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    }
+                }
+                1 -> { controlCenterPage = 1; controlCenterFocus = 0 }
+                2 -> { controlCenterOpen = false; openLauncherSettings() }
+                3 -> runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            }
+            1 -> {
+                // Android TV vendors expose input switching through different system activities.
+                val candidates = listOf("android.intent.action.TV_INPUT", "android.settings.HDMI_SETTINGS")
+                var launched = false
+                for (action in candidates) {
+                    if (runCatching { context.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true }.getOrDefault(false)) {
+                        launched = true
+                        break
+                    }
+                }
+                if (!launched) runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            }
+        }
+        invalidate()
+    }
+
     private fun activateHomeTopFocus() {
         when (homeTopFocus) {
             0 -> openClockEditMenu()
-            1 -> runCatching {
-                context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            }.onFailure {
-                runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-            }
-            2 -> openLauncherSettings()
+            1, 2 -> openControlCenter()
         }
+    }
+
+    private fun drawControlCenter(canvas: Canvas) {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val radius = h * .035f
+        paint.color = 0x66000818
+        canvas.drawRect(0f, 0f, w, h, paint)
+
+        val panel = RectF(w * .60f, h * .075f, w * .975f, h * .925f)
+        paint.shader = LinearGradient(panel.left, panel.top, panel.right, panel.bottom,
+            intArrayOf(0xD92B5B86.toInt(), 0xC91A3C68.toInt(), 0xD90B2447.toInt()),
+            null, Shader.TileMode.CLAMP)
+        canvas.drawRoundRect(panel, radius, radius, paint)
+        paint.shader = null
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = (h * .0022f).coerceAtLeast(1.5f)
+        paint.color = 0x99D8F2FF.toInt()
+        canvas.drawRoundRect(panel, radius, radius, paint)
+        paint.style = Paint.Style.FILL
+
+        val left = panel.left + panel.width() * .075f
+        val top = panel.top + panel.height() * .105f
+        paint.color = 0xFFEAF7FF.toInt()
+        paint.textAlign = Paint.Align.LEFT
+        text(canvas, if (controlCenterPage == 0) "控制中心" else "信源", left, top, h * .037f, 0xFFF3FAFF.toInt(), true)
+        text(canvas, if (controlCenterPage == 0) "设备连接与快捷设置" else "选择电视输入源", left, top + h * .045f,
+            h * .018f, 0xBFE0F1FF.toInt())
+
+        if (controlCenterPage == 0) {
+            val labels = listOf("网络与 Wi-Fi", "信源输入", "小李桌面设置", "系统设置")
+            val subtitles = listOf("连接状态与网络配置", "HDMI、USB 及电视输入", "壁纸、桌面与应用管理", "Android 设备设置")
+            val icons = listOf("◉", "▣", "⚙", "⌘")
+            val startY = panel.top + panel.height() * .27f
+            val gap = panel.height() * .145f
+            labels.forEachIndexed { index, label ->
+                val rect = RectF(panel.left + panel.width() * .065f, startY + index * gap,
+                    panel.right - panel.width() * .065f, startY + index * gap + panel.height() * .115f)
+                paint.color = if (index == controlCenterFocus) 0x775AB9F2 else 0x334D91C8
+                canvas.drawRoundRect(rect, h * .018f, h * .018f, paint)
+                if (index == controlCenterFocus) {
+                    paint.style = Paint.Style.STROKE
+                    paint.strokeWidth = (h * .0028f).coerceAtLeast(2f)
+                    paint.color = 0xFFD8F4FF.toInt()
+                    canvas.drawRoundRect(rect, h * .018f, h * .018f, paint)
+                    paint.style = Paint.Style.FILL
+                }
+                text(canvas, icons[index], rect.left + rect.width() * .075f, rect.centerY() + h * .012f,
+                    h * .032f, 0xFFEAF8FF.toInt(), true)
+                text(canvas, label, rect.left + rect.width() * .19f, rect.top + rect.height() * .46f,
+                    h * .022f, 0xFFF4FAFF.toInt(), true)
+                text(canvas, subtitles[index], rect.left + rect.width() * .19f, rect.top + rect.height() * .76f,
+                    h * .014f, 0xBFD5E9FA.toInt())
+                text(canvas, "›", rect.right - rect.width() * .075f, rect.centerY() + h * .012f,
+                    h * .034f, 0xFFEAF8FF.toInt(), true)
+            }
+        } else {
+            val hint = "信源切换由电视厂商系统提供，支持情况因设备而异。"
+            text(canvas, hint, left, panel.top + panel.height() * .30f, h * .018f, 0xFFEAF7FF.toInt())
+            val rect = RectF(left, panel.top + panel.height() * .39f, panel.right - panel.width() * .07f,
+                panel.top + panel.height() * .52f)
+            paint.color = if (controlCenterFocus == 0) 0x775AB9F2 else 0x334D91C8
+            canvas.drawRoundRect(rect, h * .018f, h * .018f, paint)
+            if (controlCenterFocus == 0) {
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = (h * .0028f).coerceAtLeast(2f)
+                paint.color = 0xFFD8F4FF.toInt()
+                canvas.drawRoundRect(rect, h * .018f, h * .018f, paint)
+                paint.style = Paint.Style.FILL
+            }
+            text(canvas, "打开电视信源选择", rect.left + rect.width() * .08f, rect.centerY() + h * .009f,
+                h * .022f, 0xFFF4FAFF.toInt(), true)
+        }
+        text(canvas, "返回键：返回上一级", left, panel.bottom - panel.height() * .055f,
+            h * .014f, 0xAFCFE5F8.toInt())
+        paint.textAlign = Paint.Align.LEFT
     }
 
     private fun drawSettingsShortcut(c: Canvas, w: Float, h: Float) {
@@ -1840,6 +1965,26 @@ class LauncherView(context: Context) : View(context) {
         drawerMetrics().indexAt(x, y, drawerScrollRow, apps.size)
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (controlCenterOpen) {
+            if (event.actionMasked == MotionEvent.ACTION_UP) {
+                val panelLeft = width * .60f
+                val panelTop = height * .075f
+                val panelBottom = height * .925f
+                if (event.x < panelLeft || event.y < panelTop || event.y > panelBottom) {
+                    handleBack()
+                } else {
+                    val row = if (controlCenterPage == 0) {
+                        val first = height * .075f + height * .85f * .27f
+                        val gap = height * .85f * .145f
+                        ((event.y - first) / gap).toInt().coerceIn(0, 3)
+                    } else 0
+                    controlCenterFocus = row
+                    activateControlCenterItem()
+                }
+                performClick()
+            }
+            return true
+        }
         if (homePositionEditMode) {
             if (event.actionMasked == MotionEvent.ACTION_UP) performClick()
             return true
@@ -1986,15 +2131,10 @@ class LauncherView(context: Context) : View(context) {
                     performClick()
                     return true
                 }
-                if (!isSettingsOpen && !isDrawerOpen && wifiShortcutRect(width.toFloat(), height.toFloat()).contains(event.x, event.y)) {
-                    runCatching {
-                        context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                    }
-                    performClick()
-                    return true
-                }
-                if (!isSettingsOpen && !isDrawerOpen && settingsShortcutRect(width.toFloat(), height.toFloat()).contains(event.x, event.y)) {
-                    openLauncherSettings()
+                if (!isSettingsOpen && !isDrawerOpen &&
+                    (wifiShortcutRect(width.toFloat(), height.toFloat()).contains(event.x, event.y) ||
+                     settingsShortcutRect(width.toFloat(), height.toFloat()).contains(event.x, event.y))) {
+                    openControlCenter()
                     performClick()
                     return true
                 }
@@ -2303,6 +2443,18 @@ class LauncherView(context: Context) : View(context) {
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) {
             return handleBack()
+        }
+        if (controlCenterOpen) {
+            val count = if (controlCenterPage == 0) 4 else 1
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_UP -> controlCenterFocus = (controlCenterFocus - 1).coerceAtLeast(0)
+                KeyEvent.KEYCODE_DPAD_DOWN -> controlCenterFocus = (controlCenterFocus + 1).coerceAtMost(count - 1)
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> activateControlCenterItem()
+                KeyEvent.KEYCODE_DPAD_LEFT -> if (controlCenterPage == 1) { controlCenterPage = 0; controlCenterFocus = 1 }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> if (controlCenterPage == 1) activateControlCenterItem()
+            }
+            invalidate()
+            return true
         }
         if (clockEditMenuOpen) {
             when (keyCode) {
