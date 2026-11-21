@@ -6,7 +6,7 @@ import org.junit.Test
 class SpatialFocusNavigatorTest {
     private val grid = listOf(
         FocusTarget(0, 0f, 0f), FocusTarget(1, 1f, 0f), FocusTarget(2, 2f, 0f),
-        FocusTarget(3, 0f, 1f), FocusTarget(4, 2f, 1f),
+        FocusTarget(3, 0f, 1f), FocusTarget(4, 1.1f, 1f),
         FocusTarget(5, 1f, 2f)
     )
 
