@@ -1116,7 +1116,8 @@ class LauncherView(context: Context) : View(context) {
         paint.strokeWidth = (h * .004f).coerceAtLeast(2.5f)
         paint.color = 0xFF8BE7FF.toInt()
         paint.setShadowLayer((h * .012f).coerceAtLeast(5f), 0f, 0f, 0xAA27BFFF.toInt())
-        c.drawRoundRect(rect, (h * .018f).coerceAtLeast(10f), (h * .018f).coerceAtLeast(10f), paint)
+        val focusRect = scaledFocusRect(rect)
+        c.drawRoundRect(focusRect, (h * .018f).coerceAtLeast(10f), (h * .018f).coerceAtLeast(10f), paint)
         paint.clearShadowLayer()
         paint.style = Paint.Style.FILL
     }
@@ -1152,11 +1153,7 @@ class LauncherView(context: Context) : View(context) {
         val targets = homeFocusTargets()
         val currentId = if (homeTopFocus in 0..2) 100 + homeTopFocus else homeIndex
         val current = targets.firstOrNull { it.id == currentId } ?: return
-        val directionalTargets = if (direction == SpatialFocusNavigator.LEFT ||
-            direction == SpatialFocusNavigator.RIGHT) {
-            targets.filter { kotlin.math.abs(it.centerY - current.centerY) <= height * .12f }
-        } else targets
-        val next = SpatialFocusNavigator.next(currentId, direction, directionalTargets)
+        val next = SpatialFocusNavigator.next(currentId, direction, targets)
         if (next != currentId) {
             when (next) {
                 in 0..4 -> { homeIndex = next; homeTopFocus = -1 }
@@ -1253,7 +1250,8 @@ class LauncherView(context: Context) : View(context) {
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = (h * .0035f).coerceAtLeast(2f)
             paint.color = 0xFF8BE7FF.toInt()
-            c.drawRoundRect(RectF(w * .835f, h * .175f, w * .94f, h * .245f), h * .012f, h * .012f, paint)
+            c.drawRoundRect(scaledFocusRect(RectF(w * .835f, h * .175f, w * .94f, h * .245f)),
+                h * .012f, h * .012f, paint)
             paint.style = Paint.Style.FILL
         }
         paint.textAlign = Paint.Align.LEFT
