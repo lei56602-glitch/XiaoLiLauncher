@@ -1412,7 +1412,8 @@ class LauncherView(context: Context) : View(context) {
             }
             2 -> toggleControlMute()
             3 -> adjustControlBrightness(0)
-            4 -> controlInputs.getOrNull(controlCenterInputOffset + controlCenterFocus)?.let(::toggleControlInputPinned)
+            4 -> if (controlCenterFocus == 0) toggleControlCec()
+                else controlInputs.getOrNull(controlCenterInputOffset + controlCenterFocus - 1)?.let(::toggleControlInputPinned)
         }
         invalidate()
     }
@@ -1457,7 +1458,7 @@ class LauncherView(context: Context) : View(context) {
             1 -> "由 Android TV InputManager 实时识别"
             2 -> "左右键调节 · OK 切换静音"
             3 -> "系统允许时调节屏幕亮度"
-            else -> "OK 固定/取消固定 · 左键显示/隐藏"
+            else -> "OK 切换 HDMI-CEC/固定 · 左键显示/隐藏"
         }
         text(canvas, title, left, top, h * .037f, 0xFFF3FAFF.toInt(), true)
         text(canvas, subtitle, left, top + h * .045f, h * .018f, 0xBFE0F1FF.toInt())
