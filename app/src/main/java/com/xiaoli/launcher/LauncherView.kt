@@ -1441,12 +1441,27 @@ class LauncherView(context: Context) : View(context) {
         runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
     }
 
+    private fun systemProperty(key: String): String? = runCatching {
+        Class.forName("android.os.SystemProperties")
+            .getMethod("get", String::class.java).invoke(null, key) as String
+    }.getOrNull()
+
+    private fun isPlaybackDevice(): Boolean {
+        val types = systemProperty("ro.hdmi.device_type").orEmpty().split(',').map { it.trim() }
+        if ("4" in types && "0" !in types) return true
+        val characteristics = systemProperty("ro.build.characteristics").orEmpty()
+        return "stb" in characteristics || "mbx" in characteristics
+    }
+
+    private fun isControlVolumeFixed(): Boolean = runCatching { audioManager.isVolumeFixed }.getOrDefault(false)
+
     private fun volumeLevel(): Pair<Int, Int> = runCatching {
         audioManager.getStreamVolume(AudioManager.STREAM_MUSIC) to
             audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
     }.getOrDefault(0 to 1)
 
     private fun adjustControlVolume(direction: Int) {
+        if (isControlVolumeFixed()) return
         val (before, max) = volumeLevel()
         runCatching {
             audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC,
@@ -1464,6 +1479,7 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun toggleControlMute() {
+        if (isControlVolumeFixed()) return
         runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 val muted = audioManager.isStreamMute(AudioManager.STREAM_MUSIC)
@@ -1520,6 +1536,11 @@ class LauncherView(context: Context) : View(context) {
     }.getOrDefault(128)
 
     private fun adjustControlBrightness(direction: Int) {
+        if (isPlaybackDevice()) {
+            android.widget.Toast.makeText(context, "此设备是电视盒/电视棒，没有本机屏幕背光可调节",
+                android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
         if (hasVendorBrightnessBackend()) {
             android.widget.Toast.makeText(context, "此电视使用厂商画面服务控制背光，请在电视原生画面设置中调节",
                 android.widget.Toast.LENGTH_LONG).show()
