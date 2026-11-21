@@ -1445,6 +1445,18 @@ class LauncherView(context: Context) : View(context) {
 
     private fun openControlInputPicker(): Boolean {
         val pm = context.packageManager
+        val changhong = Intent("CH_MENU_SOURCE")
+            .setComponent(ComponentName("com.changhong.SourceMenu", "com.changhong.source.SourceMenuService"))
+            .putExtra("MenuSource", "menuSource")
+            .putExtra("keyCode", 2001)
+        if (runCatching {
+                val info = pm.resolveService(changhong, 0)?.serviceInfo
+                info != null && info.exported && info.enabled && info.applicationInfo.enabled &&
+                    (info.permission.isNullOrEmpty() ||
+                        context.checkCallingOrSelfPermission(info.permission) == PackageManager.PERMISSION_GRANTED) &&
+                    context.startService(changhong) != null
+            }.getOrDefault(false)) return true
+
         val xgimi = Intent("com.xgimi.settings.SETTINGS")
             .setComponent(ComponentName("com.android.newsettings", "com.xgimi.newsettings.SettingService"))
             .putExtra("data", "Settings://com.xgimi.settings.signalSource/hdmi_misckey")
