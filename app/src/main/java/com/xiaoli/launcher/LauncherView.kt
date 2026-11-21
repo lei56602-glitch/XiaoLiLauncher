@@ -2628,8 +2628,20 @@ class LauncherView(context: Context) : View(context) {
                 else -> 1
             }
             when (keyCode) {
-                KeyEvent.KEYCODE_DPAD_UP -> controlCenterFocus = (controlCenterFocus - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_DOWN -> controlCenterFocus = (controlCenterFocus + 1).coerceAtMost(count - 1)
+                KeyEvent.KEYCODE_DPAD_UP -> {
+                    if (controlCenterPage == 1 || controlCenterPage == 4) {
+                        if (controlCenterFocus > 0) controlCenterFocus--
+                        else if (controlCenterInputOffset > 0) controlCenterInputOffset--
+                    } else controlCenterFocus = (controlCenterFocus - 1).coerceAtLeast(0)
+                }
+                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                    if (controlCenterPage == 1 || controlCenterPage == 4) {
+                        val total = if (controlCenterPage == 1) visibleControlInputs().size else controlInputs.size
+                        val visibleCount = minOf(6, (total - controlCenterInputOffset).coerceAtLeast(1))
+                        if (controlCenterFocus < visibleCount - 1) controlCenterFocus++
+                        else if (controlCenterInputOffset + visibleCount < total) controlCenterInputOffset++
+                    } else controlCenterFocus = (controlCenterFocus + 1).coerceAtMost(count - 1)
+                }
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> activateControlCenterItem()
                 KeyEvent.KEYCODE_DPAD_LEFT -> when (controlCenterPage) {
                     1 -> { controlCenterPage = 0; controlCenterFocus = 1 }
