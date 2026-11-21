@@ -478,7 +478,8 @@ class QuanLianActivity : Activity() {
             screen.invalidate()
             return true
         }
-        if (!navFocused && keyCode == KeyEvent.KEYCODE_DPAD_UP && focus == 0) {
+        val isTopActionFocus = focus == 0 || (page == Page.SEND && transferRunning && focus == 1)
+        if (!navFocused && keyCode == KeyEvent.KEYCODE_DPAD_UP && isTopActionFocus) {
             backFocused = true
             screen.invalidate()
             return true
