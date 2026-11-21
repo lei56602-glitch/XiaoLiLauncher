@@ -35,7 +35,7 @@ internal object SpatialFocusNavigator {
                 val dx = candidate.centerX - current.centerX
                 val dy = candidate.centerY - current.centerY
                 val primary = if (horizontal) dx * sign else dy * sign
-                if (primary <= 0.5f) return@mapNotNull null
+                if (primary <= 0.0001f) return@mapNotNull null
                 val secondary = if (horizontal) abs(dy) else abs(dx)
                 // Prefer targets in the same visual lane, while still allowing
                 // diagonal movement when a row/column has no target.
