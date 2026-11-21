@@ -15,6 +15,8 @@ import android.graphics.RadialGradient
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.net.ConnectivityManager
+import android.media.AudioManager
+import android.media.tv.TvInputManager
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -147,6 +149,9 @@ class LauncherView(context: Context) : View(context) {
     private var controlCenterPage = 0
     private var controlCenterFocus = 0
     private var controlCenterReturnFocus = -1
+    private data class ControlInput(val id: String, val label: String, val kind: String, val setupIntent: Intent?)
+    private var controlInputs: List<ControlInput> = emptyList()
+    private val audioManager by lazy { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     private var settingsReturnHomeFocus = -1
     private var returnToSettingsAfterDrawer = false
     val isLauncherSettingsOpen: Boolean get() = isSettingsOpen
@@ -1237,11 +1242,86 @@ class LauncherView(context: Context) : View(context) {
 
     private fun moveHomeFocusToApps() = moveHomeSpatialFocus(SpatialFocusNavigator.DOWN)
 
+    private fun refreshControlInputs() {
+        controlInputs = runCatching {
+            val manager = context.getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager
+                ?: return@runCatching emptyList()
+            manager.tvInputList.map { info ->
+                val label = runCatching { info.loadLabel(context).toString() }
+                    .getOrDefault(info.id.substringAfterLast('/'))
+                val kind = if (info.isPassthroughInput) "外接输入" else "电视信号"
+                ControlInput(info.id, label.ifBlank { info.id }, kind,
+                    runCatching { info.createSetupIntent() }.getOrNull())
+            }.distinctBy { it.id }.sortedWith(compareBy<ControlInput>({ it.kind }, { it.label }))
+        }.getOrDefault(emptyList())
+    }
+
+    private fun openControlInput(input: ControlInput) {
+        val setup = input.setupIntent
+        if (setup != null && runCatching {
+                context.startActivity(setup.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }.isSuccess) return
+        for (action in listOf("android.intent.action.TV_INPUT", "android.settings.HDMI_SETTINGS")) {
+            if (runCatching { context.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess) return
+        }
+        android.widget.Toast.makeText(context,
+            "已识别 ${input.label}；此电视固件未提供独立信源设置入口",
+            android.widget.Toast.LENGTH_LONG).show()
+        runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    }
+
+    private fun volumeLevel(): Pair<Int, Int> = runCatching {
+        audioManager.getStreamVolume(AudioManager.STREAM_MUSIC) to
+            audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+    }.getOrDefault(0 to 1)
+
+    private fun adjustControlVolume(direction: Int) {
+        val (level, max) = volumeLevel()
+        runCatching { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, (level + direction).coerceIn(0, max), 0) }
+        invalidate()
+    }
+
+    private fun toggleControlMute() {
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val muted = audioManager.isStreamMute(AudioManager.STREAM_MUSIC)
+                audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC,
+                    if (muted) AudioManager.ADJUST_UNMUTE else AudioManager.ADJUST_MUTE, 0)
+            } else audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_TOGGLE_MUTE, 0)
+        }
+        invalidate()
+    }
+
+    private fun brightnessLevel(): Int = runCatching {
+        Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128).coerceIn(1, 255)
+    }.getOrDefault(128)
+
+    private fun adjustControlBrightness(direction: Int) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context)) {
+            runCatching { context.startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,
+                Uri.parse("package:" + context.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            android.widget.Toast.makeText(context, "需要允许小李桌面修改系统亮度后才能调节",
+                android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        val next = (brightnessLevel() + direction * 13).coerceIn(1, 255)
+        runCatching {
+            Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE,
+                Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
+            Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, next)
+        }.onFailure {
+            android.widget.Toast.makeText(context, "当前电视固件不允许应用直接调节背光",
+                android.widget.Toast.LENGTH_LONG).show()
+        }
+        invalidate()
+    }
+
     private fun openControlCenter() {
         if (!controlCenterOpen) controlCenterReturnFocus = homeTopFocus
         controlCenterOpen = true
         controlCenterPage = 0
         controlCenterFocus = 0
+        refreshControlInputs()
         homeTopFocus = -1
         animateSpatialFocus()
         invalidate()
