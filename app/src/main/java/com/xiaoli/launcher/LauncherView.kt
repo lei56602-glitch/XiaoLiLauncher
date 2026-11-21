@@ -17,6 +17,7 @@ import android.graphics.Typeface
 import android.net.ConnectivityManager
 import android.media.AudioManager
 import android.media.tv.TvInputManager
+import android.media.tv.TvInputInfo
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -1215,14 +1216,51 @@ class LauncherView(context: Context) : View(context) {
 
     private fun moveHomeFocusToApps() = moveHomeSpatialFocus(SpatialFocusNavigator.DOWN)
 
+    private fun hiddenControlInputIds(): MutableSet<String> =
+        prefs.getStringSet("control_hidden_inputs", emptySet())?.toMutableSet() ?: mutableSetOf()
+
+    private fun pinnedControlInputIds(): MutableSet<String> =
+        prefs.getStringSet("control_pinned_inputs", emptySet())?.toMutableSet() ?: mutableSetOf()
+
+    private fun visibleControlInputs(): List<ControlInput> {
+        val hidden = hiddenControlInputIds()
+        val pinned = pinnedControlInputIds()
+        return controlInputs.filterNot { it.id in hidden }.sortedByDescending { it.id in pinned }
+    }
+
+    private fun toggleControlInputHidden(input: ControlInput) {
+        val hidden = hiddenControlInputIds()
+        if (!hidden.add(input.id)) hidden.remove(input.id)
+        prefs.edit().putStringSet("control_hidden_inputs", hidden).apply()
+        invalidate()
+    }
+
+    private fun toggleControlInputPinned(input: ControlInput) {
+        val pinned = pinnedControlInputIds()
+        if (!pinned.add(input.id)) pinned.remove(input.id)
+        prefs.edit().putStringSet("control_pinned_inputs", pinned).apply()
+        invalidate()
+    }
+
     private fun refreshControlInputs() {
         controlInputs = runCatching {
             val manager = context.getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager
                 ?: return@runCatching emptyList()
             manager.tvInputList.map { info ->
-                val label = runCatching { info.loadLabel(context).toString() }
+                val custom = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
+                    runCatching { info.loadCustomLabel(context)?.toString() }.getOrNull() else null
+                val label = custom ?: runCatching { info.loadLabel(context).toString() }
                     .getOrDefault(info.id.substringAfterLast('/'))
-                val kind = if (info.isPassthroughInput) "外接输入" else "电视信号"
+                val kind = when (info.type) {
+                    TvInputInfo.TYPE_HDMI -> "HDMI"
+                    TvInputInfo.TYPE_DISPLAY_PORT -> "DisplayPort"
+                    TvInputInfo.TYPE_TUNER -> "电视调谐器"
+                    TvInputInfo.TYPE_COMPOSITE -> "AV视频"
+                    TvInputInfo.TYPE_COMPONENT -> "色差输入"
+                    TvInputInfo.TYPE_VGA -> "VGA"
+                    TvInputInfo.TYPE_DVI -> "DVI"
+                    else -> if (info.isPassthroughInput) "外接输入" else "电视信号"
+                }
                 ControlInput(info.id, label.ifBlank { info.id }, kind,
                     runCatching { info.createSetupIntent() }.getOrNull())
             }.distinctBy { it.id }.sortedWith(compareBy<ControlInput>({ it.kind }, { it.label }))
