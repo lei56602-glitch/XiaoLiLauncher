@@ -105,6 +105,9 @@ class LauncherView(context: Context) : View(context) {
     private var drawerIndex = 0
     private var drawerScrollRow = 0
     private var homeIndex = 0
+    // Home-screen top widgets are independent D-pad focus targets: clock, Wi-Fi, settings.
+    // -1 keeps focus on the five launcher app slots.
+    private var homeTopFocus = -1
     private var homeIconScale = prefs.getFloat("home_icon_scale", 1f).coerceIn(.65f, 1.6f)
     private var homeIconEditMode = false
     private var homeAppManageMode = false
@@ -518,6 +521,7 @@ class LauncherView(context: Context) : View(context) {
             height * .021f * clockScale, 0xFFE2F1FF.toInt())
         drawWifiShortcut(c, w, height.toFloat())
         drawSettingsShortcut(c, w, height.toFloat())
+        drawHomeTopFocus(c, w, height.toFloat())
         paint.textAlign = Paint.Align.LEFT
         if (widgetEditMode) drawSelectedWidgetOutline(c)
     }
@@ -783,7 +787,7 @@ class LauncherView(context: Context) : View(context) {
         // App icons are first-class desktop objects; no enclosing tile/card.
         favorites.take(5).forEachIndexed { i, app ->
             val icon = homeIconCardRect(i, w, h)
-            val focused = i == homeIndex
+            val focused = i == homeIndex && homeTopFocus == -1
             if (app.packageName == emptySlot.packageName) {
                 paint.style = Paint.Style.STROKE
                 paint.strokeWidth = (h * .003f).coerceAtLeast(2f)
@@ -826,6 +830,67 @@ class LauncherView(context: Context) : View(context) {
 
     private fun settingsShortcutRect(w: Float, h: Float) =
         RectF(w * .93f, h * .028f, w * .99f, h * .128f)
+
+    private fun drawHomeTopFocus(c: Canvas, w: Float, h: Float) {
+        if (isDrawerOpen || isSettingsOpen || widgetEditMode || homeIconEditMode ||
+            homeAppManageMode || homeTopFocus !in 0..2) return
+        if (homeTopFocus == 0 && !showClock && !showDate) return
+        val rect = when (homeTopFocus) {
+            0 -> RectF(w * (clockX - .025f), h * (clockY - .045f),
+                w * (clockX + .245f), h * (clockY + .065f * clockScale))
+            1 -> wifiShortcutRect(w, h)
+            else -> settingsShortcutRect(w, h)
+        }
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = (h * .004f).coerceAtLeast(2.5f)
+        paint.color = 0xFF8BE7FF.toInt()
+        paint.setShadowLayer((h * .012f).coerceAtLeast(5f), 0f, 0f, 0xAA27BFFF.toInt())
+        c.drawRoundRect(rect, (h * .018f).coerceAtLeast(10f), (h * .018f).coerceAtLeast(10f), paint)
+        paint.clearShadowLayer()
+        paint.style = Paint.Style.FILL
+    }
+
+    private fun homeTopFocusCenterX(target: Int, w: Float): Float = when (target) {
+        0 -> w * (clockX + .10f)
+        1 -> w * .88f
+        else -> w * .96f
+    }
+
+    private fun moveHomeFocusToTop() {
+        val w = width.toFloat()
+        val appX = homeIconCardRect(homeIndex, w, height.toFloat()).centerX()
+        val targets = buildList {
+            if (showClock || showDate) add(0)
+            add(1)
+            add(2)
+        }
+        homeTopFocus = targets.minByOrNull { kotlin.math.abs(homeTopFocusCenterX(it, w) - appX) } ?: 1
+        invalidate()
+    }
+
+    private fun moveHomeFocusToApps() {
+        if (homeTopFocus !in 0..2) return
+        val x = homeTopFocusCenterX(homeTopFocus, width.toFloat())
+        homeIndex = favorites.indices.minByOrNull {
+            kotlin.math.abs(homeIconCardRect(it, width.toFloat(), height.toFloat()).centerX() - x)
+        } ?: homeIndex
+        homeTopFocus = -1
+        invalidate()
+    }
+
+    private fun activateHomeTopFocus() {
+        when (homeTopFocus) {
+            0 -> openLauncherSettings(33) // Time/date controls live under Desktop Widgets.
+            1 -> runCatching {
+                context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }.onFailure {
+                runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            }
+            2 -> openLauncherSettings()
+        }
+    }
 
     private fun drawSettingsShortcut(c: Canvas, w: Float, h: Float) {
         val cx = w * .96f
@@ -955,10 +1020,11 @@ class LauncherView(context: Context) : View(context) {
         }
     }
 
-    private fun openLauncherSettings() {
+    private fun openLauncherSettings(initialFocus: Int = 30) {
         isDrawerOpen = false
         isSettingsOpen = true
-        settingsFocus = 30
+        homeTopFocus = -1
+        settingsFocus = initialFocus
         invalidate()
     }
 
@@ -1710,7 +1776,7 @@ class LauncherView(context: Context) : View(context) {
     }
 
     override fun onKeyLongPress(keyCode: Int, event: KeyEvent): Boolean {
-        if (!widgetEditMode && !isSettingsOpen && !isDrawerOpen && !homeIconEditMode &&
+        if (!widgetEditMode && !isSettingsOpen && !isDrawerOpen && !homeIconEditMode && homeTopFocus == -1 &&
             (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
             favorites.getOrNull(homeIndex)?.packageName != emptySlot.packageName) {
             favorites.getOrNull(homeIndex)?.let { openAppActionMenu("home", homeIndex, it) }
@@ -1740,6 +1806,10 @@ class LauncherView(context: Context) : View(context) {
         if ((keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
             !event.isCanceled && !event.isLongPress && !actionMenuOpen &&
             !isSettingsOpen && !widgetEditMode && !homeIconEditMode) {
+            if (!isDrawerOpen && homeTopFocus in 0..2) {
+                activateHomeTopFocus()
+                return true
+            }
             if (isDrawerOpen) {
                 apps.getOrNull(drawerIndex)?.let { chooseDrawerApp(it) }
                 return true
@@ -1827,7 +1897,7 @@ class LauncherView(context: Context) : View(context) {
         }
         if (!widgetEditMode && !isSettingsOpen && !isDrawerOpen &&
             (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
-            favorites.isNotEmpty() && !event.isLongPress) {
+            (homeTopFocus in 0..2 || favorites.isNotEmpty()) && !event.isLongPress) {
             if (event.repeatCount == 0) event.startTracking()
             return true
         }
@@ -1941,24 +2011,42 @@ class LauncherView(context: Context) : View(context) {
         when (keyCode) {
             KeyEvent.KEYCODE_MENU -> { if (!event.isLongPress) openLauncherSettings(); return true }
             KeyEvent.KEYCODE_DPAD_UP -> {
-                isDrawerOpen = true
-                drawerIndex = 0
-                drawerScrollRow = 0
-                invalidate()
+                if (homeTopFocus == -1) moveHomeFocusToTop()
+                else {
+                    // A second UP from the top shortcuts retains the existing UP-to-open-drawer gesture.
+                    isDrawerOpen = true
+                    homeTopFocus = -1
+                    drawerIndex = 0
+                    drawerScrollRow = 0
+                    invalidate()
+                }
                 return true
             }
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                if (homeTopFocus in 0..2) {
+                    moveHomeFocusToApps()
+                    return true
+                }
+            }
             KeyEvent.KEYCODE_DPAD_LEFT -> {
-                if (favorites.isNotEmpty()) homeIndex = (homeIndex - 1).coerceAtLeast(0)
+                if (homeTopFocus in 0..2) {
+                    homeTopFocus = (homeTopFocus - 1).coerceAtLeast(0)
+                    if (homeTopFocus == 0 && !showClock && !showDate) homeTopFocus = 1
+                } else if (favorites.isNotEmpty()) homeIndex = (homeIndex - 1).coerceAtLeast(0)
                 invalidate()
                 return true
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if (favorites.isNotEmpty()) homeIndex = (homeIndex + 1).coerceAtMost(favorites.lastIndex)
+                if (homeTopFocus in 0..2) {
+                    homeTopFocus = (homeTopFocus + 1).coerceAtMost(2)
+                    if (homeTopFocus == 0 && !showClock && !showDate) homeTopFocus = 1
+                } else if (favorites.isNotEmpty()) homeIndex = (homeIndex + 1).coerceAtMost(favorites.lastIndex)
                 invalidate()
                 return true
             }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                favorites.getOrNull(homeIndex)?.let { runCatching { context.startActivity(it.intent) } }
+                if (homeTopFocus in 0..2) activateHomeTopFocus()
+                else favorites.getOrNull(homeIndex)?.let { runCatching { context.startActivity(it.intent) } }
                 return true
             }
         }
