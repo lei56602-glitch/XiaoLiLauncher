@@ -467,6 +467,20 @@ class QuanLianActivity : Activity() {
             screen.invalidate()
             return true
         }
+        if (page == Page.HOME) {
+            val columns = if (screen.width * .83f >= screen.height) 4 else 2
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> if (focus % columns > 0) focus-- else if (focus == 0) navFocused = true
+                KeyEvent.KEYCODE_DPAD_RIGHT -> if (focus % columns < columns - 1 && focus + 1 < 4) focus++
+                KeyEvent.KEYCODE_DPAD_UP -> if (focus >= columns) focus -= columns
+                KeyEvent.KEYCODE_DPAD_DOWN -> if (focus + columns < 4) focus += columns
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> activateFocused()
+                KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> { goBack(); return true }
+                else -> return super.onKeyDown(keyCode, event)
+            }
+            screen.invalidate()
+            return true
+        }
         if (page == Page.SEND) {
             val deviceStart = if (transferRunning) 2 else 1
             val deviceIndex = focus - deviceStart
@@ -480,11 +494,17 @@ class QuanLianActivity : Activity() {
                     else if (deviceIndex >= 0 && deviceIndex % 2 == 0 && deviceIndex + 1 < devices.size) focus++
                 }
                 KeyEvent.KEYCODE_DPAD_UP -> {
-                    if (deviceIndex >= 0) focus = (focus - 2).coerceAtLeast(deviceStart)
+                    if (deviceIndex >= 2) focus -= 2
+                    else if (deviceIndex >= 0) {
+                        // The first device row maps back to the matching top action.
+                        focus = if (transferRunning && deviceIndex % 2 == 1) 1 else 0
+                    }
                 }
                 KeyEvent.KEYCODE_DPAD_DOWN -> {
                     if (focus < deviceStart) {
-                        if (devices.isNotEmpty()) focus = deviceStart
+                        if (devices.isNotEmpty()) {
+                            focus = if (transferRunning && focus == 1 && devices.size > 1) deviceStart + 1 else deviceStart
+                        }
                     } else if (deviceIndex >= 0 && deviceIndex + 2 < devices.size) focus += 2
                 }
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> activateFocused()
