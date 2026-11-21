@@ -1666,6 +1666,16 @@ class LauncherView(context: Context) : View(context) {
         invalidate()
     }
 
+    private fun isDefaultHome(): Boolean = runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val roles = context.getSystemService(RoleManager::class.java)
+            if (roles?.isRoleAvailable(RoleManager.ROLE_HOME) == true) return@runCatching roles.isRoleHeld(RoleManager.ROLE_HOME)
+        }
+        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        context.packageManager.resolveActivity(home, PackageManager.MATCH_DEFAULT_ONLY)
+            ?.activityInfo?.packageName == context.packageName
+    }.getOrDefault(false)
+
     private fun openControlCenter() {
         if (!controlCenterOpen) controlCenterReturnFocus = homeTopFocus
         controlCenterOpen = true
@@ -1691,7 +1701,8 @@ class LauncherView(context: Context) : View(context) {
                 3 -> { controlCenterPage = 2; controlCenterFocus = 0 }
                 4 -> { controlCenterPage = 3; controlCenterFocus = 0 }
                 5 -> { controlCenterOpen = false; openLauncherSettings() }
-                6 -> runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                6 -> { controlCenterOpen = false; onRequestDefaultHome?.invoke() }
+                7 -> runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             }
             1 -> {
                 val input = visibleControlInputs().getOrNull(controlCenterInputOffset + controlCenterFocus)
@@ -1754,15 +1765,17 @@ class LauncherView(context: Context) : View(context) {
         text(canvas, subtitle, left, top + h * .045f, h * .018f, 0xBFE0F1FF.toInt())
 
         if (controlCenterPage == 0) {
-            val labels = listOf("网络与 Wi-Fi", "电视信源", "信源管理", "音量控制", "屏幕亮度", "小李桌面设置", "系统设置")
+            val labels = listOf("网络与 Wi-Fi", "电视信源", "信源管理", "音量控制", "屏幕亮度", "小李桌面设置", "默认主屏幕", "系统设置")
             val subtitles = listOf(controlNetworkLabel(), "检测到 ${visibleControlInputs().size} 个可显示输入",
-                "隐藏、固定电视输入", "媒体音量与静音", "系统允许时调节亮度", "壁纸、桌面与应用管理", "Android 设备设置")
-            val icons = listOf("◉", "▣", "☷", "♪", "☼", "⚙", "⌘")
-            val startY = panel.top + panel.height() * .205f
-            val gap = panel.height() * .099f
+                "隐藏、固定电视输入", "媒体音量与静音", "系统允许时调节亮度", "壁纸、桌面与应用管理",
+                if (isDefaultHome()) "小李桌面当前已是默认主屏幕" else "将小李桌面设为默认主屏幕",
+                "Android 设备设置")
+            val icons = listOf("◉", "▣", "☷", "♪", "☼", "⚙", "⌂", "⌘")
+            val startY = panel.top + panel.height() * .18f
+            val gap = panel.height() * .085f
             labels.forEachIndexed { index, label ->
                 val rect = RectF(panel.left + panel.width() * .065f, startY + index * gap,
-                    panel.right - panel.width() * .065f, startY + index * gap + panel.height() * .082f)
+                    panel.right - panel.width() * .065f, startY + index * gap + panel.height() * .07f)
                 paint.color = if (index == controlCenterFocus) 0x775AB9F2 else 0x334D91C8
                 canvas.drawRoundRect(rect, h * .018f, h * .018f, paint)
                 if (index == controlCenterFocus) {
@@ -2527,9 +2540,9 @@ class LauncherView(context: Context) : View(context) {
                         }
                     } else {
                         val row = if (controlCenterPage == 0) {
-                            val first = height * .075f + height * .85f * .205f
-                            val gap = height * .85f * .099f
-                            ((event.y - first) / gap).toInt().coerceIn(0, 6)
+                            val first = height * .075f + height * .85f * .18f
+                            val gap = height * .85f * .085f
+                            ((event.y - first) / gap).toInt().coerceIn(0, 7)
                         } else {
                             val first = height * .075f + height * .85f * .225f
                             val gap = height * .85f * .10f
@@ -3006,7 +3019,7 @@ class LauncherView(context: Context) : View(context) {
         }
         if (controlCenterOpen) {
             val count = when (controlCenterPage) {
-                0 -> 7
+                0 -> 8
                 1 -> visibleControlInputs().size.coerceAtLeast(1).coerceAtMost(6)
                 4 -> controlInputs.size.coerceAtMost(5) + 1
                 else -> 1
