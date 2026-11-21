@@ -27,6 +27,7 @@ import android.media.tv.TvContract
 import android.media.tv.TvInputInfo
 import android.net.Uri
 import android.os.Handler
+import android.os.SystemClock
 import android.os.Looper
 import android.os.Build
 import android.app.AlertDialog
@@ -160,6 +161,15 @@ class LauncherView(context: Context) : View(context) {
     private var controlCecEnabled = prefs.getBoolean("control_cec_switch", false)
     private var controlBootInputId = prefs.getString("control_boot_input_id", "").orEmpty()
     private var bootInputLaunchChecked = false
+    private var controlDefaultHome = false
+    private var cachedNetworkLabel = "网络状态未知"
+    private var networkLabelCheckedAt = 0L
+    private var xgimiBrightnessCached: Int? = null
+    private var xgimiBrightnessCheckedAt = 0L
+    private var xgimiBrightnessHasBeenRead = false
+    private var hisenseBrightnessCached: Int? = null
+    private var hisenseBrightnessCheckedAt = 0L
+    private var hisenseBrightnessHasBeenRead = false
     private var controlExternalVolume = false
     private var controlStuckVolumeSteps = 0
     private var controlCenterReturnFocus = -1
