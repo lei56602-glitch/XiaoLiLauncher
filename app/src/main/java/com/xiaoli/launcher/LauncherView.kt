@@ -999,7 +999,7 @@ class LauncherView(context: Context) : View(context) {
             val iconTop = cell.top + (cellH * .78f - iconSize) / 2f
             val iconRect = RectF(cell.centerX() - iconSize / 2f, iconTop,
                 cell.centerX() + iconSize / 2f, iconTop + iconSize)
-            drawUnifiedAppIcon(c, app, iconRect, i == drawerIndex)
+            drawUnifiedAppIcon(c, app, iconRect, i == drawerIndex && !drawerHeaderFocused)
             paint.textAlign = Paint.Align.CENTER
             text(c, app.label.take(12), cell.centerX(), cell.bottom - cellH * .045f, h * .023f, -1, i == drawerIndex)
             if (favorites.any { it.packageName == app.packageName }) {
@@ -1267,7 +1267,7 @@ class LauncherView(context: Context) : View(context) {
             4 -> {
                 drawSettingCard(c, RectF(w * .13f, h * .39f, w * .87f, h * .64f),
                     if (isDefaultHomeLauncher()) "小李桌面已设为电视默认主屏幕" else "设为电视默认主屏幕",
-                    "设为默认后，按遥控器 Home 键直接进入小李桌面；除非更改默认桌面，否则持续生效。\n遥控器：上键打开应用抽屉 · 长按菜单进入应用管理 · 长按 OK 调整图标大小",
+                    "设为默认后，按遥控器 Home 键直接进入小李桌面；除非更改默认桌面，否则持续生效。\n遥控器：上键进入顶部快捷区，再按上键打开应用抽屉 · 长按菜单进入应用管理 · 长按 OK 调整图标大小",
                     settingsFocus == 14)
             }
             5 -> {
@@ -1959,7 +1959,8 @@ class LauncherView(context: Context) : View(context) {
             }
             if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
                 settingsCategoryForControl(settingsFocus)?.let { category ->
-                    if (settingsFocus == settingsCategoryControl(category) || settingsFocus == 23) {
+                    if (settingsFocus == settingsCategoryControl(category) ||
+                        SettingsFocusNavigator.next(settingsFocus, -1) == settingsFocus) {
                         settingsFocus = 30 + category
                         invalidate()
                         return true
