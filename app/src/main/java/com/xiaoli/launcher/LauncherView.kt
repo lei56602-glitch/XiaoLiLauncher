@@ -2406,10 +2406,13 @@ class LauncherView(context: Context) : View(context) {
                         val fraction = ((event.x - (panelLeft + panelWidth * .10f)) /
                             (panelWidth * .80f)).coerceIn(0f, 1f)
                         if (controlCenterPage == 2) {
-                            val max = volumeLevel().second
-                            val target = (fraction * max).toInt().coerceIn(0, max)
-                            runCatching { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0) }
-                        } else if (hasVendorBrightnessBackend() || Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context)) {
+                            if (!isControlVolumeFixed()) {
+                                val max = volumeLevel().second
+                                val target = (fraction * max).toInt().coerceIn(0, max)
+                                runCatching { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0) }
+                            }
+                        } else if (isPlaybackDevice() || hasVendorBrightnessBackend() ||
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context)) {
                             adjustControlBrightness(0)
                         } else {
                             val target = (fraction * 255f).toInt().coerceIn(1, 255)
