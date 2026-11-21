@@ -750,8 +750,7 @@ class LauncherView(context: Context) : View(context) {
         if (showClock) text(c, time, w * clockX, height * clockY, height * .052f * clockScale, -1, true)
         if (showDate) text(c, date, w * clockX, height * (clockY + .05f * clockScale),
             height * .021f * clockScale, 0xFFE2F1FF.toInt())
-        drawWifiShortcut(c, w, height.toFloat())
-        drawSettingsShortcut(c, w, height.toFloat())
+        drawControlCenterShortcut(c, w, height.toFloat())
         drawHomeTopFocus(c, w, height.toFloat())
         paint.textAlign = Paint.Align.LEFT
         if (widgetEditMode) drawSelectedWidgetOutline(c)
@@ -1133,12 +1132,38 @@ class LauncherView(context: Context) : View(context) {
         }
     }
 
-    // Two equally sized, evenly spaced shortcuts share one horizontal optical axis.
-    private fun wifiShortcutRect(w: Float, h: Float) =
-        RectF(w * .85f, h * .028f, w * .91f, h * .128f)
+    // A single combined entry replaces the former separate Wi-Fi and settings shortcuts.
+    private fun controlCenterShortcutRect(w: Float, h: Float) =
+        RectF(w * .905f, h * .028f, w * .975f, h * .128f)
 
-    private fun settingsShortcutRect(w: Float, h: Float) =
-        RectF(w * .93f, h * .028f, w * .99f, h * .128f)
+    private fun wifiShortcutRect(w: Float, h: Float) = controlCenterShortcutRect(w, h)
+    private fun settingsShortcutRect(w: Float, h: Float) = controlCenterShortcutRect(w, h)
+
+    private fun drawControlCenterShortcut(c: Canvas, w: Float, h: Float) {
+        val rect = controlCenterShortcutRect(w, h)
+        paint.color = 0x22DDF3FF
+        c.drawRoundRect(rect, h * .018f, h * .018f, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = (h * .0028f).coerceAtLeast(2f)
+        paint.color = 0xFFEAF8FF.toInt()
+        c.drawRoundRect(rect, h * .018f, h * .018f, paint)
+        paint.style = Paint.Style.FILL
+        val cx = rect.centerX()
+        val cy = rect.centerY()
+        paint.color = 0xFFEAF8FF.toInt()
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = (h * .0026f).coerceAtLeast(2f)
+        val wifi = Path().apply {
+            moveTo(cx - h * .019f, cy - h * .006f)
+            quadTo(cx, cy - h * .027f, cx + h * .019f, cy - h * .006f)
+            moveTo(cx - h * .012f, cy + h * .003f)
+            quadTo(cx, cy - h * .012f, cx + h * .012f, cy + h * .003f)
+        }
+        c.drawPath(wifi, paint)
+        c.drawCircle(cx, cy + h * .011f, h * .0028f, paint)
+        paint.style = Paint.Style.FILL
+        text(c, "⚙", cx + h * .027f, cy + h * .012f, h * .025f, 0xFFEAF8FF.toInt(), true)
+    }
 
     private fun drawHomeTopFocus(c: Canvas, w: Float, h: Float) {
         if (isDrawerOpen || isSettingsOpen || widgetEditMode || homeIconEditMode || homePositionEditMode ||
@@ -1162,8 +1187,8 @@ class LauncherView(context: Context) : View(context) {
 
     private fun homeTopFocusCenterX(target: Int, w: Float): Float = when (target) {
         0 -> w * (clockX + .10f)
-        1 -> w * .88f
-        else -> w * .96f
+        1, 2 -> w * .94f
+        else -> w * .94f
     }
 
     private fun homeFocusTargets(): List<FocusTarget> {
@@ -1179,10 +1204,8 @@ class LauncherView(context: Context) : View(context) {
                     w * (clockX + .245f), h * (clockY + .065f * clockScale))
                 add(FocusTarget(100, rect.centerX(), rect.centerY()))
             }
-            val wifi = wifiShortcutRect(w, h)
-            val settings = settingsShortcutRect(w, h)
-            add(FocusTarget(101, wifi.centerX(), wifi.centerY()))
-            add(FocusTarget(102, settings.centerX(), settings.centerY()))
+            val controlCenter = controlCenterShortcutRect(w, h)
+            add(FocusTarget(101, controlCenter.centerX(), controlCenter.centerY()))
         }
         return targets
     }
