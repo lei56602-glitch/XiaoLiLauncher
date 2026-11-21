@@ -1211,48 +1211,58 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun drawSettingsNavigation(c: Canvas, w: Float, h: Float) {
-        val rail = RectF(w * .055f, h * .14f, w * .225f, h * .97f)
-        paint.color = 0xF0062A62.toInt()
-        c.drawRoundRect(rail, 24f, 24f, paint)
-        text(c, "设置中心", w * .075f, h * .225f, h * .027f, -1, true)
-        val labels = listOf("桌面布局", "外观与壁纸", "应用管理", "桌面组件", "主屏幕设置与遥控器", "小李全联", "电视系统设置")
+        val rail = RectF(w * .045f, h * .105f, w * .225f, h * .965f)
+        paint.style = Paint.Style.FILL
+        paint.color = 0xE8091932.toInt()
+        c.drawRoundRect(rail, h * .025f, h * .025f, paint)
+        paint.color = 0xFF35B9F2.toInt()
+        c.drawRoundRect(RectF(rail.left + w * .018f, rail.top + h * .055f,
+            rail.left + w * .022f, rail.top + h * .145f), h * .003f, h * .003f, paint)
+        text(c, "设置中心", rail.left + w * .035f, rail.top + h * .105f,
+            h * .031f, -1, true)
+        text(c, "DEVICE SETTINGS", rail.left + w * .035f, rail.top + h * .145f,
+            h * .011f, 0xFF8FAFCB.toInt(), true)
+        val labels = listOf("桌面布局", "外观与壁纸", "应用管理", "桌面组件", "遥控器与操作", "小李全联", "电视系统设置")
         labels.forEachIndexed { index, label ->
-            val top = h * (.275f + index * .091f)
-            val rect = RectF(w * .067f, top, w * .213f, top + h * .073f)
+            val top = h * (.285f + index * .087f)
+            val rect = RectF(rail.left + w * .014f, top, rail.right - w * .014f, top + h * .066f)
             val selected = settingsFocus == 30 + index || settingsCategoryForControl(settingsFocus) == index
-            paint.color = if (selected) 0xFF167FD8.toInt() else 0x443AAFFF
-            c.drawRoundRect(rect, 14f, 14f, paint)
             if (selected) {
-                paint.style = Paint.Style.STROKE
-                paint.strokeWidth = (h * .0025f).coerceAtLeast(2f)
-                paint.color = 0xFF8BE7FF.toInt()
-                c.drawRoundRect(rect, 14f, 14f, paint)
-                paint.style = Paint.Style.FILL
+                paint.color = 0xFF164D78.toInt()
+                c.drawRoundRect(rect, h * .012f, h * .012f, paint)
+                paint.color = 0xFF68D9FF.toInt()
+                c.drawRoundRect(RectF(rect.left, rect.top + h * .012f,
+                    rect.left + w * .004f, rect.bottom - h * .012f), h * .002f, h * .002f, paint)
             }
-            paint.textAlign = Paint.Align.CENTER
-            text(c, label, rect.centerX(), rect.centerY() + h * .008f,
-                h * .018f, -1, selected)
-            paint.textAlign = Paint.Align.LEFT
+            paint.color = if (selected) 0xFF8BE7FF.toInt() else 0xFF7693B2.toInt()
+            c.drawCircle(rect.left + w * .025f, rect.centerY(), h * .0045f, paint)
+            text(c, label, rect.left + w * .045f, rect.centerY() + h * .007f,
+                h * .017f, if (selected) -1 else 0xFFD0DCEC.toInt(), selected)
         }
+        text(c, "方向键选择  ·  OK 确认", rail.left + w * .025f, rail.bottom - h * .035f,
+            h * .011f, 0xFF829BB7.toInt())
     }
 
     private fun drawSettingCard(c: Canvas, rect: RectF, heading: String, detail: String, focused: Boolean) {
+        val radius = rect.height() * .16f
         paint.style = Paint.Style.FILL
-        paint.color = if (focused) 0xFF167FD8.toInt() else 0x553AAFFF
-        c.drawRoundRect(rect, 18f, 18f, paint)
-        if (focused) {
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = (height * .0028f).coerceAtLeast(2f)
-            paint.color = 0xFF8BE7FF.toInt()
-            c.drawRoundRect(rect, 18f, 18f, paint)
-            paint.style = Paint.Style.FILL
-        }
-        val left = rect.left + rect.width() * .055f
-        val maxWidth = rect.width() * .89f
-        val titleSize = rect.height() * .25f
-        val detailSize = rect.height() * .16f
-        text(c, heading, left, rect.top + rect.height() * .39f, titleSize, -1, true)
-        // Wrap long descriptions within the card's inner width.
+        paint.color = if (focused) 0xFF153F68.toInt() else 0xC9122945.toInt()
+        c.drawRoundRect(rect, radius, radius, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = if (focused) (height * .0032f).coerceAtLeast(2.5f) else (height * .0011f).coerceAtLeast(1f)
+        paint.color = if (focused) 0xFF72DFFF.toInt() else 0x554E83B5
+        c.drawRoundRect(rect, radius, radius, paint)
+        paint.style = Paint.Style.FILL
+        val accent = RectF(rect.left + rect.width() * .025f, rect.top + rect.height() * .22f,
+            rect.left + rect.width() * .032f, rect.bottom - rect.height() * .22f)
+        paint.color = if (focused) 0xFF65D9FF.toInt() else 0x665E9ACB
+        c.drawRoundRect(accent, accent.width(), accent.width(), paint)
+        val left = rect.left + rect.width() * .075f
+        val maxWidth = rect.width() * .79f
+        val titleSize = (rect.height() * .235f).coerceAtLeast(height * .017f)
+        val detailSize = (rect.height() * .145f).coerceAtLeast(height * .011f)
+        text(c, heading, left, rect.top + rect.height() * .40f, titleSize,
+            if (focused) -1 else 0xFFF0F6FF.toInt(), true)
         paint.textSize = detailSize
         paint.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
         val lines = mutableListOf<String>()
@@ -1263,11 +1273,16 @@ class LauncherView(context: Context) : View(context) {
             lines.add(remaining.substring(0, count))
             remaining = remaining.substring(count).trimStart()
         }
-        val lineHeight = detailSize * 1.35f
-        val firstBaseline = if (lines.size > 1) rect.top + rect.height() * .66f
-            else rect.top + rect.height() * .76f
+        val lineHeight = detailSize * 1.38f
+        val firstBaseline = if (lines.size > 1) rect.top + rect.height() * .65f
+            else rect.top + rect.height() * .75f
         lines.forEachIndexed { index, line ->
-            text(c, line, left, firstBaseline + index * lineHeight, detailSize, 0xFFDDEEFF.toInt())
+            text(c, line, left, firstBaseline + index * lineHeight, detailSize,
+                if (focused) 0xFFDDF5FF.toInt() else 0xFFAFC4DA.toInt())
+        }
+        if (rect.width() > width * .18f) {
+            text(c, "›", rect.right - rect.width() * .065f, rect.centerY() + rect.height() * .12f,
+                rect.height() * .34f, if (focused) 0xFF8BE7FF.toInt() else 0xFF6F94B7.toInt(), true)
         }
     }
 
@@ -1277,8 +1292,13 @@ class LauncherView(context: Context) : View(context) {
         val contentSave = c.save()
         c.translate(w * .18f, 0f)
         c.scale(.80f, 1f)
-        paint.color = 0xE6052B68.toInt()
-        c.drawRoundRect(RectF(w * .08f, h * .14f, w * .92f, h * .97f), 30f, 30f, paint)
+        paint.color = 0xE9081A31.toInt()
+        c.drawRoundRect(RectF(w * .08f, h * .14f, w * .92f, h * .97f), h * .025f, h * .025f, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = (h * .0012f).coerceAtLeast(1f)
+        paint.color = 0x334E91C7
+        c.drawRoundRect(RectF(w * .08f, h * .14f, w * .92f, h * .97f), h * .025f, h * .025f, paint)
+        paint.style = Paint.Style.FILL
 
         val headings = listOf("桌面布局", "外观与壁纸", "应用管理", "桌面组件",
             "遥控器与操作", "小李全联", "电视系统设置")
