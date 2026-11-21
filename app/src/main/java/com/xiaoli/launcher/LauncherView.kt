@@ -1336,22 +1336,19 @@ class LauncherView(context: Context) : View(context) {
                         runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                     }
                 }
-                1 -> { controlCenterPage = 1; controlCenterFocus = 0 }
-                2 -> { controlCenterOpen = false; openLauncherSettings() }
-                3 -> runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                1 -> { refreshControlInputs(); controlCenterPage = 1; controlCenterFocus = 0 }
+                2 -> { controlCenterPage = 2; controlCenterFocus = 0 }
+                3 -> { controlCenterPage = 3; controlCenterFocus = 0 }
+                4 -> { controlCenterOpen = false; openLauncherSettings() }
+                5 -> runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             }
             1 -> {
-                // Android TV vendors expose input switching through different system activities.
-                val candidates = listOf("android.intent.action.TV_INPUT", "android.settings.HDMI_SETTINGS")
-                var launched = false
-                for (action in candidates) {
-                    if (runCatching { context.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true }.getOrDefault(false)) {
-                        launched = true
-                        break
-                    }
-                }
-                if (!launched) runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                val input = controlInputs.getOrNull(controlCenterFocus)
+                if (input != null) openControlInput(input)
+                else runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             }
+            2 -> toggleControlMute()
+            3 -> adjustControlBrightness(0)
         }
         invalidate()
     }
