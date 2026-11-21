@@ -113,6 +113,8 @@ class LauncherView(context: Context) : View(context) {
     private var drawerScrollRow = 0
     private var drawerScrollVisualRow = 0f
     private var drawerScrollAnimator: ValueAnimator? = null
+    private var drawerFocusAnimator: ValueAnimator? = null
+    private var drawerFocusScale = 1f
     // Header action is a first-class D-pad target, separate from the app grid.
     private var drawerHeaderFocused = false
     private var homeIndex = 0
@@ -170,6 +172,20 @@ class LauncherView(context: Context) : View(context) {
             interpolator = DecelerateInterpolator(1.6f)
             addUpdateListener { animator ->
                 drawerScrollVisualRow = animator.animatedValue as Float
+                invalidate()
+            }
+            start()
+        }
+    }
+
+    private fun animateDrawerFocus() {
+        drawerFocusAnimator?.cancel()
+        drawerFocusScale = 1f
+        drawerFocusAnimator = ValueAnimator.ofFloat(1f, 1.08f).apply {
+            duration = 150L
+            interpolator = DecelerateInterpolator(1.2f)
+            addUpdateListener { animator ->
+                drawerFocusScale = animator.animatedValue as Float
                 invalidate()
             }
             start()
@@ -540,6 +556,8 @@ class LauncherView(context: Context) : View(context) {
     }
 
     fun closeDrawer() {
+        drawerFocusAnimator?.cancel()
+        drawerFocusScale = 1f
         isDrawerOpen = false
         drawerHeaderFocused = false
         editingFavorites = false
@@ -1166,7 +1184,14 @@ class LauncherView(context: Context) : View(context) {
         }
         // Fill the icon viewport, clipping only its corners to the same rounded-card silhouette.
         val target = RectF(rect)
-        val radius = rect.width() * .20f
+        if (focused) {
+            val scale = drawerFocusScale.coerceAtLeast(1f)
+            val halfWidth = rect.width() * scale / 2f
+            val halfHeight = rect.height() * scale / 2f
+            target.set(rect.centerX() - halfWidth, rect.centerY() - halfHeight,
+                rect.centerX() + halfWidth, rect.centerY() + halfHeight)
+        }
+        val radius = target.width() * .20f
         val save = c.save()
         val clip = Path().apply {
             addRoundRect(target, radius, radius, Path.Direction.CW)
@@ -2353,21 +2378,36 @@ class LauncherView(context: Context) : View(context) {
                 KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> {
                     if (!homeAppManageMode) editingFavorites = !editingFavorites
                 }
-                KeyEvent.KEYCODE_DPAD_LEFT -> if (!drawerHeaderFocused) drawerIndex = drawerMetrics().moveFocus(drawerIndex, -1, apps.size)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> if (!drawerHeaderFocused) drawerIndex = drawerMetrics().moveFocus(drawerIndex, 1, apps.size)
+                KeyEvent.KEYCODE_DPAD_LEFT -> if (!drawerHeaderFocused) {
+                    val next = drawerMetrics().moveFocus(drawerIndex, -1, apps.size)
+                    if (next != drawerIndex) { drawerIndex = next; animateDrawerFocus() }
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> if (!drawerHeaderFocused) {
+                    val next = drawerMetrics().moveFocus(drawerIndex, 1, apps.size)
+                    if (next != drawerIndex) { drawerIndex = next; animateDrawerFocus() }
+                }
                 KeyEvent.KEYCODE_DPAD_UP -> {
                     val metrics = drawerMetrics()
                     // Enter the header only from the absolute first row of the app list.
                     // The first visible row may be scrolled; it must remain part of the grid.
                     if (!drawerHeaderFocused && (apps.isEmpty() || drawerIndex < metrics.columns)) {
                         drawerHeaderFocused = true
+                        drawerFocusAnimator?.cancel()
+                        drawerFocusScale = 1f
                     } else if (!drawerHeaderFocused) {
-                        drawerIndex = metrics.moveFocus(drawerIndex, -metrics.columns, apps.size)
+                        val next = metrics.moveFocus(drawerIndex, -metrics.columns, apps.size)
+                        if (next != drawerIndex) { drawerIndex = next; animateDrawerFocus() }
                     }
                 }
                 KeyEvent.KEYCODE_DPAD_DOWN -> {
-                    if (drawerHeaderFocused) drawerHeaderFocused = false
-                    else drawerIndex = drawerMetrics().moveFocus(drawerIndex, drawerMetrics().columns, apps.size)
+                    if (drawerHeaderFocused) {
+                        drawerHeaderFocused = false
+                        animateDrawerFocus()
+                    } else {
+                        val metrics = drawerMetrics()
+                        val next = metrics.moveFocus(drawerIndex, metrics.columns, apps.size)
+                        if (next != drawerIndex) { drawerIndex = next; animateDrawerFocus() }
+                    }
                 }
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     if (event.repeatCount == 0) {
