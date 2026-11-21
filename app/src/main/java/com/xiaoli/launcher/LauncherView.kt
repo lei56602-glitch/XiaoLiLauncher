@@ -726,6 +726,7 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun beginClockComponentEdit(mode: String) {
+        selectedEditWidget = 0
         clockEditOriginal = listOf(clockX, clockY, clockScale, dateX, dateY, dateScale)
         clockEditMode = mode
         clockEditMenuOpen = false
