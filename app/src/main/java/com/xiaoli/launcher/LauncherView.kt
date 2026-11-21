@@ -1068,7 +1068,8 @@ class LauncherView(context: Context) : View(context) {
         // App icons are first-class desktop objects; no enclosing tile/card.
         favorites.take(5).forEachIndexed { i, app ->
             val icon = homeIconCardRect(i, w, h)
-            val focused = i == homeIndex && homeTopFocus == -1
+            val focused = if (homeAppManageMode) i == homeManageSlot
+                else i == homeIndex && homeTopFocus == -1
             if (app.packageName == emptySlot.packageName) {
                 paint.style = Paint.Style.STROKE
                 paint.strokeWidth = (h * .003f).coerceAtLeast(2f)
@@ -1107,8 +1108,8 @@ class LauncherView(context: Context) : View(context) {
                 paint.style = Paint.Style.STROKE
                 paint.strokeWidth = (h * .006f).coerceAtLeast(3f)
                 paint.color = 0xFFFFD166.toInt()
-                c.drawRoundRect(RectF(selected.left - 8f, selected.top - 8f,
-                    selected.right + 8f, selected.bottom + 8f), 18f, 18f, paint)
+                c.drawRoundRect(scaledFocusRect(RectF(selected.left - 8f, selected.top - 8f,
+                    selected.right + 8f, selected.bottom + 8f)), 18f, 18f, paint)
                 paint.style = Paint.Style.FILL
             }
             paint.textAlign = Paint.Align.LEFT
