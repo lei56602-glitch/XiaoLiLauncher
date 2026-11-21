@@ -1820,6 +1820,7 @@ class LauncherView(context: Context) : View(context) {
     }.getOrDefault(false)
 
     private fun openControlCenter() {
+        controlDefaultHome = isDefaultHome()
         if (!controlCenterOpen) controlCenterReturnFocus = homeTopFocus
         controlCenterOpen = true
         controlCenterPage = 0
@@ -1833,12 +1834,7 @@ class LauncherView(context: Context) : View(context) {
     private fun activateControlCenterItem() {
         when (controlCenterPage) {
             0 -> when (controlCenterFocus) {
-                0 -> {
-                    val intent = Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    runCatching { context.startActivity(intent) }.onFailure {
-                        runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                    }
-                }
+                0 -> openControlNetworkSettings()
                 1 -> { refreshControlInputs(); controlCenterPage = 1; controlCenterFocus = 0; controlCenterInputOffset = 0 }
                 2 -> { refreshControlInputs(); controlCenterPage = 4; controlCenterFocus = 0; controlCenterInputOffset = 0 }
                 3 -> { controlCenterPage = 2; controlCenterFocus = 0 }
@@ -1911,7 +1907,7 @@ class LauncherView(context: Context) : View(context) {
             val labels = listOf("网络与 Wi-Fi", "电视信源", "信源管理", "音量控制", "屏幕亮度", "小李桌面设置", "默认主屏幕", "系统设置")
             val subtitles = listOf(controlNetworkLabel(), "检测到 ${visibleControlInputs().size} 个可显示输入",
                 "隐藏、固定电视输入", "媒体音量与静音", "系统允许时调节亮度", "壁纸、桌面与应用管理",
-                if (isDefaultHome()) "小李桌面当前已是默认主屏幕" else "将小李桌面设为默认主屏幕",
+                if (controlDefaultHome) "小李桌面当前已是默认主屏幕" else "将小李桌面设为默认主屏幕",
                 "Android 设备设置")
             val icons = listOf("◉", "▣", "☷", "♪", "☼", "⚙", "⌂", "⌘")
             val startY = panel.top + panel.height() * .18f
