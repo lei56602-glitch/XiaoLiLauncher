@@ -27,6 +27,8 @@ class LauncherView(context: Context) : View(context) {
     private val apps = mutableListOf<AppEntry>()
     private val favorites = mutableListOf<AppEntry>()
     private var drawerIndex = 0
+    // First row currently visible in the drawer's clipped app grid.
+    private var drawerFirstVisibleRow = 0
     private var homeIndex = 0
     private var touchDownX = 0f
     private var touchDownY = 0f
@@ -170,19 +172,28 @@ class LauncherView(context: Context) : View(context) {
         val cols = drawerColumns()
         val cellW = w * .8f / cols
         val cellH = if (w < h) h * .105f else h * .15f
+        val firstRow = drawerFirstVisibleRow
+        val lastVisibleRow = firstRow + drawerVisibleRows()
+        val saveCount = c.save()
+        c.clipRect(w * .08f, h * .30f, w * .92f, h * .825f)
         apps.forEachIndexed { i, app ->
-            val row = i / cols; val col = i % cols
-            val x = w*.1f + col*cellW; val y = h*.32f + row*cellH
-            val rect = RectF(x,y,x+cellW*.88f,y+cellH*.78f)
-            val selected = favorites.any { it.packageName == app.packageName }
-            paint.color = when {
-                i == drawerIndex -> 0xFF31B9FF.toInt()
-                selected -> 0x6675D7FF
-                else -> 0x44FFFFFF
+            val row = i / cols
+            if (row in firstRow until lastVisibleRow) {
+                val col = i % cols
+                val x = w*.1f + col*cellW
+                val y = h*.32f + (row - firstRow)*cellH
+                val rect = RectF(x,y,x+cellW*.88f,y+cellH*.78f)
+                val selected = favorites.any { it.packageName == app.packageName }
+                paint.color = when {
+                    i == drawerIndex -> 0xFF31B9FF.toInt()
+                    selected -> 0x6675D7FF
+                    else -> 0x44FFFFFF
+                }
+                c.drawRoundRect(rect,20f,20f,paint)
+                text(c, (if (selected) "✓ " else "") + app.label.take(8), x+12f, y+cellH*.48f, h*.022f, -1, i==drawerIndex)
             }
-            c.drawRoundRect(rect,20f,20f,paint)
-            text(c, (if (selected) "✓ " else "") + app.label.take(8), x+12f, y+cellH*.48f, h*.022f, -1, i==drawerIndex)
         }
+        c.restoreToCount(saveCount)
         if (apps.isEmpty()) text(c, "暂未发现可启动的应用", w*.38f,h*.55f,h*.03f,-1)
         val hint = if (editingFavorites) "触摸点按添加/移除  ·  遥控器确认键操作  ·  最多5个"
             else "点按应用启动  ·  上滑打开抽屉  ·  点右上角管理首页应用"
@@ -194,6 +205,49 @@ class LauncherView(context: Context) : View(context) {
 
     private fun drawerColumns(): Int =
         prefs.getInt("drawer_columns", 5).coerceIn(3, 5)
+
+    private fun drawerCellHeight(): Float =
+        if (width < height) height * .105f else height * .15f
+
+    private fun drawerVisibleRows(): Int {
+        if (height <= 0) return 1
+        val availableHeight = height * (.82f - .32f)
+        return (availableHeight / drawerCellHeight()).toInt().coerceAtLeast(1)
+    }
+
+    private fun keepDrawerSelectionVisible() {
+        if (apps.isEmpty()) {
+            drawerIndex = 0
+            drawerFirstVisibleRow = 0
+            return
+        }
+        drawerIndex = drawerIndex.coerceIn(0, apps.lastIndex)
+        val selectedRow = drawerIndex / drawerColumns()
+        val visibleRows = drawerVisibleRows()
+        val maxFirstRow = ((apps.size + drawerColumns() - 1) / drawerColumns() - visibleRows)
+            .coerceAtLeast(0)
+        if (selectedRow < drawerFirstVisibleRow) {
+            drawerFirstVisibleRow = selectedRow
+        } else if (selectedRow >= drawerFirstVisibleRow + visibleRows) {
+            drawerFirstVisibleRow = selectedRow - visibleRows + 1
+        }
+        drawerFirstVisibleRow = drawerFirstVisibleRow.coerceIn(0, maxFirstRow)
+    }
+
+    private fun moveDrawerVertical(direction: Int) {
+        if (apps.isEmpty()) return
+        val cols = drawerColumns()
+        val currentRow = drawerIndex / cols
+        val currentCol = drawerIndex % cols
+        val targetRow = currentRow + direction
+        val rowCount = (apps.size + cols - 1) / cols
+        if (targetRow !in 0 until rowCount) return
+        val rowStart = targetRow * cols
+        val rowEnd = minOf(rowStart + cols, apps.size)
+        drawerIndex = (rowStart + currentCol.coerceAtMost(rowEnd - rowStart - 1))
+            .coerceIn(rowStart, rowEnd - 1)
+        keepDrawerSelectionVisible()
+    }
 
     private fun openLauncherSettings() {
         isDrawerOpen = false
@@ -275,10 +329,11 @@ class LauncherView(context: Context) : View(context) {
         if (y < height * .32f || y > height * .82f) return -1
         val cols = drawerColumns()
         val cellW = width * .8f / cols
-        val cellH = if (width < height) height * .105f else height * .15f
+        val cellH = drawerCellHeight()
         val col = ((x - width * .1f) / cellW).toInt()
-        val row = ((y - height * .32f) / cellH).toInt()
-        if (col !in 0 until cols || row < 0) return -1
+        val visibleRow = ((y - height * .32f) / cellH).toInt()
+        if (col !in 0 until cols || visibleRow < 0 || visibleRow >= drawerVisibleRows()) return -1
+        val row = drawerFirstVisibleRow + visibleRow
         val index = row * cols + col
         val cellLeft = width * .1f + col * cellW
         val cellTop = height * .32f + row * cellH
@@ -345,6 +400,7 @@ class LauncherView(context: Context) : View(context) {
                         val index = drawerItemIndexAt(event.x, event.y)
                         if (index >= 0) {
                             drawerIndex = index
+                            keepDrawerSelectionVisible()
                             val app = apps[index]
                             if (editingFavorites) {
                                 val exists = favorites.any { it.packageName == app.packageName }
@@ -360,6 +416,7 @@ class LauncherView(context: Context) : View(context) {
                 } else if (dy < -height * .06f) {
                     isDrawerOpen = true
                     drawerIndex = 0
+                    drawerFirstVisibleRow = 0
                 } else if (kotlin.math.abs(dx) > width * .08f && kotlin.math.abs(dx) > kotlin.math.abs(dy)) {
                     if (favorites.isNotEmpty()) {
                         homeIndex = if (dx < 0) (homeIndex + 1).coerceAtMost(favorites.lastIndex)
@@ -373,6 +430,7 @@ class LauncherView(context: Context) : View(context) {
                     } else if (event.y > height * .78f && event.x < width * .42f) {
                         isDrawerOpen = true
                         drawerIndex = 0
+                        drawerFirstVisibleRow = 0
                     } else if (event.y < height * .16f && event.x < width * .28f) {
                         openLauncherSettings()
                     }
@@ -412,10 +470,17 @@ class LauncherView(context: Context) : View(context) {
             when (keyCode) {
                 KeyEvent.KEYCODE_BACK -> { closeDrawer(); return true }
                 KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> editingFavorites = !editingFavorites
-                KeyEvent.KEYCODE_DPAD_LEFT -> drawerIndex = (drawerIndex - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> drawerIndex = (drawerIndex + 1).coerceAtMost(apps.lastIndex.coerceAtLeast(0))
-                KeyEvent.KEYCODE_DPAD_UP -> drawerIndex = (drawerIndex - drawerColumns()).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_DOWN -> drawerIndex = (drawerIndex + drawerColumns()).coerceAtMost(apps.lastIndex.coerceAtLeast(0))
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    if (apps.isNotEmpty() && drawerIndex % drawerColumns() > 0) drawerIndex--
+                    keepDrawerSelectionVisible()
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (apps.isNotEmpty() && drawerIndex % drawerColumns() < drawerColumns() - 1 &&
+                        drawerIndex + 1 < apps.size) drawerIndex++
+                    keepDrawerSelectionVisible()
+                }
+                KeyEvent.KEYCODE_DPAD_UP -> moveDrawerVertical(-1)
+                KeyEvent.KEYCODE_DPAD_DOWN -> moveDrawerVertical(1)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     apps.getOrNull(drawerIndex)?.let { app ->
                         if (editingFavorites) {
