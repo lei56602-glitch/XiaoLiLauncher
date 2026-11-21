@@ -1404,11 +1404,58 @@ class LauncherView(context: Context) : View(context) {
         }.getOrDefault(emptyList()).let { discovered ->
             if (discovered.any { it.kind == "HDMI" }) discovered
             else {
-                val tcl = tclFallbackInputs()
-                if (tcl.isNotEmpty()) discovered + tcl else discovered + xiaomiFallbackInputs()
+                val konka = konkaFallbackInputs()
+                if (konka.isNotEmpty()) discovered + konka
+                else {
+                    val tcl = tclFallbackInputs()
+                    if (tcl.isNotEmpty()) discovered + tcl else discovered + xiaomiFallbackInputs()
+                }
             }
         }
     }
+
+    private fun konkaFallbackInputs(): List<ControlInput> = runCatching {
+        val player = ComponentName("com.konka.tvsettings", "com.konka.tvsettings.RootActivity")
+        val activity = context.packageManager.getActivityInfo(player, 0)
+        if (!activity.exported || !activity.enabled || !activity.applicationInfo.enabled) return emptyList()
+        val managerClass = Class.forName("com.konka.android.tv.KKCommonManager")
+        val sourceClass = Class.forName("com.konka.android.tv.KKCommonManager\$EN_KK_INPUT_SOURCE")
+        val manager = managerClass.getMethod("getInstance", Context::class.java)
+            .invoke(null, context.applicationContext)
+        val reported = managerClass.getMethod("getTVInputSourceList").invoke(manager) as? List<*>
+            ?: return emptyList()
+        val connected = runCatching {
+            managerClass.getMethod("getAvaliableInputSourceList").invoke(manager) as? List<*>
+        }.getOrNull().orEmpty()
+        val labelMethod = runCatching {
+            managerClass.getMethod("getInputSourceName", sourceClass)
+        }.getOrNull()
+        reported.filterIsInstance<Enum<*>>().map { source ->
+            val label = runCatching { labelMethod?.invoke(manager, source) as? String }
+                .getOrNull()?.takeIf { it.isNotBlank() } ?: source.name
+            val kind = when {
+                source.name.startsWith("HDMI") || source.name == "EXTERNAL_8K_HDMI" -> "HDMI"
+                source.name == "DP" || source.name == "TYPE_C" || source.name == "EXTERNAL_8K_DP" -> "DisplayPort"
+                source.name.startsWith("AV") || source.name.startsWith("YPBPR") || source.name.startsWith("SVIDEO") -> "AV视频"
+                source.name == "ATV" || source.name == "DTMB" || source.name.startsWith("DVB_") ||
+                    source.name == "ATSC" || source.name == "ISDB_T" -> "电视调谐器"
+                else -> "其他输入"
+            }
+            ControlInput(
+                id = "konka:${source.name}",
+                label = label,
+                kind = kind,
+                switchIntent = Intent("com.konka.tvsettings.intent.action.RootActivity")
+                    .setComponent(player).putExtra("source", source.ordinal)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+                setupIntent = null,
+                connected = Build.VERSION.SDK_INT >= 23 && source in connected,
+                deviceName = null,
+            )
+        }.distinctBy { it.id }.sortedWith(compareBy({ it.kind }, { it.label }))
+    }.onFailure {
+        android.util.Log.w("XiaoLiControlCenter", "Could not read Konka native inputs", it)
+    }.getOrDefault(emptyList())
 
     private fun tclFallbackInputs(): List<ControlInput> {
         val player = ComponentName("com.tcl.tv", "com.tcl.tv.TVActivity")
