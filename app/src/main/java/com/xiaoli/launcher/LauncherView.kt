@@ -2081,6 +2081,8 @@ class LauncherView(context: Context) : View(context) {
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if ((keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
+            (clockEditMenuOpen || clockComponentEditMode)) return true
         if ((keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) && longPressReleaseConsumed) {
             longPressReleaseConsumed = false
             finishOkPressTracking()
