@@ -1524,9 +1524,10 @@ class LauncherView(context: Context) : View(context) {
                         (if (controlCenterPage == 4) .315f + index * .102f else .225f + index * .112f)
                     val rect = RectF(panel.left + panel.width() * .065f, rowTop,
                         panel.right - panel.width() * .065f, rowTop + panel.height() * .092f)
-                    paint.color = if (index == controlCenterFocus) 0x775AB9F2 else 0x334D91C8
+                    val rowFocus = if (controlCenterPage == 4) index + 1 else index
+                    paint.color = if (rowFocus == controlCenterFocus) 0x775AB9F2 else 0x334D91C8
                     canvas.drawRoundRect(rect, h * .016f, h * .016f, paint)
-                    if (index == controlCenterFocus) {
+                    if (rowFocus == controlCenterFocus) {
                         paint.style = Paint.Style.STROKE
                         paint.strokeWidth = (h * .0025f).coerceAtLeast(2f)
                         paint.color = 0xFFD8F4FF.toInt()
@@ -2694,7 +2695,7 @@ class LauncherView(context: Context) : View(context) {
             val count = when (controlCenterPage) {
                 0 -> 7
                 1 -> visibleControlInputs().size.coerceAtLeast(1).coerceAtMost(6)
-                4 -> controlInputs.size.coerceAtLeast(1).coerceAtMost(6)
+                4 -> controlInputs.size.coerceAtMost(5) + 1
                 else -> 1
             }
             when (keyCode) {
@@ -2705,10 +2706,15 @@ class LauncherView(context: Context) : View(context) {
                     } else controlCenterFocus = (controlCenterFocus - 1).coerceAtLeast(0)
                 }
                 KeyEvent.KEYCODE_DPAD_DOWN -> {
-                    if (controlCenterPage == 1 || controlCenterPage == 4) {
-                        val total = if (controlCenterPage == 1) visibleControlInputs().size else controlInputs.size
+                    if (controlCenterPage == 1) {
+                        val total = visibleControlInputs().size
                         val visibleCount = minOf(6, (total - controlCenterInputOffset).coerceAtLeast(1))
                         if (controlCenterFocus < visibleCount - 1) controlCenterFocus++
+                        else if (controlCenterInputOffset + visibleCount < total) controlCenterInputOffset++
+                    } else if (controlCenterPage == 4) {
+                        val total = controlInputs.size
+                        val visibleCount = minOf(5, (total - controlCenterInputOffset).coerceAtLeast(0))
+                        if (controlCenterFocus < visibleCount) controlCenterFocus++
                         else if (controlCenterInputOffset + visibleCount < total) controlCenterInputOffset++
                     } else controlCenterFocus = (controlCenterFocus + 1).coerceAtMost(count - 1)
                 }
@@ -2717,7 +2723,8 @@ class LauncherView(context: Context) : View(context) {
                     1 -> { controlCenterPage = 0; controlCenterFocus = 1 }
                     2 -> adjustControlVolume(-1)
                     3 -> adjustControlBrightness(-1)
-                    4 -> controlInputs.getOrNull(controlCenterInputOffset + controlCenterFocus)?.let(::toggleControlInputHidden)
+                    4 -> if (controlCenterFocus > 0)
+                        controlInputs.getOrNull(controlCenterInputOffset + controlCenterFocus - 1)?.let(::toggleControlInputHidden)
                 }
                 KeyEvent.KEYCODE_DPAD_RIGHT -> when (controlCenterPage) {
                     1 -> activateControlCenterItem()
