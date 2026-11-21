@@ -296,6 +296,7 @@ class LauncherView(context: Context) : View(context) {
     private var okLongPressTriggered = false
     private var okPressSource = ""
     private var okPressIndex = -1
+    private var actionMenuSelectionConsumed = false
 
     private fun saveFavorites() {
         while (favorites.size < 5) favorites.add(emptySlot)
@@ -1970,6 +1971,10 @@ class LauncherView(context: Context) : View(context) {
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
+            if (actionMenuSelectionConsumed) {
+                actionMenuSelectionConsumed = false
+                return true
+            }
             if (finishOkPressTracking()) return true
         }
         if ((keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
@@ -2016,7 +2021,11 @@ class LauncherView(context: Context) : View(context) {
             when (keyCode) {
                 KeyEvent.KEYCODE_DPAD_UP -> actionMenuChoice = (actionMenuChoice - 1).coerceAtLeast(0)
                 KeyEvent.KEYCODE_DPAD_DOWN -> actionMenuChoice = (actionMenuChoice + 1).coerceAtMost(if (actionMenuSource == "home") 3 else 1)
-                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> { runAppAction(); return true }
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                    actionMenuSelectionConsumed = true
+                    runAppAction()
+                    return true
+                }
                 KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> actionMenuOpen = false
             }
             invalidate()
