@@ -6,10 +6,12 @@ on:
       - main
       - development
       - integration/quanlian-core
+      - 'feature/**'
   pull_request:
     branches:
       - main
       - development
+      - integration/quanlian-core
   workflow_dispatch:
 
 permissions:
