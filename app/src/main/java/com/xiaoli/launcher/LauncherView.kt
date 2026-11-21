@@ -583,9 +583,16 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun loadSavedWallpaper() {
-        val value = prefs.getString("wallpaper_uri", null) ?: return
-        val uri = runCatching { Uri.parse(value) }.getOrNull() ?: return
-        wallpaperBitmap = decodeWallpaper(uri)
+        val defaultWallpaper = {
+            BitmapFactory.decodeResource(context.resources, R.drawable.default_wallpaper)
+        }
+        val value = prefs.getString("wallpaper_uri", null)
+        wallpaperBitmap = if (value.isNullOrBlank()) {
+            defaultWallpaper()
+        } else {
+            val uri = runCatching { Uri.parse(value) }.getOrNull()
+            uri?.let(::decodeWallpaper) ?: defaultWallpaper()
+        }
     }
 
     private fun drawWallpaper(c: Canvas, w: Float, h: Float): Boolean {
@@ -1297,7 +1304,7 @@ class LauncherView(context: Context) : View(context) {
             .setNegativeButton("取消", null)
             .setPositiveButton("恢复") { _, _ ->
                 wallpaperBitmap?.recycle()
-                wallpaperBitmap = null
+                wallpaperBitmap = BitmapFactory.decodeResource(context.resources, R.drawable.default_wallpaper)
                 prefs.edit().remove("wallpaper_uri").apply()
                 invalidate()
             }
