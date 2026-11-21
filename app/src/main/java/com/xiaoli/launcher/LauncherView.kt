@@ -1456,7 +1456,7 @@ class LauncherView(context: Context) : View(context) {
                 connected = current == id,
                 deviceName = null,
             )
-        }.distinctBy { it.id }.sortedBy { it.label }
+        }.distinctBy { it.id }.sortedBy { it.label }.toList()
         return if (hdmi.isEmpty()) emptyList() else hdmi + ControlInput(
             id = "vidaa:257",
             label = "电视",
