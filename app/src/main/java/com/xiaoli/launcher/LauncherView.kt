@@ -17,6 +17,7 @@ import android.graphics.Typeface
 import android.net.ConnectivityManager
 import android.media.AudioManager
 import android.media.tv.TvInputManager
+import android.media.tv.TvContract
 import android.media.tv.TvInputInfo
 import android.net.Uri
 import android.os.Handler
@@ -151,7 +152,7 @@ class LauncherView(context: Context) : View(context) {
     private var controlCenterFocus = 0
     private var controlCenterInputOffset = 0
     private var controlCenterReturnFocus = -1
-    private data class ControlInput(val id: String, val label: String, val kind: String, val setupIntent: Intent?)
+    private data class ControlInput(val id: String, val label: String, val kind: String, val switchIntent: Intent?, val setupIntent: Intent?)
     private var controlInputs: List<ControlInput> = emptyList()
     private val audioManager by lazy { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     private var settingsReturnHomeFocus = -1
@@ -1263,13 +1264,24 @@ class LauncherView(context: Context) : View(context) {
                     TvInputInfo.TYPE_DVI -> "DVI"
                     else -> if (info.isPassthroughInput) "外接输入" else "电视信号"
                 }
-                ControlInput(info.id, label.ifBlank { info.id }, kind,
+                val switchIntent = runCatching {
+                    val uri = if (info.isPassthroughInput)
+                        TvContract.buildChannelUriForPassthroughInput(info.id)
+                    else TvContract.buildChannelsUriForInput(info.id)
+                    Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }.getOrNull()
+                ControlInput(info.id, label.ifBlank { info.id }, kind, switchIntent,
                     runCatching { info.createSetupIntent() }.getOrNull())
             }.distinctBy { it.id }.sortedWith(compareBy<ControlInput>({ it.kind }, { it.label }))
         }.getOrDefault(emptyList())
     }
 
     private fun openControlInput(input: ControlInput) {
+        val route = input.switchIntent
+        if (route != null && runCatching {
+                context.packageManager.resolveActivity(route, PackageManager.MATCH_DEFAULT_ONLY) != null &&
+                    runCatching { context.startActivity(route) }.isSuccess
+            }.getOrDefault(false)) return
         val setup = input.setupIntent
         if (setup != null && runCatching {
                 context.startActivity(setup.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
