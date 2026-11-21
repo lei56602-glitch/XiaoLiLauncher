@@ -34,6 +34,7 @@ class MainActivity : Activity() {
         super.onResume()
         if (::launcherView.isInitialized) {
             launcherView.refreshInstalledApps()
+            launcherView.reloadSavedWallpaper()
             launcherView.requestFocus()
         }
     }

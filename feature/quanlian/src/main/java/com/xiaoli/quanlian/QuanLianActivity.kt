@@ -56,11 +56,18 @@ class QuanLianActivity : Activity() {
     private var status = "正在搜索附近设备…"
     private var receiveEnabled = false
     private var transferRunning = false
+    private var wallpaperMode = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        receiveEnabled = getSharedPreferences("quanlian_runtime", MODE_PRIVATE)
+        wallpaperMode = intent.getBooleanExtra(EXTRA_WALLPAPER_MODE, false)
+        receiveEnabled = wallpaperMode || getSharedPreferences("quanlian_runtime", MODE_PRIVATE)
             .getBoolean("receive_enabled", false)
+        if (wallpaperMode) {
+            page = Page.RECEIVE
+            getSharedPreferences("quanlian_runtime", MODE_PRIVATE).edit()
+                .putBoolean("receive_enabled", true).apply()
+        }
         screen = QuanLianScreen()
         setContentView(screen)
     }
@@ -132,7 +139,7 @@ class QuanLianActivity : Activity() {
                         status = intent.getStringExtra(ReceiveForegroundService.EXTRA_TEXT)
                             ?: "接收服务状态已更新"
                         screen.invalidate()
-                        if (status.contains("接收完成")) {
+                        if (status.contains("接收完成") && !wallpaperMode) {
                             AlertDialog.Builder(this@QuanLianActivity)
                                 .setTitle("文件接收完成")
                                 .setMessage("$status\n文件已通过 SHA-256 完整性校验。")
@@ -179,6 +186,9 @@ class QuanLianActivity : Activity() {
                             dialog.show()
                         }
                     }
+                    ReceiveForegroundService.ACTION_FILES_RECEIVED -> {
+                        if (wallpaperMode) showReceivedWallpaperChoices(intent)
+                    }
                     TransferForegroundService.ACTION_PROGRESS -> {
                         transferRunning = true
                         status = intent.getStringExtra(TransferForegroundService.EXTRA_TEXT)
@@ -210,11 +220,47 @@ class QuanLianActivity : Activity() {
         val filter = IntentFilter().apply {
             addAction(ReceiveForegroundService.ACTION_STATUS)
             addAction(ReceiveForegroundService.ACTION_INCOMING)
+            addAction(ReceiveForegroundService.ACTION_FILES_RECEIVED)
             addAction(TransferForegroundService.ACTION_PROGRESS)
             addAction(TransferForegroundService.ACTION_RESULT)
         }
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(eventReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
         else @Suppress("DEPRECATION") registerReceiver(eventReceiver, filter)
+    }
+
+    private fun showReceivedWallpaperChoices(intent: Intent) {
+        val raw = intent.getStringExtra(ReceiveForegroundService.EXTRA_FILES) ?: "[]"
+        val files = runCatching { JSONArray(raw) }.getOrDefault(JSONArray())
+        val images = ArrayList<Pair<String, String>>()
+        for (index in 0 until files.length()) {
+            val item = files.optJSONObject(index) ?: continue
+            val name = item.optString("name", "图片")
+            val value = item.optString("uri", "")
+            if (value.isBlank()) continue
+            val uri = runCatching { Uri.parse(value) }.getOrNull() ?: continue
+            val mime = contentResolver.getType(uri) ?: item.optString("mime", "")
+            if (mime.startsWith("image/")) images.add(name to value)
+        }
+        if (images.isEmpty()) {
+            status = "本次接收没有图片文件，无法设置壁纸"
+            screen.invalidate()
+            Toast.makeText(this, status, Toast.LENGTH_LONG).show()
+            return
+        }
+        val labels = images.map { it.first }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("选择要设置的桌面壁纸")
+            .setMessage("已接收 " + images.size + " 张图片。选择一张应用到小李桌面。")
+            .setItems(labels) { _, which ->
+                val uri = Uri.parse(images[which].second)
+                getSharedPreferences("launcher", MODE_PRIVATE).edit()
+                    .putString("wallpaper_uri", uri.toString()).apply()
+                stopReceive()
+                Toast.makeText(this, "桌面壁纸已更新", Toast.LENGTH_LONG).show()
+                finish()
+            }
+            .setNegativeButton("暂不设置", null)
+            .show()
     }
 
     private fun openFilePicker() {
@@ -391,7 +437,17 @@ class QuanLianActivity : Activity() {
         backFocused = false
         when (page) {
             Page.HOME -> finish()
-            Page.SEND, Page.RECEIVE, Page.DEVICES, Page.HISTORY -> {
+            Page.RECEIVE -> {
+                if (wallpaperMode) {
+                    stopReceive()
+                    finish()
+                } else {
+                    page = Page.HOME
+                    focus = 0
+                    screen.invalidate()
+                }
+            }
+            Page.SEND, Page.DEVICES, Page.HISTORY -> {
                 page = Page.HOME
                 focus = 0
                 screen.invalidate()
@@ -988,6 +1044,7 @@ class QuanLianActivity : Activity() {
     }
 
     companion object {
+        const val EXTRA_WALLPAPER_MODE = "com.xiaoli.quanlian.EXTRA_WALLPAPER_MODE"
         private const val REQUEST_PICK_FILES = 401
         private const val REQUEST_NOTIFICATIONS = 402
     }

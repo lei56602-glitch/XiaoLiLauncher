@@ -582,6 +582,12 @@ class LauncherView(context: Context) : View(context) {
         invalidate()
     }
 
+    fun reloadSavedWallpaper() {
+        wallpaperBitmap?.recycle()
+        loadSavedWallpaper()
+        invalidate()
+    }
+
     private fun loadSavedWallpaper() {
         val defaultWallpaper = {
             BitmapFactory.decodeResource(context.resources, R.drawable.default_wallpaper)
@@ -1354,7 +1360,7 @@ class LauncherView(context: Context) : View(context) {
 
     private fun settingsCategoryForControl(focus: Int): Int? = when (focus) {
         8, 0, 1, 2, 17, 18, 19 -> 0
-        3, 4, 5 -> 1
+        3, 4, 5, 24 -> 1
         21 -> 2
         22, 9, 10, 15, 16 -> 3
         14, 13 -> 4
@@ -1499,6 +1505,8 @@ class LauncherView(context: Context) : View(context) {
                 drawSettingCard(c, RectF(w * .65f, h * .36f, w * .87f, h * .51f),
                     "恢复默认", "移除自定义图片", settingsFocus == 5)
                 drawWallpaperPreview(c, RectF(w * .13f, h * .57f, w * .87f, h * .84f))
+                drawSettingCard(c, RectF(w * .13f, h * .865f, w * .62f, h * .945f),
+                    "从手机接收壁纸", "通过小李全联局域网传输，无需扫码", settingsFocus == 24)
             }
             2 -> {
                 drawSettingCard(c, RectF(w * .13f, h * .39f, w * .87f, h * .64f),
@@ -1884,20 +1892,27 @@ class LauncherView(context: Context) : View(context) {
                                     resetHomeIconPositions()
                                 }
                             }
-                            1 -> if (event.y in (height * .36f)..(height * .51f)) {
-                                when {
-                                    settingsHitX in (width * .13f)..(width * .35f) -> {
-                                        settingsFocus = 3
-                                        onChooseWallpaper?.invoke()
+                            1 -> {
+                                if (event.y in (height * .36f)..(height * .51f)) {
+                                    when {
+                                        settingsHitX in (width * .13f)..(width * .35f) -> {
+                                            settingsFocus = 3
+                                            onChooseWallpaper?.invoke()
+                                        }
+                                        settingsHitX in (width * .38f)..(width * .62f) -> {
+                                            settingsFocus = 4
+                                            toggleDynamicWallpaper()
+                                        }
+                                        settingsHitX in (width * .65f)..(width * .87f) -> {
+                                            settingsFocus = 5
+                                            clearWallpaper()
+                                        }
                                     }
-                                    settingsHitX in (width * .38f)..(width * .62f) -> {
-                                        settingsFocus = 4
-                                        toggleDynamicWallpaper()
-                                    }
-                                    settingsHitX in (width * .65f)..(width * .87f) -> {
-                                        settingsFocus = 5
-                                        clearWallpaper()
-                                    }
+                                } else if (event.y in (height * .865f)..(height * .945f) &&
+                                    settingsHitX in (width * .13f)..(width * .62f)) {
+                                    settingsFocus = 24
+                                    context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java)
+                                        .putExtra(com.xiaoli.quanlian.QuanLianActivity.EXTRA_WALLPAPER_MODE, true))
                                 }
                             }
                             2 -> if (event.y in (height * .39f)..(height * .64f) &&
@@ -2320,6 +2335,9 @@ class LauncherView(context: Context) : View(context) {
                     else if (settingsFocus == 3) onChooseWallpaper?.invoke()
                     else if (settingsFocus == 4) toggleDynamicWallpaper()
                     else if (settingsFocus == 5) clearWallpaper()
+                    else if (settingsFocus == 24) context.startActivity(
+                        Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java)
+                            .putExtra(com.xiaoli.quanlian.QuanLianActivity.EXTRA_WALLPAPER_MODE, true))
                     else if (settingsFocus == 6) context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
                     else if (settingsFocus == 21) { isSettingsOpen = false; isDrawerOpen = true; editingFavorites = true; drawerIndex = 0; resetDrawerScroll() }
                     else if (settingsFocus == 13) closeLauncherSettings()

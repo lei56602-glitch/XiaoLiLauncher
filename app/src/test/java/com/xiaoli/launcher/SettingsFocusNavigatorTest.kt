@@ -7,7 +7,7 @@ class SettingsFocusNavigatorTest {
     @Test
     fun everyRenderedSettingsControlIsReachable() {
         assertEquals(
-            setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23),
+            setOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 24),
             SettingsFocusNavigator.supportedFocusIds()
         )
     }
@@ -39,5 +39,7 @@ class SettingsFocusNavigatorTest {
         assertEquals(6, SettingsFocusNavigator.next(6, 2))
         assertEquals(7, SettingsFocusNavigator.next(7, -2))
         assertEquals(3, SettingsFocusNavigator.next(3, 2))
+        assertEquals(24, SettingsFocusNavigator.next(4, 2))
+        assertEquals(4, SettingsFocusNavigator.next(24, -2))
     }
 }

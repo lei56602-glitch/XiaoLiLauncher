@@ -21,7 +21,8 @@ public class ReceiveForegroundService extends Service {
     public static final String ACTION_INCOMING="com.quanlian.app.receive.INCOMING";
     public static final String ACTION_DECISION="com.quanlian.app.receive.DECISION";
     public static final String ACTION_STATUS="com.quanlian.app.receive.STATUS";
-    public static final String EXTRA_ID="request_id", EXTRA_ACCEPT="accept", EXTRA_SENDER="sender", EXTRA_COUNT="count", EXTRA_TOTAL="total", EXTRA_PORT="port", EXTRA_TEXT="text", EXTRA_PROGRESS="progress";
+    public static final String ACTION_FILES_RECEIVED="com.xiaoli.launcher.quanlian.FILES_RECEIVED";
+    public static final String EXTRA_ID="request_id", EXTRA_ACCEPT="accept", EXTRA_SENDER="sender", EXTRA_COUNT="count", EXTRA_TOTAL="total", EXTRA_PORT="port", EXTRA_TEXT="text", EXTRA_PROGRESS="progress", EXTRA_FILES="files_json";
     private static final String TYPE="_quanlian._tcp.", CHANNEL="quanlian_receive", INCOMING_CHANNEL="quanlian_incoming";
     private static final int NOTIFICATION_ID=2102, BUF=65536;
     public static final int DEFAULT_PORT=38890;
@@ -179,13 +180,22 @@ public class ReceiveForegroundService extends Service {
             out.writeBoolean(accepted);out.flush();if(!accepted)return;
             File dir=new File(getFilesDir(),"QuanLianIncoming");if(!dir.exists()&&!dir.mkdirs())throw new IOException("无法创建临时目录");
             byte[] buf=new byte[BUF];
+            JSONArray completedFiles = new JSONArray();
             for(int x=0;x<count;x++){
                 StringBuilder clean=new StringBuilder();for(char ch:names.get(x).toCharArray())clean.append("\\\\/:*?\"<>|".indexOf(ch)>=0?"_":ch);String safe=clean.toString().trim();if(safe.isEmpty()||safe.equals(".")||safe.equals(".."))safe="received_file_"+x;
                 File tmp;
                 MessageDigest digest=MessageDigest.getInstance("SHA-256");
                 long left=sizes.get(x);
                 String completedKey=Integer.toHexString(senderId.hashCode())+"_"+hashes.get(x).toLowerCase(Locale.ROOT);
-                if(resumable&&getSharedPreferences("completed_incoming",MODE_PRIVATE).getBoolean(completedKey,false)){out.writeLong(sizes.get(x));out.flush();continue;}
+                if(resumable&&getSharedPreferences("completed_incoming",MODE_PRIVATE).getBoolean(completedKey,false)){
+                    out.writeLong(sizes.get(x));out.flush();
+                    String previousUri=getSharedPreferences("completed_incoming",MODE_PRIVATE).getString(completedKey+"_uri",null);
+                    if(previousUri!=null){
+                        JSONObject previous=new JSONObject();previous.put("name",safe);previous.put("uri",previousUri);
+                        previous.put("size",sizes.get(x));previous.put("mime",mimeTypeForName(safe));completedFiles.put(previous);
+                    }
+                    continue;
+                }
                 if(resumable){
                     tmp=new File(dir,".quanlian_"+Integer.toHexString(senderId.hashCode())+"_"+hashes.get(x).toLowerCase(Locale.ROOT)+".part");
                     if(tmp.exists()&&tmp.length()>left)tmp.delete();
@@ -219,9 +229,17 @@ public class ReceiveForegroundService extends Service {
                 }
                 if(!hex(digest.digest()).equalsIgnoreCase(hashes.get(x))){tmp.delete();throw new IOException("文件校验失败："+safe);}
                 Uri saved;try{saved=saveFile(tmp,safe);}finally{if(tmp.exists())tmp.delete();}if(saved==null)throw new IOException("无法保存文件："+safe);
-                addHistory(safe,sizes.get(x),sender,saved.toString());if(resumable)getSharedPreferences("completed_incoming",MODE_PRIVATE).edit().putBoolean(completedKey,true).commit();broadcastStatus("正在接收第 "+(x+1)+"/"+count+" 个文件："+safe,port(),(int)(((x+1)*1000L)/count));
+                addHistory(safe,sizes.get(x),sender,saved.toString());
+                JSONObject receivedFile=new JSONObject();receivedFile.put("name",safe);receivedFile.put("uri",saved.toString());
+                receivedFile.put("size",sizes.get(x));receivedFile.put("mime",mimeTypeForName(safe));completedFiles.put(receivedFile);
+                if(resumable)getSharedPreferences("completed_incoming",MODE_PRIVATE).edit()
+                    .putBoolean(completedKey,true).putString(completedKey+"_uri",saved.toString()).commit();
+                broadcastStatus("正在接收第 "+(x+1)+"/"+count+" 个文件："+safe,port(),(int)(((x+1)*1000L)/count));
             }
-            out.writeBoolean(true);out.flush();broadcastStatus("接收完成，文件完整性校验通过",port());
+            out.writeBoolean(true);out.flush();
+            Intent filesReceived=new Intent(ACTION_FILES_RECEIVED).setPackage(getPackageName());
+            filesReceived.putExtra(EXTRA_FILES,completedFiles.toString());sendBroadcast(filesReceived);
+            broadcastStatus("接收完成，文件完整性校验通过",port());
         }catch(Exception e){DiagnosticLog.error(this,"RECEIVE_PROCESSING_FAILED",e);android.util.Log.e("QuanLianReceive","接收会话处理失败 mode="+(TlsIdentity.plainMode(this)?"PLAIN":"TLS"),e);broadcastStatus("接收失败："+e.getClass().getSimpleName()+"："+e.getMessage(),port());}
         finally{releaseReceiveWakeLock();}
     }
