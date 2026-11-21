@@ -1841,15 +1841,16 @@ class LauncherView(context: Context) : View(context) {
                     h * .019f, 0xFFF4FAFF.toInt(), true)
                 paint.textAlign = Paint.Align.LEFT
             } else {
+                val xgimiLevel = if (isVolume) null else xgimiBrightnessLevel()
                 val current = if (isVolume) {
                     val (level, max) = volumeLevel()
                     level.toFloat() / max
-                } else brightnessLevel() / 255f
+                } else if (xgimiLevel != null) xgimiLevel / 10f else brightnessLevel() / 255f
                 val valueLabel = if (isVolume) {
                     val (level, max) = volumeLevel()
                     if (controlExternalVolume) "外接音响" else if (audioManager.isStreamMute(AudioManager.STREAM_MUSIC))
                         "已静音" else "$level / $max"
-                } else "${brightnessLevel()} / 255"
+                } else if (xgimiLevel != null) "$xgimiLevel / 10" else "${brightnessLevel()} / 255"
                 val slider = RectF(panel.left + panel.width() * .10f, panel.top + panel.height() * .43f,
                     panel.right - panel.width() * .10f, panel.top + panel.height() * .49f)
                 paint.color = 0x665D8FB8
@@ -1863,6 +1864,7 @@ class LauncherView(context: Context) : View(context) {
                     h * .027f, 0xFFF4FAFF.toInt(), true)
                 paint.textAlign = Paint.Align.LEFT
                 val hint = if (isVolume) "左右键调节 · OK 切换静音"
+                    else if (xgimiLevel != null) "左右键调节 XGIMI DLP 光源亮度"
                     else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context))
                         "尚未授权修改系统亮度 · OK 打开授权页面"
                     else "左右键调节屏幕亮度"
