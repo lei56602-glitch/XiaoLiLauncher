@@ -1354,7 +1354,61 @@ class LauncherView(context: Context) : View(context) {
                 .distinctBy { it.id }
                 .sortedWith(compareBy<ControlInput>({ it.kind }, { it.label }))
                 .toList()
-        }.getOrDefault(emptyList())
+        }.getOrDefault(emptyList()).let { discovered ->
+            if (discovered.any { it.kind == "HDMI" }) discovered
+            else {
+                val tcl = tclFallbackInputs()
+                if (tcl.isNotEmpty()) discovered + tcl else discovered + xiaomiFallbackInputs()
+            }
+        }
+    }
+
+    private fun tclFallbackInputs(): List<ControlInput> {
+        val player = ComponentName("com.tcl.tv", "com.tcl.tv.TVActivity")
+        val activity = runCatching { context.packageManager.getActivityInfo(player, 0) }.getOrNull() ?: return emptyList()
+        if (!activity.exported || !activity.enabled || !activity.applicationInfo.enabled) return emptyList()
+        fun source(name: String, ordinal: Int, kind: String, label: String) = ControlInput(
+            id = "tcl:$name",
+            label = label,
+            kind = kind,
+            switchIntent = Intent().setComponent(player).putExtra("targetSourceId", ordinal)
+                .putExtra("referer", "com.tcl.settings.module_source")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            setupIntent = null,
+            connected = false,
+            deviceName = null,
+        )
+        return listOf(
+            source("HDMI1", 8, "HDMI", "HDMI 1"),
+            source("HDMI2", 9, "HDMI", "HDMI 2"),
+            source("HDMI3", 10, "HDMI", "HDMI 3"),
+            source("HDMI4", 11, "HDMI", "HDMI 4"),
+            source("DTV", 2, "电视调谐器", "电视"),
+            source("AV1", 3, "AV视频", "AV"),
+        )
+    }
+
+    private fun xiaomiFallbackInputs(): List<ControlInput> {
+        if (isPlaybackDevice()) return emptyList()
+        val player = ComponentName("com.xiaomi.mitv.tvplayer", "com.xiaomi.mitv.tvplayer.ExternalSourceActivity")
+        val activity = runCatching { context.packageManager.getActivityInfo(player, 0) }.getOrNull() ?: return emptyList()
+        if (!activity.exported || !activity.enabled || !activity.applicationInfo.enabled) return emptyList()
+        val ports = if (Build.MODEL == "MiTV4C") 2 else 3
+        return (1..ports).map { port ->
+            val inputId = 22 + port
+            ControlInput(
+                id = "xiaomi:$inputId",
+                label = "HDMI $port",
+                kind = "HDMI",
+                switchIntent = Intent("com.xiaomi.mitv.tvplayer.EXTSRC_PLAY")
+                    .setComponent(player)
+                    .putExtra("input", inputId)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+                setupIntent = null,
+                connected = false,
+                deviceName = null,
+            )
+        }
     }
 
     private fun tclInputRoute(info: TvInputInfo, kind: String, label: String): Intent? {
