@@ -134,6 +134,37 @@ class LauncherView(context: Context) : View(context) {
     val isLauncherSettingsOpen: Boolean get() = isSettingsOpen
     private var settingsFocus = 0
     private val handler = Handler(Looper.getMainLooper())
+    private val okLongPressRunnable = Runnable {
+        if (okPressPending && !okLongPressTriggered) {
+            okLongPressTriggered = true
+            when (okPressSource) {
+                "home" -> favorites.getOrNull(okPressIndex)?.takeIf { it.packageName != emptySlot.packageName }
+                    ?.let { openAppActionMenu("home", okPressIndex, it) }
+                "drawer" -> if (isDrawerOpen && !drawerHeaderFocused)
+                    apps.getOrNull(okPressIndex)?.let { openAppActionMenu("drawer", okPressIndex, it) }
+            }
+            invalidate()
+        }
+    }
+
+    private fun beginOkPressTracking(source: String, index: Int) {
+        handler.removeCallbacks(okLongPressRunnable)
+        okPressPending = true
+        okLongPressTriggered = false
+        okPressSource = source
+        okPressIndex = index
+        handler.postDelayed(okLongPressRunnable, 550L)
+    }
+
+    private fun finishOkPressTracking(): Boolean {
+        handler.removeCallbacks(okLongPressRunnable)
+        okPressPending = false
+        val wasLongPress = okLongPressTriggered
+        okLongPressTriggered = false
+        okPressSource = ""
+        okPressIndex = -1
+        return wasLongPress
+    }
     private val clockTick = object : Runnable {
         override fun run() {
             invalidate()
@@ -259,6 +290,12 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private var editingFavorites = false
+    // A timer fallback makes long-OK behavior reliable on TV remotes that do not
+    // consistently dispatch Android's onKeyLongPress callback.
+    private var okPressPending = false
+    private var okLongPressTriggered = false
+    private var okPressSource = ""
+    private var okPressIndex = -1
 
     private fun saveFavorites() {
         while (favorites.size < 5) favorites.add(emptySlot)
@@ -1902,11 +1939,17 @@ class LauncherView(context: Context) : View(context) {
         if (!widgetEditMode && !isSettingsOpen && !isDrawerOpen && !homeIconEditMode && !homePositionEditMode && homeTopFocus == -1 &&
             (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
             favorites.getOrNull(homeIndex)?.packageName != emptySlot.packageName) {
+            handler.removeCallbacks(okLongPressRunnable)
+            okPressPending = false
+            okLongPressTriggered = true
             favorites.getOrNull(homeIndex)?.let { openAppActionMenu("home", homeIndex, it) }
             return true
         }
         if (!widgetEditMode && !isSettingsOpen && isDrawerOpen && !drawerHeaderFocused &&
             (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) {
+            handler.removeCallbacks(okLongPressRunnable)
+            okPressPending = false
+            okLongPressTriggered = true
             apps.getOrNull(drawerIndex)?.let { openAppActionMenu("drawer", drawerIndex, it) }
             return true
         }
@@ -1926,6 +1969,9 @@ class LauncherView(context: Context) : View(context) {
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
+            if (finishOkPressTracking()) return true
+        }
         if ((keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
             !event.isCanceled && !event.isLongPress && !actionMenuOpen &&
             !isSettingsOpen && !widgetEditMode && !homeIconEditMode && !homePositionEditMode) {
@@ -2039,7 +2085,10 @@ class LauncherView(context: Context) : View(context) {
         if (!widgetEditMode && !isSettingsOpen && !isDrawerOpen &&
             (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
             (homeTopFocus in 0..2 || favorites.isNotEmpty()) && !event.isLongPress) {
-            if (event.repeatCount == 0) event.startTracking()
+            if (event.repeatCount == 0) {
+                event.startTracking()
+                if (homeTopFocus == -1) beginOkPressTracking("home", homeIndex)
+            }
             return true
         }
         if (widgetEditMode && !isSettingsOpen && !isDrawerOpen) {
@@ -2146,7 +2195,10 @@ class LauncherView(context: Context) : View(context) {
                     else drawerIndex = drawerMetrics().moveFocus(drawerIndex, drawerMetrics().columns, apps.size)
                 }
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                    if (event.repeatCount == 0) event.startTracking()
+                    if (event.repeatCount == 0) {
+                        event.startTracking()
+                        if (!drawerHeaderFocused) beginOkPressTracking("drawer", drawerIndex)
+                    }
                     return true
                 }
             }
