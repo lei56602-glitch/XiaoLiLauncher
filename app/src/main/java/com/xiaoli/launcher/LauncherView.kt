@@ -85,6 +85,11 @@ class LauncherView(context: Context) : View(context) {
     private var weatherScale = prefs.getFloat("widget_weather_scale", 1f).coerceIn(.55f, 2.4f)
     private var activeWidgetResize = -1
     private var widgetEditMode = false
+    private var clockEditMenuOpen = false
+    private var clockComponentEditMode = false
+    private var clockEditMode = "resize"
+    private var clockEditChoice = 0
+    private var clockEditOriginal: List<Float> = emptyList()
     private var selectedEditWidget = 0
     private var resizeStartSpan = 0f
     private var resizeStartScale = 1f
@@ -511,6 +516,8 @@ class LauncherView(context: Context) : View(context) {
 
     fun handleBack(): Boolean {
         when {
+            clockEditMenuOpen -> clockEditMenuOpen = false
+            clockComponentEditMode -> finishClockComponentEdit(false)
             actionMenuOpen -> actionMenuOpen = false
             isSettingsOpen -> closeLauncherSettings()
             isDrawerOpen -> closeDrawer()
@@ -628,6 +635,7 @@ class LauncherView(context: Context) : View(context) {
             else -> drawHome(canvas, w, h)
         }
         if (actionMenuOpen) drawAppActionMenu(canvas)
+        if (clockEditMenuOpen || clockComponentEditMode) drawClockEditOverlay(canvas)
     }
 
     private fun text(c: Canvas, value: String, x: Float, y: Float, size: Float, color: Int, bold: Boolean = false) {
@@ -674,6 +682,70 @@ class LauncherView(context: Context) : View(context) {
         drawHomeTopFocus(c, w, height.toFloat())
         paint.textAlign = Paint.Align.LEFT
         if (widgetEditMode) drawSelectedWidgetOutline(c)
+    }
+
+    private fun drawClockEditOverlay(c: Canvas) {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        paint.color = 0xB8001024.toInt()
+        c.drawRect(0f, 0f, w, h, paint)
+        val panel = RectF(w * .34f, h * .30f, w * .66f, h * .70f)
+        paint.color = 0xF20A2448.toInt()
+        c.drawRoundRect(panel, h * .025f, h * .025f, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = (h * .0025f).coerceAtLeast(2f)
+        paint.color = 0xFF55CFFF.toInt()
+        c.drawRoundRect(panel, h * .025f, h * .025f, paint)
+        paint.style = Paint.Style.FILL
+        if (clockEditMenuOpen) {
+            text(c, "时间与日历", panel.left + panel.width() * .10f, panel.top + panel.height() * .25f, h * .034f, -1, true)
+            val labels = listOf("调整大小", "移动位置")
+            labels.forEachIndexed { i, label ->
+                val row = RectF(panel.left + panel.width() * .09f, panel.top + panel.height() * (.36f + i * .28f),
+                    panel.right - panel.width() * .09f, panel.top + panel.height() * (.57f + i * .28f))
+                paint.color = if (clockEditChoice == i) 0xFF087FD1.toInt() else 0x554D9BEA
+                c.drawRoundRect(row, h * .014f, h * .014f, paint)
+                paint.textAlign = Paint.Align.CENTER
+                text(c, label, row.centerX(), row.centerY() + h * .010f, h * .028f, -1, clockEditChoice == i)
+                paint.textAlign = Paint.Align.LEFT
+            }
+            text(c, "方向键选择  ·  OK 确认  ·  返回取消", panel.left + panel.width() * .08f,
+                panel.bottom - h * .025f, h * .016f, 0xFFD7E8F8.toInt())
+        } else {
+            val hint = if (clockEditMode == "resize") "左右键调整时间与日历大小" else "方向键移动整个时间与日历组件"
+            text(c, hint, panel.left + panel.width() * .09f, panel.centerY(), h * .028f, -1, true)
+            text(c, "OK 保存  ·  返回恢复原状", panel.left + panel.width() * .09f,
+                panel.bottom - h * .07f, h * .018f, 0xFFD7E8F8.toInt())
+        }
+    }
+
+    private fun openClockEditMenu() {
+        clockEditMenuOpen = true
+        clockEditChoice = 0
+        invalidate()
+    }
+
+    private fun beginClockComponentEdit(mode: String) {
+        clockEditOriginal = listOf(clockX, clockY, clockScale, dateX, dateY, dateScale)
+        clockEditMode = mode
+        clockEditMenuOpen = false
+        clockComponentEditMode = true
+        invalidate()
+    }
+
+    private fun finishClockComponentEdit(save: Boolean) {
+        if (!save && clockEditOriginal.size == 6) {
+            clockX = clockEditOriginal[0]
+            clockY = clockEditOriginal[1]
+            clockScale = clockEditOriginal[2]
+            dateX = clockEditOriginal[3]
+            dateY = clockEditOriginal[4]
+            dateScale = clockEditOriginal[5]
+        }
+        if (save) saveWidgetPositions()
+        clockComponentEditMode = false
+        clockEditOriginal = emptyList()
+        invalidate()
     }
 
     private fun drawWifiShortcut(c: Canvas, w: Float, h: Float) {
@@ -2024,7 +2096,7 @@ class LauncherView(context: Context) : View(context) {
             !event.isCanceled && !event.isLongPress && !actionMenuOpen &&
             !isSettingsOpen && !widgetEditMode && !homeIconEditMode && !homePositionEditMode) {
             if (!isDrawerOpen && homeTopFocus in 0..2) {
-                activateHomeTopFocus()
+                if (homeTopFocus == 0) openClockEditMenu() else activateHomeTopFocus()
                 return true
             }
             if (isDrawerOpen) {
@@ -2060,6 +2132,32 @@ class LauncherView(context: Context) : View(context) {
         if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) {
             return handleBack()
         }
+        if (clockEditMenuOpen) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_UP -> clockEditChoice = (clockEditChoice - 1).coerceAtLeast(0)
+                KeyEvent.KEYCODE_DPAD_DOWN -> clockEditChoice = (clockEditChoice + 1).coerceAtMost(1)
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> beginClockComponentEdit(if (clockEditChoice == 0) "resize" else "move")
+                KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> clockEditMenuOpen = false
+            }
+            invalidate()
+            return true
+        }
+        if (clockComponentEditMode) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    val direction = if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) -1f else 1f
+                    if (clockEditMode == "resize") setWidgetScale(0, clockScale + direction * .05f)
+                    else adjustSelectedWidgetPosition(direction, 0f)
+                }
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> if (clockEditMode == "move") {
+                    adjustSelectedWidgetPosition(0f, if (keyCode == KeyEvent.KEYCODE_DPAD_UP) -1f else 1f)
+                }
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> finishClockComponentEdit(true)
+                KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> finishClockComponentEdit(false)
+            }
+            invalidate()
+            return true
+        }
         if (actionMenuOpen) {
             when (keyCode) {
                 KeyEvent.KEYCODE_DPAD_UP -> actionMenuChoice = (actionMenuChoice - 1).coerceAtLeast(0)
@@ -2075,6 +2173,8 @@ class LauncherView(context: Context) : View(context) {
             return true
         }
         if (keyCode == KeyEvent.KEYCODE_SETTINGS) {
+            if (clockEditMenuOpen) clockEditMenuOpen = false
+            if (clockComponentEditMode) finishClockComponentEdit(false)
             if (widgetEditMode) widgetEditMode = false
             if (homePositionEditMode) finishHomePositionEdit(false)
             homeIconEditMode = false
