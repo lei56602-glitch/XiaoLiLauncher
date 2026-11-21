@@ -29,18 +29,39 @@ internal data class DrawerGridMetrics(
     fun iconTop(cellTop: Float): Float = cellTop + cellHeight * .045f
 
     /**
-     * Move focus within the current grid row/column. Never wrap at row edges
-     * or jump to an unrelated item when the last row is incomplete.
+     * Spatial D-pad navigation for the app grid.
+     *
+     * Horizontal moves stay on the current row and never wrap. Vertical moves
+     * enter the adjacent row and choose the item whose horizontal centre is
+     * nearest to the current item's centre. This is important for an incomplete
+     * last row: moving UP must still find the nearest app instead of getting
+     * stuck merely because the same column is empty.
+     *
+     * The caller owns the separate header target and scrolls the grid after
+     * focus changes, keeping focus and viewport movement in lockstep.
      */
     fun moveFocus(index: Int, direction: Int, itemCount: Int): Int {
-        if (itemCount <= 0) return 0
+        if (itemCount <= 0 || columns <= 0) return 0
+
         val current = index.coerceIn(0, itemCount - 1)
+        val row = current / columns
         val column = current % columns
+
         return when (direction) {
             -1 -> if (column > 0) current - 1 else current
             1 -> if (column < columns - 1 && current + 1 < itemCount) current + 1 else current
-            -columns -> if (current >= columns) current - columns else current
-            columns -> if (current + columns < itemCount) current + columns else current
+            -columns, columns -> {
+                val targetRow = row + if (direction < 0) -1 else 1
+                if (targetRow !in 0 until totalRows(itemCount)) {
+                    current
+                } else {
+                    val firstIndex = targetRow * columns
+                    val endExclusive = minOf(firstIndex + columns, itemCount)
+                    (firstIndex until endExclusive).minByOrNull { candidate ->
+                        kotlin.math.abs((candidate % columns) - column)
+                    } ?: current
+                }
+            }
             else -> current
         }
     }
