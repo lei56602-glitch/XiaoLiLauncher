@@ -45,6 +45,7 @@ class QuanLianActivity : Activity() {
     private var focus = 0
     private var navFocused = false
     private var navIndex = 0
+    private var backFocused = false
     private var historyScrollOffset = 0
     private var sendDeviceScrollRow = 0
     private var deviceScrollOffset = 0
@@ -379,6 +380,7 @@ class QuanLianActivity : Activity() {
         page = target
         navIndex = target.ordinal
         navFocused = false
+        backFocused = false
         focus = 0
         if(target==Page.HISTORY)historyScrollOffset=0
         if(target==Page.DEVICES)deviceScrollOffset=0
@@ -386,6 +388,7 @@ class QuanLianActivity : Activity() {
     }
 
     private fun goBack() {
+        backFocused = false
         when (page) {
             Page.HOME -> finish()
             Page.SEND, Page.RECEIVE, Page.DEVICES, Page.HISTORY -> {
@@ -463,6 +466,23 @@ class QuanLianActivity : Activity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (backFocused) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT -> backFocused = false
+                KeyEvent.KEYCODE_DPAD_LEFT -> { backFocused = false; navFocused = true; navIndex = page.ordinal }
+                KeyEvent.KEYCODE_DPAD_UP -> Unit
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> { goBack(); return true }
+                KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> { backFocused = false; return true }
+                else -> return super.onKeyDown(keyCode, event)
+            }
+            screen.invalidate()
+            return true
+        }
+        if (!navFocused && keyCode == KeyEvent.KEYCODE_DPAD_UP && focus == 0) {
+            backFocused = true
+            screen.invalidate()
+            return true
+        }
         if (navFocused) {
             when (keyCode) {
                 KeyEvent.KEYCODE_DPAD_UP -> navIndex = (navIndex - 1).coerceAtLeast(0)
@@ -623,7 +643,16 @@ class QuanLianActivity : Activity() {
             c.save()
             c.translate(railWidth, 0f)
             val contentWidth = w - railWidth
-            drawText(c, "‹  返回桌面", contentWidth * .045f, h * .075f, unit * .026f, pale)
+            if (backFocused) {
+                p.style = Paint.Style.STROKE
+                p.strokeWidth = (unit * .003f).coerceAtLeast(2f)
+                p.color = 0xFF8BE7FF.toInt()
+                c.drawRoundRect(RectF(contentWidth * .025f, h * .035f, contentWidth * .30f, h * .105f),
+                    h * .014f, h * .014f, p)
+                p.style = Paint.Style.FILL
+            }
+            drawText(c, "‹  返回桌面", contentWidth * .045f, h * .075f, unit * .026f,
+                if (backFocused) -1 else pale, backFocused)
             when (page) {
                 Page.HOME -> drawHome(c, contentWidth, h, minOf(contentWidth, h))
                 Page.SEND -> drawSend(c, contentWidth, h, minOf(contentWidth, h))
@@ -855,6 +884,7 @@ class QuanLianActivity : Activity() {
             x -= railWidth
             val contentWidth = width.toFloat() - railWidth
             if (y < height * .12f && x < contentWidth * .28f) {
+                backFocused = false
                 goBack()
                 return true
             }
