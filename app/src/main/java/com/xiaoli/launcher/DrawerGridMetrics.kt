@@ -35,14 +35,26 @@ internal data class DrawerGridMetrics(
     fun moveFocus(index: Int, direction: Int, itemCount: Int): Int {
         if (itemCount <= 0) return 0
         val current = index.coerceIn(0, itemCount - 1)
-        val column = current % columns
-        return when (direction) {
-            -1 -> if (column > 0) current - 1 else current
-            1 -> if (column < columns - 1 && current + 1 < itemCount) current + 1 else current
-            -columns -> if (current >= columns) current - columns else current
-            columns -> if (current + columns < itemCount) current + columns else current
-            else -> current
+        val currentRow = current / columns
+        val targets = (0 until itemCount)
+            .filter { candidate ->
+                direction != -1 && direction != 1 || candidate / columns == currentRow
+            }
+            .map { candidate ->
+                FocusTarget(
+                    id = candidate,
+                    centerX = candidate % columns + .5f,
+                    centerY = candidate / columns + .5f
+                )
+            }
+        val spatialDirection = when (direction) {
+            -1 -> SpatialFocusNavigator.LEFT
+            1 -> SpatialFocusNavigator.RIGHT
+            -columns -> SpatialFocusNavigator.UP
+            columns -> SpatialFocusNavigator.DOWN
+            else -> return current
         }
+        return SpatialFocusNavigator.next(current, spatialDirection, targets)
     }
 
     fun indexAt(x: Float, y: Float, scrollRow: Int, itemCount: Int): Int {
