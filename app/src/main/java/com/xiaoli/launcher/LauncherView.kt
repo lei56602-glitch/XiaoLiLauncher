@@ -3,6 +3,8 @@ package com.xiaoli.launcher
 import android.content.Context
 import android.app.role.RoleManager
 import android.content.Intent
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Canvas
 import android.graphics.Bitmap
@@ -151,10 +153,39 @@ class LauncherView(context: Context) : View(context) {
     private var controlCenterPage = 0
     private var controlCenterFocus = 0
     private var controlCenterInputOffset = 0
+    private var controlCecEnabled = prefs.getBoolean("control_cec_switch", false)
     private var controlCenterReturnFocus = -1
     private data class ControlInput(val id: String, val label: String, val kind: String, val switchIntent: Intent?, val setupIntent: Intent?)
     private var controlInputs: List<ControlInput> = emptyList()
     private val audioManager by lazy { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+    private val controlCecReceiver = object : BroadcastReceiver() {
+        override fun onReceive(receiverContext: Context, intent: Intent) {
+            if (!controlCecEnabled) return
+            refreshControlInputs()
+            val candidates = buildSet {
+                intent.getStringExtra(TvInputInfo.EXTRA_INPUT_ID)?.let(::add)
+                intent.extras?.keySet()?.forEach { key ->
+                    runCatching { intent.getStringExtra(key) }.getOrNull()?.let(::add)
+                }
+            }
+            val manager = context.getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager
+            val target = controlInputs.firstOrNull { source ->
+                source.id in candidates || candidates.any { candidate ->
+                    runCatching { manager?.getTvInputInfo(candidate)?.parentId == source.id }.getOrDefault(false)
+                }
+            }
+            target?.let(::openControlInput)
+        }
+    }
+
+    private fun toggleControlCec() {
+        controlCecEnabled = !controlCecEnabled
+        prefs.edit().putBoolean("control_cec_switch", controlCecEnabled).apply()
+        android.widget.Toast.makeText(context,
+            if (controlCecEnabled) "已开启 HDMI-CEC 自动切换" else "已关闭 HDMI-CEC 自动切换",
+            android.widget.Toast.LENGTH_SHORT).show()
+        invalidate()
+    }
     private var settingsReturnHomeFocus = -1
     private var returnToSettingsAfterDrawer = false
     val isLauncherSettingsOpen: Boolean get() = isSettingsOpen
@@ -300,6 +331,11 @@ class LauncherView(context: Context) : View(context) {
         loadSavedWallpaper()
         handler.post(clockTick)
         updateAnimationLoop()
+        runCatching {
+            val filter = IntentFilter("droidlogic.tv.action.OTP_INPUT_SOURCE_CHANGED")
+            if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(controlCecReceiver, filter, Context.RECEIVER_EXPORTED)
+            else context.registerReceiver(controlCecReceiver, filter)
+        }
     }
 
     override fun onAttachedToWindow() {
@@ -317,6 +353,7 @@ class LauncherView(context: Context) : View(context) {
         handler.removeCallbacks(clockTick)
         handler.removeCallbacks(animationTick)
         animationStarted = false
+        runCatching { context.unregisterReceiver(controlCecReceiver) }
         super.onDetachedFromWindow()
     }
 
