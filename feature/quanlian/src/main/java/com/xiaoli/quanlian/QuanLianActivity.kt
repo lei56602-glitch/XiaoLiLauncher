@@ -870,6 +870,8 @@ class QuanLianActivity : Activity() {
         override fun onTouchEvent(event: MotionEvent): Boolean {
             if (event.actionMasked != MotionEvent.ACTION_UP) return true
             performClick()
+            navFocused = false
+            backFocused = false
             var x = event.x
             val y = event.y
             val railWidth = width * .17f
