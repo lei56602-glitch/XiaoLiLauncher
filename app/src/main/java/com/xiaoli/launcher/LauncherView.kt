@@ -2456,7 +2456,7 @@ class LauncherView(context: Context) : View(context) {
         }
         if (keyCode == KeyEvent.KEYCODE_MENU && !event.isCanceled) {
             if (!event.isLongPress && !homeAppManageMode && !isSettingsOpen && !isDrawerOpen) {
-                openLauncherSettings()
+                openControlCenter()
             }
             return true
         }
@@ -2731,7 +2731,7 @@ class LauncherView(context: Context) : View(context) {
             invalidate(); return true
         }
         when (keyCode) {
-            KeyEvent.KEYCODE_MENU -> { if (!event.isLongPress) openLauncherSettings(); return true }
+            KeyEvent.KEYCODE_MENU -> { if (!event.isLongPress) openControlCenter(); return true }
             KeyEvent.KEYCODE_DPAD_UP -> {
                 if (homeTopFocus == -1) moveHomeFocusToTop()
                 else {
