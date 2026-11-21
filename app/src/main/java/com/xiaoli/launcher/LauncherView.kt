@@ -3,6 +3,7 @@ package com.xiaoli.launcher
 import android.content.Context
 import android.app.role.RoleManager
 import android.content.Intent
+import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
 import android.content.pm.PackageManager
@@ -336,6 +337,7 @@ class LauncherView(context: Context) : View(context) {
         updateAnimationLoop()
     }
 
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         runCatching {
