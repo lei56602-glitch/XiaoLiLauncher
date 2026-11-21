@@ -1389,6 +1389,39 @@ class LauncherView(context: Context) : View(context) {
         return intent
     }
 
+    private fun openControlInputPicker(): Boolean {
+        val pm = context.packageManager
+        val xgimi = Intent("com.xgimi.settings.SETTINGS")
+            .setComponent(ComponentName("com.android.newsettings", "com.xgimi.newsettings.SettingService"))
+            .putExtra("data", "Settings://com.xgimi.settings.signalSource/hdmi_misckey")
+            .putExtra("packageName", "com.xgimi.misckey")
+            .putExtra("unlocked", false)
+        if (runCatching { pm.resolveService(xgimi, 0)?.serviceInfo?.exported == true &&
+                context.startService(xgimi) != null }.getOrDefault(false)) return true
+
+        val hisense = Intent("com.hisense.tv.start_inputs")
+            .setComponent(ComponentName("com.hisense.tv.inputs", "com.hisense.tv.InputsUIService"))
+        if (runCatching {
+                if (pm.resolveService(hisense, 0)?.serviceInfo?.exported != true) false
+                else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                    context.startForegroundService(hisense) != null
+                else context.startService(hisense) != null
+            }.getOrDefault(false)) return true
+
+        val tcl = if (pm.hasSystemFeature("com.tcl.software.systemui_custom_tv_source")) {
+            Intent("com.tcl.tvstatusbar.action.SHOW_WINDOW").setPackage("com.android.systemui")
+                .putExtra("TvStatusBar_Type", "Source")
+                .putExtra("TvStatusBar_StartFrom", "input")
+        } else Intent("com.tcl.insrc.SHOW_WINDOW").setPackage("com.tcl.settings")
+        if (runCatching { pm.resolveService(tcl, 0) != null && context.startService(tcl) != null }.getOrDefault(false)) return true
+
+        for (action in listOf("coocaa.intent.action.SOURCE_DIALOG", "coocaa.intent.aigc.home.tvsource")) {
+            val intent = Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (runCatching { pm.resolveActivity(intent, 0) != null && runCatching { context.startActivity(intent) }.isSuccess }.getOrDefault(false)) return true
+        }
+        return false
+    }
+
     private fun openControlInput(input: ControlInput) {
         val route = input.switchIntent
         if (route != null && runCatching {
@@ -1540,7 +1573,9 @@ class LauncherView(context: Context) : View(context) {
             1 -> {
                 val input = visibleControlInputs().getOrNull(controlCenterInputOffset + controlCenterFocus)
                 if (input != null) openControlInput(input)
-                else runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                else if (!openControlInputPicker()) {
+                    runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                }
             }
             2 -> toggleControlMute()
             3 -> adjustControlBrightness(0)
