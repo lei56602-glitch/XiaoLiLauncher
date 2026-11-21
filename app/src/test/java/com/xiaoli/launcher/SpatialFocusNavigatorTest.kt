@@ -29,6 +29,16 @@ class SpatialFocusNavigatorTest {
         assertEquals(5, SpatialFocusNavigator.next(3, SpatialFocusNavigator.DOWN, grid))
     }
 
+    @Test fun normalizedScreenCoordinatesStillMoveToAdjacentTargets() {
+        val screen = listOf(
+            FocusTarget(10, .15f, .40f),
+            FocusTarget(11, .31f, .40f),
+            FocusTarget(12, .31f, .68f)
+        )
+        assertEquals(11, SpatialFocusNavigator.next(10, SpatialFocusNavigator.RIGHT, screen))
+        assertEquals(12, SpatialFocusNavigator.next(11, SpatialFocusNavigator.DOWN, screen))
+    }
+
     @Test fun unknownDirectionAndUnknownFocusAreSafe() {
         assertEquals(0, SpatialFocusNavigator.next(0, 99, grid))
         assertEquals(99, SpatialFocusNavigator.next(99, SpatialFocusNavigator.RIGHT, grid))
