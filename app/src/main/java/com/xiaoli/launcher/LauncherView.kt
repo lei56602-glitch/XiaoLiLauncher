@@ -1811,9 +1811,10 @@ class LauncherView(context: Context) : View(context) {
             } else {
                 shownInputs.take(if (controlCenterPage == 4) 5 else 6).forEachIndexed { index, input ->
                     val rowTop = panel.top + panel.height() *
-                        (if (controlCenterPage == 4) .315f + index * .102f else .225f + index * .112f)
+                        (if (controlCenterPage == 4) .315f + index * .102f else .225f + index * .10f)
+                    val rowHeight = panel.height() * if (controlCenterPage == 4) .092f else .08f
                     val rect = RectF(panel.left + panel.width() * .065f, rowTop,
-                        panel.right - panel.width() * .065f, rowTop + panel.height() * .092f)
+                        panel.right - panel.width() * .065f, rowTop + rowHeight)
                     val rowFocus = if (controlCenterPage == 4) index + 1 else index
                     paint.color = if (rowFocus == controlCenterFocus) 0x775AB9F2 else 0x334D91C8
                     canvas.drawRoundRect(rect, h * .016f, h * .016f, paint)
@@ -1883,7 +1884,7 @@ class LauncherView(context: Context) : View(context) {
                 text(canvas, hint, left, panel.top + panel.height() * .58f, h * .016f, 0xFFD5EAFB.toInt())
             }
         }
-        text(canvas, "返回键：返回上一级", left, panel.bottom - panel.height() * .055f,
+        text(canvas, "返回键：返回上一级", left, panel.bottom - panel.height() * .03f,
             h * .014f, 0xAFCFE5F8.toInt())
         paint.textAlign = Paint.Align.LEFT
     }
@@ -2531,7 +2532,7 @@ class LauncherView(context: Context) : View(context) {
                             ((event.y - first) / gap).toInt().coerceIn(0, 6)
                         } else {
                             val first = height * .075f + height * .85f * .225f
-                            val gap = height * .85f * .112f
+                            val gap = height * .85f * .10f
                             val maxIndex = if (controlCenterPage == 1)
                                 visibleControlInputs().lastIndex else controlInputs.lastIndex
                             ((event.y - first) / gap).toInt().coerceIn(0, minOf(5, maxIndex.coerceAtLeast(0)))
@@ -3012,9 +3013,15 @@ class LauncherView(context: Context) : View(context) {
             }
             when (keyCode) {
                 KeyEvent.KEYCODE_DPAD_UP -> {
-                    if (controlCenterPage == 1 || controlCenterPage == 4) {
+                    if (controlCenterPage == 1) {
                         if (controlCenterFocus > 0) controlCenterFocus--
                         else if (controlCenterInputOffset > 0) controlCenterInputOffset--
+                    } else if (controlCenterPage == 4) {
+                        if (controlCenterFocus > 0) controlCenterFocus--
+                        else if (controlCenterInputOffset > 0) {
+                            controlCenterInputOffset--
+                            controlCenterFocus = minOf(5, (controlInputs.size - controlCenterInputOffset).coerceAtMost(5))
+                        }
                     } else controlCenterFocus = (controlCenterFocus - 1).coerceAtLeast(0)
                 }
                 KeyEvent.KEYCODE_DPAD_DOWN -> {
