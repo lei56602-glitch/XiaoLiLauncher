@@ -41,6 +41,7 @@ class DrawerGridMetricsTest {
         assertEquals(-1, metrics.indexAt(gapX, centerY, 0, 20))
         assertEquals(-1, metrics.indexAt(lastCellX, centerY, 0, 4))
     }
+
     @Test
     fun horizontalFocusDoesNotWrapAcrossGridRows() {
         val metrics = DrawerGridMetrics(1920f, 1080f, 5, 2)
@@ -51,12 +52,28 @@ class DrawerGridMetricsTest {
     }
 
     @Test
-    fun verticalFocusDoesNotJumpIntoMissingCellsOfIncompleteRows() {
+    fun verticalFocusChoosesNearestItemInIncompleteLastRow() {
         val metrics = DrawerGridMetrics(1920f, 1080f, 5, 2)
-        assertEquals(8, metrics.moveFocus(3, 5, 9))
-        assertEquals(8, metrics.moveFocus(8, 5, 9))
-        assertEquals(8, metrics.moveFocus(8, 1, 9))
+        // The final row contains indexes 5..8. Column 4 has no item, so Down
+        // selects the nearest existing item in column 3 instead of getting stuck.
+        assertEquals(8, metrics.moveFocus(4, 5, 9))
         assertEquals(3, metrics.moveFocus(8, -5, 9))
+        assertEquals(8, metrics.moveFocus(8, 5, 9))
+    }
+
+    @Test
+    fun verticalFocusChoosesNearestColumnWhenSeveralCellsAreMissing() {
+        val metrics = DrawerGridMetrics(1920f, 1080f, 5, 2)
+        // The final row contains only columns 0 and 1.
+        assertEquals(6, metrics.moveFocus(4, 5, 7))
+        assertEquals(6, metrics.moveFocus(3, 5, 7))
+        assertEquals(1, metrics.moveFocus(6, -5, 7))
+    }
+
+    @Test
+    fun emptyGridAndInvalidDirectionKeepFocusSafe() {
+        val metrics = DrawerGridMetrics(1920f, 1080f, 5, 2)
+        assertEquals(0, metrics.moveFocus(0, 5, 0))
+        assertEquals(4, metrics.moveFocus(4, 0, 20))
     }
 }
-
