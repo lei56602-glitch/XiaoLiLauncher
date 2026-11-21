@@ -336,7 +336,7 @@ class LauncherView(context: Context) : View(context) {
         val row = drawerFirstVisibleRow + visibleRow
         val index = row * cols + col
         val cellLeft = width * .1f + col * cellW
-        val cellTop = height * .32f + row * cellH
+        val cellTop = height * .32f + visibleRow * cellH
         return if (x <= cellLeft + cellW * .88f &&
             y <= cellTop + cellH * .78f && index in apps.indices) index else -1
     }
