@@ -381,6 +381,7 @@ class LauncherView(context: Context) : View(context) {
             if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(controlCecReceiver, filter, Context.RECEIVER_EXPORTED)
             else context.registerReceiver(controlCecReceiver, filter)
         }
+        maybeOpenBootInput()
         // The launcher is a single custom-drawn surface; keep it as the TV remote key target.
         isFocusable = true
         isFocusableInTouchMode = true
