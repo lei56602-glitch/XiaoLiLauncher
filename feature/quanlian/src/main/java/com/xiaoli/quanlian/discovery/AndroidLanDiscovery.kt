@@ -6,12 +6,17 @@ import android.os.Handler
 import android.os.Looper
 import com.xiaoli.transfer.android.DeviceIdentity
 import com.xiaoli.transfer.android.LanDiscovery
+import com.xiaoli.transfer.android.LanScanner
+import com.xiaoli.transfer.android.ReceiveForegroundService
 import com.xiaoli.transfer.api.DeviceDiscovery
 import com.xiaoli.transfer.api.DeviceInfo
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
 
 /**
  * Adapter from the existing QuanLian v3 UDP discovery wire protocol to the
@@ -41,6 +46,25 @@ class AndroidLanDiscovery(private val context: Context) : DeviceDiscovery {
     }
     private var listener: LanDiscovery.Listener? = null
     private var multicastLock: WifiManager.MulticastLock? = null
+    private var scannerExecutor: ExecutorService? = null
+    private var scannerTask: Future<*>? = null
+    private val activeScan = Runnable {
+        if (!running.get()) return@Runnable
+        val executor = Executors.newSingleThreadExecutor()
+        scannerExecutor = executor
+        scannerTask = executor.submit {
+            try {
+                LanScanner.scan(
+                    context,
+                    ReceiveForegroundService.DEFAULT_PORT,
+                    { announcement -> handler.post { acceptAnnouncement(announcement) } },
+                    { message -> android.util.Log.i("XiaoLiDiscovery", message) }
+                )
+            } finally {
+                executor.shutdown()
+            }
+        }
+    }
 
     override val devices: Flow<List<DeviceInfo>> = state
 
@@ -54,20 +78,12 @@ class AndroidLanDiscovery(private val context: Context) : DeviceDiscovery {
                 acquire()
             }
             listener = LanDiscovery.listen { announcement ->
-                if (!running.get() || announcement == null ||
-                    DeviceIdentity.id(context) == announcement.id) return@listen
-                latest[announcement.id] = DeviceInfo(
-                    id = announcement.id,
-                    name = announcement.name,
-                    host = announcement.host.hostAddress ?: return@listen,
-                    port = announcement.port,
-                    lastSeenEpochMillis = System.currentTimeMillis(),
-                    fingerprint = announcement.fingerprint
-                )
-                state.value = latest.values.sortedBy { it.name.lowercase() }
+                if (announcement != null) acceptAnnouncement(announcement)
             }
             handler.removeCallbacks(pruneDevices)
             handler.postDelayed(pruneDevices, 3_000L)
+            handler.removeCallbacks(activeScan)
+            handler.postDelayed(activeScan, 1_800L)
         } catch (error: Exception) {
             running.set(false)
             releaseMulticastLock()
@@ -79,11 +95,30 @@ class AndroidLanDiscovery(private val context: Context) : DeviceDiscovery {
     override fun stop() {
         running.set(false)
         handler.removeCallbacks(pruneDevices)
+        handler.removeCallbacks(activeScan)
+        scannerTask?.cancel(true)
+        scannerTask = null
+        scannerExecutor?.shutdownNow()
+        scannerExecutor = null
         listener?.close()
         listener = null
         latest.clear()
         state.value = emptyList()
         releaseMulticastLock()
+    }
+
+    private fun acceptAnnouncement(announcement: LanDiscovery.Announcement) {
+        if (!running.get() || DeviceIdentity.id(context) == announcement.id) return
+        val host = announcement.host.hostAddress ?: return
+        latest[announcement.id] = DeviceInfo(
+            id = announcement.id,
+            name = announcement.name,
+            host = host,
+            port = announcement.port,
+            lastSeenEpochMillis = System.currentTimeMillis(),
+            fingerprint = announcement.fingerprint
+        )
+        state.value = latest.values.sortedBy { it.name.lowercase() }
     }
 
     private fun releaseMulticastLock() {
