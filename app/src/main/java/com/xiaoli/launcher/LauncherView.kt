@@ -467,6 +467,7 @@ class LauncherView(context: Context) : View(context) {
         actionMenuPackage = app.packageName
         actionMenuChoice = 0
         actionMenuOpen = true
+        animateSpatialFocus()
         invalidate()
     }
 
@@ -671,6 +672,7 @@ class LauncherView(context: Context) : View(context) {
             in 0..4 -> { homeIndex = settingsReturnHomeFocus; homeTopFocus = -1 }
         }
         settingsReturnHomeFocus = -1
+        animateSpatialFocus()
         invalidate()
     }
 
@@ -755,8 +757,9 @@ class LauncherView(context: Context) : View(context) {
             text(c, "时间与日历", panel.left + panel.width() * .10f, panel.top + panel.height() * .25f, h * .034f, -1, true)
             val labels = listOf("调整大小", "移动位置")
             labels.forEachIndexed { i, label ->
-                val row = RectF(panel.left + panel.width() * .09f, panel.top + panel.height() * (.36f + i * .28f),
+                val baseRow = RectF(panel.left + panel.width() * .09f, panel.top + panel.height() * (.36f + i * .28f),
                     panel.right - panel.width() * .09f, panel.top + panel.height() * (.57f + i * .28f))
+                val row = if (clockEditChoice == i) scaledFocusRect(baseRow) else baseRow
                 paint.color = if (clockEditChoice == i) 0xFF087FD1.toInt() else 0x554D9BEA
                 c.drawRoundRect(row, h * .014f, h * .014f, paint)
                 paint.textAlign = Paint.Align.CENTER
@@ -776,6 +779,7 @@ class LauncherView(context: Context) : View(context) {
     private fun openClockEditMenu() {
         clockEditMenuOpen = true
         clockEditChoice = 0
+        animateSpatialFocus()
         invalidate()
     }
 
