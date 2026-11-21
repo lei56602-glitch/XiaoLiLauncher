@@ -25,11 +25,19 @@ public final class DeviceIdentity {
     }
 
     public static String name(Context context) {
-        String model = Build.MODEL;
-        if (model == null || model.trim().isEmpty()) model = "Android";
-        model = model.replaceAll("[^\\p{L}\\p{N}_-]", "");
-        String id = id(context);
-        String suffix = id.length() > 6 ? id.substring(id.length() - 6) : id;
-        return "小李全联-" + model + "-" + suffix;
+        android.content.SharedPreferences prefs=context.getSharedPreferences("device_identity",Context.MODE_PRIVATE);
+        String custom=prefs.getString("display_name","");
+        if(custom!=null&&!custom.trim().isEmpty())return custom.trim();
+        String generated=prefs.getString("generated_name",null);
+        if(generated==null||generated.trim().isEmpty()){
+            String[] names={"蓝鲸","星河","云雀","极光","海风","晨曦","山岚","流星","白鹭","远帆","青松","月影"};
+            String id=id(context);
+            int index=Math.floorMod(id.hashCode(),names.length);
+            String tail=id.replaceAll("[^A-Za-z0-9]","");
+            if(tail.length()>4)tail=tail.substring(tail.length()-4);
+            generated=names[index]+"-"+tail;
+            prefs.edit().putString("generated_name",generated).apply();
+        }
+        return generated;
     }
 }
