@@ -104,6 +104,8 @@ class LauncherView(context: Context) : View(context) {
     private val appIconCache = mutableMapOf<String, android.graphics.drawable.Drawable>()
     private var drawerIndex = 0
     private var drawerScrollRow = 0
+    // Header action is a first-class D-pad target, separate from the app grid.
+    private var drawerHeaderFocused = false
     private var homeIndex = 0
     // Home-screen top widgets are independent D-pad focus targets: clock, Wi-Fi, settings.
     // -1 keeps focus on the five launcher app slots.
@@ -385,6 +387,7 @@ class LauncherView(context: Context) : View(context) {
 
     fun closeDrawer() {
         isDrawerOpen = false
+        drawerHeaderFocused = false
         editingFavorites = false
         if (homeAppManageMode) homeAppManageMode = false
         invalidate()
@@ -953,8 +956,16 @@ class LauncherView(context: Context) : View(context) {
             else -> "应用"
         }, w * .075f, h * .215f, h * .042f, -1, true)
         paint.textAlign = Paint.Align.RIGHT
-        text(c, if (replacingDesktopSlot) "取消" else if (editingFavorites) "完成" else "管理",
-            w * .925f, h * .215f, h * .027f, 0xFFBDEBFF.toInt(), true)
+        val headerLabel = if (replacingDesktopSlot) "取消" else if (editingFavorites) "完成" else "管理"
+        text(c, headerLabel, w * .925f, h * .215f, h * .027f,
+            if (drawerHeaderFocused) 0xFFFFFFFF.toInt() else 0xFFBDEBFF.toInt(), true)
+        if (drawerHeaderFocused) {
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = (h * .0035f).coerceAtLeast(2f)
+            paint.color = 0xFF8BE7FF.toInt()
+            c.drawRoundRect(RectF(w * .835f, h * .175f, w * .94f, h * .245f), h * .012f, h * .012f, paint)
+            paint.style = Paint.Style.FILL
+        }
         paint.textAlign = Paint.Align.LEFT
         if (replacingDesktopSlot) {
             text(c, "选择下方应用，替换桌面第 ${homeManageSlot + 1} 个位置",
@@ -1676,8 +1687,10 @@ class LauncherView(context: Context) : View(context) {
                         }
                     }
                     if (event.y in (height * .19f)..(height * .29f) && event.x > width * .68f) {
+                        drawerHeaderFocused = false
                         if (homeAppManageMode) closeDrawer() else editingFavorites = !editingFavorites
                     } else {
+                        drawerHeaderFocused = false
                         val index = drawerItemIndexAt(event.x, event.y)
                         if (index >= 0) {
                             drawerIndex = index
@@ -1782,7 +1795,7 @@ class LauncherView(context: Context) : View(context) {
             favorites.getOrNull(homeIndex)?.let { openAppActionMenu("home", homeIndex, it) }
             return true
         }
-        if (!widgetEditMode && !isSettingsOpen && isDrawerOpen &&
+        if (!widgetEditMode && !isSettingsOpen && isDrawerOpen && !drawerHeaderFocused &&
             (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) {
             apps.getOrNull(drawerIndex)?.let { openAppActionMenu("drawer", drawerIndex, it) }
             return true
@@ -1811,7 +1824,10 @@ class LauncherView(context: Context) : View(context) {
                 return true
             }
             if (isDrawerOpen) {
-                apps.getOrNull(drawerIndex)?.let { chooseDrawerApp(it) }
+                if (drawerHeaderFocused) {
+                    if (homeAppManageMode) closeDrawer() else editingFavorites = !editingFavorites
+                    invalidate()
+                } else apps.getOrNull(drawerIndex)?.let { chooseDrawerApp(it) }
                 return true
             }
             if (!homeAppManageMode) {
@@ -1936,7 +1952,7 @@ class LauncherView(context: Context) : View(context) {
                     KeyEvent.KEYCODE_DPAD_DOWN -> settingsFocus = (settingsFocus + 1).coerceAtMost(36)
                     KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER ->
                         settingsFocus = settingsCategoryControl(settingsFocus - 30)
-                    KeyEvent.KEYCODE_BACK -> { closeLauncherSettings(); return true }
+                    KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> { closeLauncherSettings(); return true }
                 }
                 invalidate()
                 return true
@@ -1951,7 +1967,7 @@ class LauncherView(context: Context) : View(context) {
                 }
             }
             when (keyCode) {
-                KeyEvent.KEYCODE_BACK -> { closeLauncherSettings(); return true }
+                KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> { closeLauncherSettings(); return true }
                 KeyEvent.KEYCODE_DPAD_LEFT -> moveSettingsFocus(-1)
                 KeyEvent.KEYCODE_DPAD_RIGHT -> moveSettingsFocus(1)
                 KeyEvent.KEYCODE_DPAD_UP -> moveSettingsFocus(-2)
@@ -1976,6 +1992,7 @@ class LauncherView(context: Context) : View(context) {
                     else if (settingsFocus == 6) context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
                     else if (settingsFocus == 21) { isSettingsOpen = false; isDrawerOpen = true; editingFavorites = true; drawerIndex = 0; drawerScrollRow = 0 }
                     else if (settingsFocus == 13) closeLauncherSettings()
+                    else if (settingsFocus == 14) onRequestDefaultHome?.invoke()
                     else if (settingsFocus == 7) runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                 }
             }
@@ -1983,14 +2000,25 @@ class LauncherView(context: Context) : View(context) {
         }
         if (isDrawerOpen) {
             when (keyCode) {
-                KeyEvent.KEYCODE_BACK -> { closeDrawer(); return true }
+                KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> { closeDrawer(); return true }
                 KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> {
                     if (!homeAppManageMode) editingFavorites = !editingFavorites
                 }
-                KeyEvent.KEYCODE_DPAD_LEFT -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, -1, apps.size)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, 1, apps.size)
-                KeyEvent.KEYCODE_DPAD_UP -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, -drawerMetrics().columns, apps.size)
-                KeyEvent.KEYCODE_DPAD_DOWN -> drawerIndex = drawerMetrics().moveFocus(drawerIndex, drawerMetrics().columns, apps.size)
+                KeyEvent.KEYCODE_DPAD_LEFT -> if (!drawerHeaderFocused) drawerIndex = drawerMetrics().moveFocus(drawerIndex, -1, apps.size)
+                KeyEvent.KEYCODE_DPAD_RIGHT -> if (!drawerHeaderFocused) drawerIndex = drawerMetrics().moveFocus(drawerIndex, 1, apps.size)
+                KeyEvent.KEYCODE_DPAD_UP -> {
+                    val metrics = drawerMetrics()
+                    val firstVisibleIndex = drawerScrollRow * metrics.columns
+                    if (!drawerHeaderFocused && (apps.isEmpty() || drawerIndex < firstVisibleIndex + metrics.columns)) {
+                        drawerHeaderFocused = true
+                    } else if (!drawerHeaderFocused) {
+                        drawerIndex = metrics.moveFocus(drawerIndex, -metrics.columns, apps.size)
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                    if (drawerHeaderFocused) drawerHeaderFocused = false
+                    else drawerIndex = drawerMetrics().moveFocus(drawerIndex, drawerMetrics().columns, apps.size)
+                }
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     if (event.repeatCount == 0) event.startTracking()
                     return true
