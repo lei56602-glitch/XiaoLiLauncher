@@ -1740,33 +1740,44 @@ class LauncherView(context: Context) : View(context) {
             }
         } else {
             val isVolume = controlCenterPage == 2
-            val current = if (isVolume) {
-                val (level, max) = volumeLevel()
-                level.toFloat() / max
-            } else brightnessLevel() / 255f
-            val valueLabel = if (isVolume) {
-                val (level, max) = volumeLevel()
-                if (controlExternalVolume) "外接音响" else if (audioManager.isStreamMute(AudioManager.STREAM_MUSIC))
-                    "已静音" else "$level / $max"
-            } else "${brightnessLevel()} / 255"
-            val slider = RectF(panel.left + panel.width() * .10f, panel.top + panel.height() * .43f,
-                panel.right - panel.width() * .10f, panel.top + panel.height() * .49f)
-            paint.color = 0x665D8FB8
-            canvas.drawRoundRect(slider, slider.height() / 2f, slider.height() / 2f, paint)
-            paint.color = 0xFF75D8FF.toInt()
-            val filled = RectF(slider.left, slider.top,
-                slider.left + slider.width() * current.coerceIn(0f, 1f), slider.bottom)
-            canvas.drawRoundRect(filled, slider.height() / 2f, slider.height() / 2f, paint)
-            paint.textAlign = Paint.Align.CENTER
-            text(canvas, valueLabel, panel.centerX(), panel.top + panel.height() * .37f,
-                h * .027f, 0xFFF4FAFF.toInt(), true)
-            paint.textAlign = Paint.Align.LEFT
-            val hint = if (isVolume) "左右键调节 · OK 切换静音"
-                else if (hasVendorBrightnessBackend()) "此电视使用厂商画面服务，请打开原生画面设置"
-                else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context))
-                    "尚未授权修改系统亮度 · OK 打开授权页面"
-                else "左右键调节屏幕亮度"
-            text(canvas, hint, left, panel.top + panel.height() * .58f, h * .016f, 0xFFD5EAFB.toInt())
+            val unavailable = if (isVolume) isControlVolumeFixed()
+                else isPlaybackDevice() || hasVendorBrightnessBackend()
+            if (unavailable) {
+                val message = if (isVolume) "本设备音量固定，请使用电视或外接音响遥控器"
+                    else if (isPlaybackDevice()) "此设备是电视盒/电视棒，没有本机屏幕背光可调节"
+                    else "此电视使用厂商画面服务，请打开原生画面设置"
+                paint.textAlign = Paint.Align.CENTER
+                text(canvas, message, panel.centerX(), panel.top + panel.height() * .45f,
+                    h * .019f, 0xFFF4FAFF.toInt(), true)
+                paint.textAlign = Paint.Align.LEFT
+            } else {
+                val current = if (isVolume) {
+                    val (level, max) = volumeLevel()
+                    level.toFloat() / max
+                } else brightnessLevel() / 255f
+                val valueLabel = if (isVolume) {
+                    val (level, max) = volumeLevel()
+                    if (controlExternalVolume) "外接音响" else if (audioManager.isStreamMute(AudioManager.STREAM_MUSIC))
+                        "已静音" else "$level / $max"
+                } else "${brightnessLevel()} / 255"
+                val slider = RectF(panel.left + panel.width() * .10f, panel.top + panel.height() * .43f,
+                    panel.right - panel.width() * .10f, panel.top + panel.height() * .49f)
+                paint.color = 0x665D8FB8
+                canvas.drawRoundRect(slider, slider.height() / 2f, slider.height() / 2f, paint)
+                paint.color = 0xFF75D8FF.toInt()
+                val filled = RectF(slider.left, slider.top,
+                    slider.left + slider.width() * current.coerceIn(0f, 1f), slider.bottom)
+                canvas.drawRoundRect(filled, slider.height() / 2f, slider.height() / 2f, paint)
+                paint.textAlign = Paint.Align.CENTER
+                text(canvas, valueLabel, panel.centerX(), panel.top + panel.height() * .37f,
+                    h * .027f, 0xFFF4FAFF.toInt(), true)
+                paint.textAlign = Paint.Align.LEFT
+                val hint = if (isVolume) "左右键调节 · OK 切换静音"
+                    else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context))
+                        "尚未授权修改系统亮度 · OK 打开授权页面"
+                    else "左右键调节屏幕亮度"
+                text(canvas, hint, left, panel.top + panel.height() * .58f, h * .016f, 0xFFD5EAFB.toInt())
+            }
         }
         text(canvas, "返回键：返回上一级", left, panel.bottom - panel.height() * .055f,
             h * .014f, 0xAFCFE5F8.toInt())
