@@ -1407,8 +1407,12 @@ class LauncherView(context: Context) : View(context) {
                 val konka = konkaFallbackInputs()
                 if (konka.isNotEmpty()) discovered + konka
                 else {
-                    val tcl = tclFallbackInputs()
-                    if (tcl.isNotEmpty()) discovered + tcl else discovered + xiaomiFallbackInputs()
+                    val xgimi = xgimiMstarFallbackInputs()
+                    if (xgimi.isNotEmpty()) discovered + xgimi
+                    else {
+                        val tcl = tclFallbackInputs()
+                        if (tcl.isNotEmpty()) discovered + tcl else discovered + xiaomiFallbackInputs()
+                    }
                 }
             }
         }
@@ -1456,6 +1460,57 @@ class LauncherView(context: Context) : View(context) {
     }.onFailure {
         android.util.Log.w("XiaoLiControlCenter", "Could not read Konka native inputs", it)
     }.getOrDefault(emptyList())
+
+    private fun xgimiMstarFallbackInputs(): List<ControlInput> {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) return emptyList()
+        val player = ComponentName("com.xgimi.xhplayer", "com.xgimi.xhplayer.InputActivity")
+        val activity = runCatching { context.packageManager.getActivityInfo(player, 0) }.getOrNull()
+            ?: return emptyList()
+        if (!activity.exported || !activity.enabled || !activity.applicationInfo.enabled) return emptyList()
+        val permission = activity.permission
+        if (permission != null && context.checkCallingOrSelfPermission(permission) != PackageManager.PERMISSION_GRANTED)
+            return emptyList()
+        return runCatching {
+            val managerClass = Class.forName("com.xgimi.clients.GimiConfigManager")
+            val manager = managerClass.getMethod("getInstance").invoke(null)
+            val raw = managerClass.getMethod("getXgimiConfig", String::class.java)
+                .invoke(manager, "global") as? String ?: return emptyList()
+            val signals = JSONObject(raw).optJSONArray("signal") ?: return emptyList()
+            val connected = xgimiMstarConnectedSources()
+            val pattern = Regex("HDMI([1-9][0-9]*)?")
+            (0 until signals.length()).mapNotNull { index ->
+                val signal = signals.optJSONObject(index) ?: return@mapNotNull null
+                val switch = signal.optString("sw").trim().uppercase(Locale.ROOT)
+                val match = pattern.matchEntire(switch) ?: return@mapNotNull null
+                val port = match.groupValues[1].ifEmpty { "1" }.toIntOrNull() ?: return@mapNotNull null
+                val sourceName = "HDMI$port"
+                val nativeLabel = signal.optString("name").trim()
+                ControlInput(
+                    id = "xgimi:$sourceName",
+                    label = nativeLabel.takeUnless { it.isBlank() || it.equals("HDMI", true) } ?: "HDMI $port",
+                    kind = "HDMI",
+                    switchIntent = Intent("com.xgimi.action.hdmiPlayer").setComponent(player)
+                        .putExtra("launcher_start_source", sourceName)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    setupIntent = null,
+                    connected = connected[signal.optString("source")] == true,
+                    deviceName = null,
+                )
+            }.distinctBy { it.id }
+        }.onFailure {
+            android.util.Log.w("XiaoLiControlCenter", "Could not read XGIMI MStar inputs", it)
+        }.getOrDefault(emptyList())
+    }
+
+    private fun xgimiMstarConnectedSources(): Map<String, Boolean> = runCatching {
+        val commonClass = Class.forName("com.mstar.android.tv.TvCommonManager")
+        val common = commonClass.getMethod("getInstance").invoke(null)
+        val flags = commonClass.getMethod("GetInputSourceStatus").invoke(common) as? BooleanArray
+            ?: return emptyMap()
+        val sourceClass = Class.forName("com.mstar.android.tvapi.common.vo.TvOsType\$EnumInputSource")
+        sourceClass.enumConstants.orEmpty().filterIsInstance<Enum<*>>()
+            .associate { it.name to (flags.getOrNull(it.ordinal) == true) }
+    }.getOrDefault(emptyMap())
 
     private fun tclFallbackInputs(): List<ControlInput> {
         val player = ComponentName("com.tcl.tv", "com.tcl.tv.TVActivity")
