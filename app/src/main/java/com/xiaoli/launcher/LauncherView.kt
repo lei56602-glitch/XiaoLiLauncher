@@ -1507,7 +1507,7 @@ class LauncherView(context: Context) : View(context) {
 
         if (controlCenterPage == 0) {
             val labels = listOf("网络与 Wi-Fi", "电视信源", "信源管理", "音量控制", "屏幕亮度", "小李桌面设置", "系统设置")
-            val subtitles = listOf("打开系统网络配置", "检测到 ${visibleControlInputs().size} 个可显示输入",
+            val subtitles = listOf(controlNetworkLabel(), "检测到 ${visibleControlInputs().size} 个可显示输入",
                 "隐藏、固定电视输入", "媒体音量与静音", "系统允许时调节亮度", "壁纸、桌面与应用管理", "Android 设备设置")
             val icons = listOf("◉", "▣", "☷", "♪", "☼", "⚙", "⌘")
             val startY = panel.top + panel.height() * .205f
@@ -1612,6 +1612,7 @@ class LauncherView(context: Context) : View(context) {
                 h * .027f, 0xFFF4FAFF.toInt(), true)
             paint.textAlign = Paint.Align.LEFT
             val hint = if (isVolume) "左右键调节 · OK 切换静音"
+                else if (hasVendorBrightnessBackend()) "此电视使用厂商画面服务，请打开原生画面设置"
                 else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context))
                     "尚未授权修改系统亮度 · OK 打开授权页面"
                 else "左右键调节屏幕亮度"
@@ -2247,7 +2248,7 @@ class LauncherView(context: Context) : View(context) {
                             val max = volumeLevel().second
                             val target = (fraction * max).toInt().coerceIn(0, max)
                             runCatching { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0) }
-                        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context)) {
+                        } else if (hasVendorBrightnessBackend() || Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context)) {
                             adjustControlBrightness(0)
                         } else {
                             val target = (fraction * 255f).toInt().coerceIn(1, 255)
