@@ -66,7 +66,7 @@ class DrawerGridMetricsTest {
         val metrics = DrawerGridMetrics(1920f, 1080f, 5, 2)
         // The final row contains only columns 0 and 1.
         assertEquals(6, metrics.moveFocus(4, 5, 7))
-        assertEquals(5, metrics.moveFocus(3, 5, 7))
+        assertEquals(6, metrics.moveFocus(3, 5, 7))
         assertEquals(1, metrics.moveFocus(6, -5, 7))
     }
 
