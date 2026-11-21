@@ -1381,21 +1381,31 @@ class LauncherView(context: Context) : View(context) {
 
         val left = panel.left + panel.width() * .075f
         val top = panel.top + panel.height() * .105f
-        paint.color = 0xFFEAF7FF.toInt()
-        paint.textAlign = Paint.Align.LEFT
-        text(canvas, if (controlCenterPage == 0) "控制中心" else "信源", left, top, h * .037f, 0xFFF3FAFF.toInt(), true)
-        text(canvas, if (controlCenterPage == 0) "设备连接与快捷设置" else "选择电视输入源", left, top + h * .045f,
-            h * .018f, 0xBFE0F1FF.toInt())
+        val title = when (controlCenterPage) {
+            0 -> "控制中心"
+            1 -> "电视信源"
+            2 -> "音量控制"
+            else -> "屏幕亮度"
+        }
+        val subtitle = when (controlCenterPage) {
+            0 -> "设备连接与快捷设置"
+            1 -> "由 Android TV InputManager 实时识别"
+            2 -> "左右键调节 · OK 切换静音"
+            else -> "系统允许时调节屏幕亮度"
+        }
+        text(canvas, title, left, top, h * .037f, 0xFFF3FAFF.toInt(), true)
+        text(canvas, subtitle, left, top + h * .045f, h * .018f, 0xBFE0F1FF.toInt())
 
         if (controlCenterPage == 0) {
-            val labels = listOf("网络与 Wi-Fi", "信源输入", "小李桌面设置", "系统设置")
-            val subtitles = listOf("连接状态与网络配置", "HDMI、USB 及电视输入", "壁纸、桌面与应用管理", "Android 设备设置")
-            val icons = listOf("◉", "▣", "⚙", "⌘")
-            val startY = panel.top + panel.height() * .27f
-            val gap = panel.height() * .145f
+            val labels = listOf("网络与 Wi-Fi", "电视信源", "音量控制", "屏幕亮度", "小李桌面设置", "系统设置")
+            val subtitles = listOf("打开系统网络配置", "检测到 ${controlInputs.size} 个电视输入",
+                "媒体音量与静音", "系统允许时调节亮度", "壁纸、桌面与应用管理", "Android 设备设置")
+            val icons = listOf("◉", "▣", "♪", "☼", "⚙", "⌘")
+            val startY = panel.top + panel.height() * .225f
+            val gap = panel.height() * .116f
             labels.forEachIndexed { index, label ->
                 val rect = RectF(panel.left + panel.width() * .065f, startY + index * gap,
-                    panel.right - panel.width() * .065f, startY + index * gap + panel.height() * .115f)
+                    panel.right - panel.width() * .065f, startY + index * gap + panel.height() * .095f)
                 paint.color = if (index == controlCenterFocus) 0x775AB9F2 else 0x334D91C8
                 canvas.drawRoundRect(rect, h * .018f, h * .018f, paint)
                 if (index == controlCenterFocus) {
@@ -1406,30 +1416,69 @@ class LauncherView(context: Context) : View(context) {
                     paint.style = Paint.Style.FILL
                 }
                 text(canvas, icons[index], rect.left + rect.width() * .075f, rect.centerY() + h * .012f,
-                    h * .032f, 0xFFEAF8FF.toInt(), true)
-                text(canvas, label, rect.left + rect.width() * .19f, rect.top + rect.height() * .46f,
-                    h * .022f, 0xFFF4FAFF.toInt(), true)
+                    h * .030f, 0xFFEAF8FF.toInt(), true)
+                text(canvas, label, rect.left + rect.width() * .19f, rect.top + rect.height() * .44f,
+                    h * .021f, 0xFFF4FAFF.toInt(), true)
                 text(canvas, subtitles[index], rect.left + rect.width() * .19f, rect.top + rect.height() * .76f,
-                    h * .014f, 0xBFD5E9FA.toInt())
+                    h * .013f, 0xBFD5E9FA.toInt())
                 text(canvas, "›", rect.right - rect.width() * .075f, rect.centerY() + h * .012f,
                     h * .034f, 0xFFEAF8FF.toInt(), true)
             }
-        } else {
-            val hint = "信源切换由电视厂商系统提供，支持情况因设备而异。"
-            text(canvas, hint, left, panel.top + panel.height() * .30f, h * .018f, 0xFFEAF7FF.toInt())
-            val rect = RectF(left, panel.top + panel.height() * .39f, panel.right - panel.width() * .07f,
-                panel.top + panel.height() * .52f)
-            paint.color = if (controlCenterFocus == 0) 0x775AB9F2 else 0x334D91C8
-            canvas.drawRoundRect(rect, h * .018f, h * .018f, paint)
-            if (controlCenterFocus == 0) {
-                paint.style = Paint.Style.STROKE
-                paint.strokeWidth = (h * .0028f).coerceAtLeast(2f)
-                paint.color = 0xFFD8F4FF.toInt()
-                canvas.drawRoundRect(rect, h * .018f, h * .018f, paint)
-                paint.style = Paint.Style.FILL
+        } else if (controlCenterPage == 1) {
+            if (controlInputs.isEmpty()) {
+                text(canvas, "系统没有向应用公开可用的电视信源列表。", left,
+                    panel.top + panel.height() * .31f, h * .018f, 0xFFEAF7FF.toInt())
+                text(canvas, "请通过电视系统设置管理输入源。", left,
+                    panel.top + panel.height() * .36f, h * .015f, 0xBFE0F1FF.toInt())
+            } else {
+                controlInputs.take(6).forEachIndexed { index, input ->
+                    val rowTop = panel.top + panel.height() * (.225f + index * .112f)
+                    val rect = RectF(panel.left + panel.width() * .065f, rowTop,
+                        panel.right - panel.width() * .065f, rowTop + panel.height() * .092f)
+                    paint.color = if (index == controlCenterFocus) 0x775AB9F2 else 0x334D91C8
+                    canvas.drawRoundRect(rect, h * .016f, h * .016f, paint)
+                    if (index == controlCenterFocus) {
+                        paint.style = Paint.Style.STROKE
+                        paint.strokeWidth = (h * .0025f).coerceAtLeast(2f)
+                        paint.color = 0xFFD8F4FF.toInt()
+                        canvas.drawRoundRect(rect, h * .016f, h * .016f, paint)
+                        paint.style = Paint.Style.FILL
+                    }
+                    text(canvas, input.label, rect.left + rect.width() * .07f,
+                        rect.top + rect.height() * .44f, h * .020f, 0xFFF4FAFF.toInt(), true)
+                    text(canvas, input.kind, rect.left + rect.width() * .07f,
+                        rect.top + rect.height() * .76f, h * .013f, 0xBFD5E9FA.toInt())
+                    text(canvas, "›", rect.right - rect.width() * .08f,
+                        rect.centerY() + h * .010f, h * .032f, 0xFFEAF8FF.toInt(), true)
+                }
             }
-            text(canvas, "打开电视信源选择", rect.left + rect.width() * .08f, rect.centerY() + h * .009f,
-                h * .022f, 0xFFF4FAFF.toInt(), true)
+        } else {
+            val isVolume = controlCenterPage == 2
+            val current = if (isVolume) {
+                val (level, max) = volumeLevel()
+                level.toFloat() / max
+            } else brightnessLevel() / 255f
+            val valueLabel = if (isVolume) {
+                val (level, max) = volumeLevel()
+                "$level / $max"
+            } else "${brightnessLevel()} / 255"
+            val slider = RectF(panel.left + panel.width() * .10f, panel.top + panel.height() * .43f,
+                panel.right - panel.width() * .10f, panel.top + panel.height() * .49f)
+            paint.color = 0x665D8FB8
+            canvas.drawRoundRect(slider, slider.height() / 2f, slider.height() / 2f, paint)
+            paint.color = 0xFF75D8FF.toInt()
+            val filled = RectF(slider.left, slider.top,
+                slider.left + slider.width() * current.coerceIn(0f, 1f), slider.bottom)
+            canvas.drawRoundRect(filled, slider.height() / 2f, slider.height() / 2f, paint)
+            paint.textAlign = Paint.Align.CENTER
+            text(canvas, valueLabel, panel.centerX(), panel.top + panel.height() * .37f,
+                h * .027f, 0xFFF4FAFF.toInt(), true)
+            paint.textAlign = Paint.Align.LEFT
+            val hint = if (isVolume) "左右键调节 · OK 切换静音"
+                else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context))
+                    "尚未授权修改系统亮度 · OK 打开授权页面"
+                else "左右键调节屏幕亮度"
+            text(canvas, hint, left, panel.top + panel.height() * .58f, h * .016f, 0xFFD5EAFB.toInt())
         }
         text(canvas, "返回键：返回上一级", left, panel.bottom - panel.height() * .055f,
             h * .014f, 0xAFCFE5F8.toInt())
