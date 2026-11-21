@@ -6,6 +6,7 @@ import android.content.Intent
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
+import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Canvas
 import android.graphics.Bitmap
@@ -159,7 +160,7 @@ class LauncherView(context: Context) : View(context) {
     private var controlExternalVolume = false
     private var controlStuckVolumeSteps = 0
     private var controlCenterReturnFocus = -1
-    private data class ControlInput(val id: String, val label: String, val kind: String, val switchIntent: Intent?, val setupIntent: Intent?)
+    private data class ControlInput(val id: String, val label: String, val kind: String, val switchIntent: Intent?, val setupIntent: Intent?, val connected: Boolean = false, val deviceName: String? = null)
     private var controlInputs: List<ControlInput> = emptyList()
     private val audioManager by lazy { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     private val controlCecReceiver = object : BroadcastReceiver() {
@@ -1291,31 +1292,101 @@ class LauncherView(context: Context) : View(context) {
         controlInputs = runCatching {
             val manager = context.getSystemService(Context.TV_INPUT_SERVICE) as? TvInputManager
                 ?: return@runCatching emptyList()
-            manager.tvInputList.map { info ->
-                val custom = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
-                    runCatching { info.loadCustomLabel(context)?.toString() }.getOrNull() else null
-                val label = custom ?: runCatching { info.loadLabel(context).toString() }
-                    .getOrDefault(info.id.substringAfterLast('/'))
-                val kind = when (info.type) {
-                    TvInputInfo.TYPE_HDMI -> "HDMI"
-                    TvInputInfo.TYPE_DISPLAY_PORT -> "DisplayPort"
-                    TvInputInfo.TYPE_TUNER -> "电视调谐器"
-                    TvInputInfo.TYPE_COMPOSITE -> "AV视频"
-                    TvInputInfo.TYPE_COMPONENT -> "色差输入"
-                    TvInputInfo.TYPE_VGA -> "VGA"
-                    TvInputInfo.TYPE_DVI -> "DVI"
-                    else -> if (info.isPassthroughInput) "外接输入" else "电视信号"
+            val infos = manager.tvInputList
+            infos.asSequence()
+                .filter { info ->
+                    info.parentId == null && (info.isPassthroughInput ||
+                        info.type == TvInputInfo.TYPE_TUNER && runCatching {
+                            info.serviceInfo.applicationInfo.flags and
+                                (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+                        }.getOrDefault(true))
                 }
-                val switchIntent = runCatching {
-                    val uri = if (info.isPassthroughInput)
-                        TvContract.buildChannelUriForPassthroughInput(info.id)
-                    else TvContract.buildChannelsUriForInput(info.id)
-                    Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }.getOrNull()
-                ControlInput(info.id, label.ifBlank { info.id }, kind, switchIntent,
-                    runCatching { info.createSetupIntent() }.getOrNull())
-            }.distinctBy { it.id }.sortedWith(compareBy<ControlInput>({ it.kind }, { it.label }))
+                .filter { info ->
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.N ||
+                        runCatching { !info.isHidden(context) }.getOrDefault(true)
+                }
+                .mapNotNull { info ->
+                    val custom = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
+                        runCatching { info.loadCustomLabel(context)?.toString() }.getOrNull() else null
+                    val label = custom ?: runCatching { info.loadLabel(context).toString() }
+                        .getOrNull()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                    val kind = when (info.type) {
+                        TvInputInfo.TYPE_HDMI -> "HDMI"
+                        TvInputInfo.TYPE_DISPLAY_PORT -> "DisplayPort"
+                        TvInputInfo.TYPE_TUNER -> "电视调谐器"
+                        TvInputInfo.TYPE_COMPOSITE, TvInputInfo.TYPE_SVIDEO,
+                        TvInputInfo.TYPE_COMPONENT, TvInputInfo.TYPE_SCART -> "AV视频"
+                        TvInputInfo.TYPE_VGA -> "VGA"
+                        TvInputInfo.TYPE_DVI -> "DVI"
+                        else -> if (info.isPassthroughInput) "外接输入" else "电视信号"
+                    }
+                    val cecChild = infos.firstOrNull { it.parentId == info.id }
+                    val cecLabel = cecChild?.let {
+                        runCatching { it.loadLabel(context).toString() }.getOrNull()
+                    }?.takeIf { it.isNotBlank() && !Regex(
+                        "^(Playback|Recorder|Tuner|Audio ?System|Audio|TV|Reserved)[ _]?\\d*$",
+                        RegexOption.IGNORE_CASE
+                    ).matches(it) }
+                    val targetInfo = cecChild ?: info
+                    val genericRoute = runCatching {
+                        val uri = if (info.isPassthroughInput)
+                            TvContract.buildChannelUriForPassthroughInput(targetInfo.id)
+                        else TvContract.buildChannelsUriForInput(targetInfo.id)
+                        Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }.getOrNull()
+                    val tclRoute = tclInputRoute(info, kind, label)
+                    val droidLogicRoute = droidLogicInputRoute(info)
+                    val switchIntent = tclRoute ?: genericRoute?.takeIf {
+                        runCatching { context.packageManager.resolveActivity(it, 0) != null }.getOrDefault(false)
+                    } ?: droidLogicRoute ?: genericRoute
+                    val state = runCatching { manager.getInputState(info.id) }
+                        .getOrDefault(TvInputManager.INPUT_STATE_DISCONNECTED)
+                    ControlInput(
+                        id = info.id,
+                        label = label,
+                        kind = kind,
+                        switchIntent = switchIntent,
+                        setupIntent = runCatching { info.createSetupIntent() }.getOrNull(),
+                        connected = cecLabel != null || state == TvInputManager.INPUT_STATE_CONNECTED && kind != "电视调谐器",
+                        deviceName = cecLabel,
+                    )
+                }
+                .distinctBy { it.id }
+                .sortedWith(compareBy<ControlInput>({ it.kind }, { it.label }))
+                .toList()
         }.getOrDefault(emptyList())
+    }
+
+    private fun tclInputRoute(info: TvInputInfo, kind: String, label: String): Intent? {
+        if (!info.id.startsWith("com.tcl.tvinput/")) return null
+        val player = ComponentName("com.tcl.tv", "com.tcl.tv.TVActivity")
+        val activity = runCatching { context.packageManager.getActivityInfo(player, 0) }.getOrNull() ?: return null
+        if (!activity.exported || !activity.enabled || !activity.applicationInfo.enabled) return null
+        val hardware = Regex("/HW(\\d+)$").find(info.id)?.groupValues?.get(1)?.toIntOrNull()
+        val ordinal = hardware?.takeIf { kind != "其他输入" } ?: when (kind) {
+            "HDMI" -> Regex("(\\d)").find(label)?.groupValues?.get(1)?.toIntOrNull()
+                ?.takeIf { it in 1..4 }?.let { 7 + it }
+            "电视调谐器" -> 2
+            "AV视频" -> 3
+            else -> null
+        } ?: return null
+        return Intent().setComponent(player)
+            .putExtra("targetSourceId", ordinal)
+            .putExtra("referer", "com.tcl.settings.module_source")
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+
+    private fun droidLogicInputRoute(info: TvInputInfo): Intent? {
+        if (info.type != TvInputInfo.TYPE_HDMI) return null
+        val player = ComponentName("com.droidlogic.tvsource", "com.droidlogic.tvsource.DroidLogicTv")
+        val intent = Intent(Intent.ACTION_MAIN).setComponent(player)
+            .putExtra("id", info.id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val activity = runCatching { context.packageManager.resolveActivity(intent, 0)?.activityInfo }.getOrNull()
+            ?: return null
+        if (!activity.exported || !activity.enabled || !activity.applicationInfo.enabled) return null
+        val permission = activity.permission
+        if (permission != null && context.checkCallingOrSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) return null
+        return intent
     }
 
     private fun openControlInput(input: ControlInput) {
