@@ -142,6 +142,8 @@ class LauncherView(context: Context) : View(context) {
     var isDrawerOpen = false
         private set
     private var isSettingsOpen = false
+    private var settingsReturnHomeFocus = -1
+    private var returnToSettingsAfterDrawer = false
     val isLauncherSettingsOpen: Boolean get() = isSettingsOpen
     private var settingsFocus = 0
     private val handler = Handler(Looper.getMainLooper())
@@ -569,6 +571,12 @@ class LauncherView(context: Context) : View(context) {
         drawerHeaderFocused = false
         editingFavorites = false
         if (homeAppManageMode) homeAppManageMode = false
+        if (returnToSettingsAfterDrawer) {
+            isSettingsOpen = true
+            settingsFocus = 21
+            returnToSettingsAfterDrawer = false
+            animateSpatialFocus()
+        }
         invalidate()
     }
 
@@ -656,7 +664,15 @@ class LauncherView(context: Context) : View(context) {
         c.drawRect(0f, 0f, w, h, paint)
         paint.shader = null
     }
-    fun closeLauncherSettings() { isSettingsOpen = false; invalidate() }
+    fun closeLauncherSettings() {
+        isSettingsOpen = false
+        when (settingsReturnHomeFocus) {
+            in 100..102 -> homeTopFocus = settingsReturnHomeFocus - 100
+            in 0..4 -> { homeIndex = settingsReturnHomeFocus; homeTopFocus = -1 }
+        }
+        settingsReturnHomeFocus = -1
+        invalidate()
+    }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
@@ -1321,10 +1337,14 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun openLauncherSettings(initialFocus: Int = 30) {
+        if (!isSettingsOpen) {
+            settingsReturnHomeFocus = if (homeTopFocus in 0..2) 100 + homeTopFocus else homeIndex
+        }
         isDrawerOpen = false
         isSettingsOpen = true
         homeTopFocus = -1
         settingsFocus = initialFocus
+        animateSpatialFocus()
         invalidate()
     }
 
@@ -2456,7 +2476,14 @@ class LauncherView(context: Context) : View(context) {
                         Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java)
                             .putExtra(com.xiaoli.quanlian.QuanLianActivity.EXTRA_WALLPAPER_MODE, true))
                     else if (settingsFocus == 6) context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
-                    else if (settingsFocus == 21) { isSettingsOpen = false; isDrawerOpen = true; editingFavorites = true; drawerIndex = 0; resetDrawerScroll() }
+                    else if (settingsFocus == 21) {
+                        isSettingsOpen = false
+                        isDrawerOpen = true
+                        returnToSettingsAfterDrawer = true
+                        editingFavorites = true
+                        drawerIndex = 0
+                        resetDrawerScroll()
+                    }
                     else if (settingsFocus == 13) closeLauncherSettings()
                     else if (settingsFocus == 14) onRequestDefaultHome?.invoke()
                     else if (settingsFocus == 7) runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
