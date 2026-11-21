@@ -1504,11 +1504,13 @@ class LauncherView(context: Context) : View(context) {
             val rect = RectF(rail.left + w * .014f, top, rail.right - w * .014f, top + h * .066f)
             val selected = settingsFocus == 30 + index || settingsCategoryForControl(settingsFocus) == index
             if (selected) {
+                val selectedRect = if (settingsFocus == 30 + index) scaledFocusRect(rect) else rect
                 paint.color = 0xFF164D78.toInt()
-                c.drawRoundRect(rect, h * .012f, h * .012f, paint)
+                c.drawRoundRect(selectedRect, h * .012f, h * .012f, paint)
                 paint.color = 0xFF68D9FF.toInt()
-                c.drawRoundRect(RectF(rect.left, rect.top + h * .012f,
-                    rect.left + w * .004f, rect.bottom - h * .012f), h * .002f, h * .002f, paint)
+                c.drawRoundRect(RectF(selectedRect.left, selectedRect.top + h * .012f,
+                    selectedRect.left + w * .004f, selectedRect.bottom - h * .012f),
+                    h * .002f, h * .002f, paint)
             }
             paint.color = if (selected) 0xFF8BE7FF.toInt() else 0xFF7693B2.toInt()
             c.drawCircle(rect.left + w * .025f, rect.centerY(), h * .0045f, paint)
