@@ -1165,6 +1165,14 @@ class LauncherView(context: Context) : View(context) {
         return targets
     }
 
+    private fun moveHomeAppFocus(currentIndex: Int, direction: Int): Int {
+        val targets = favorites.indices.map { index ->
+            val rect = homeIconCardRect(index, width.toFloat(), height.toFloat())
+            FocusTarget(index, rect.centerX(), rect.centerY())
+        }
+        return SpatialFocusNavigator.next(currentIndex, direction, targets)
+    }
+
     private fun moveHomeSpatialFocus(direction: Int) {
         val targets = homeFocusTargets()
         val currentId = if (homeTopFocus in 0..2) 100 + homeTopFocus else homeIndex
@@ -2351,8 +2359,14 @@ class LauncherView(context: Context) : View(context) {
         }
         if (homeAppManageMode && !isSettingsOpen && !isDrawerOpen) {
             when (keyCode) {
-                KeyEvent.KEYCODE_DPAD_LEFT -> homeManageSlot = (homeManageSlot - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> homeManageSlot = (homeManageSlot + 1).coerceAtMost(favorites.size.coerceAtMost(4))
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    val next = moveHomeAppFocus(homeManageSlot, SpatialFocusNavigator.LEFT)
+                    if (next != homeManageSlot) { homeManageSlot = next; animateSpatialFocus() }
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    val next = moveHomeAppFocus(homeManageSlot, SpatialFocusNavigator.RIGHT)
+                    if (next != homeManageSlot) { homeManageSlot = next; animateSpatialFocus() }
+                }
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     isDrawerOpen = true
                     editingFavorites = true
@@ -2368,8 +2382,14 @@ class LauncherView(context: Context) : View(context) {
             when (keyCode) {
                 KeyEvent.KEYCODE_DPAD_UP -> homeIconScale = (homeIconScale + .05f).coerceAtMost(1.6f)
                 KeyEvent.KEYCODE_DPAD_DOWN -> homeIconScale = (homeIconScale - .05f).coerceAtLeast(.65f)
-                KeyEvent.KEYCODE_DPAD_LEFT -> homeIndex = (homeIndex - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> homeIndex = (homeIndex + 1).coerceAtMost(favorites.lastIndex)
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    val next = moveHomeAppFocus(homeIndex, SpatialFocusNavigator.LEFT)
+                    if (next != homeIndex) { homeIndex = next; animateSpatialFocus() }
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    val next = moveHomeAppFocus(homeIndex, SpatialFocusNavigator.RIGHT)
+                    if (next != homeIndex) { homeIndex = next; animateSpatialFocus() }
+                }
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     // Consume the long-press repeat that opened edit mode; only a fresh OK saves.
                     if (event.repeatCount == 0) {
