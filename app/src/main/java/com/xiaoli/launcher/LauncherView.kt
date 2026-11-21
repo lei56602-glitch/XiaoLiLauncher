@@ -2122,13 +2122,35 @@ class LauncherView(context: Context) : View(context) {
                 if (event.x < panelLeft || event.y < panelTop || event.y > panelBottom) {
                     handleBack()
                 } else {
-                    val row = if (controlCenterPage == 0) {
-                        val first = height * .075f + height * .85f * .27f
-                        val gap = height * .85f * .145f
-                        ((event.y - first) / gap).toInt().coerceIn(0, 3)
-                    } else 0
-                    controlCenterFocus = row
-                    activateControlCenterItem()
+                    if (controlCenterPage == 2 || controlCenterPage == 3) {
+                        val panelLeft = width * .60f
+                        val panelWidth = width * .375f
+                        val fraction = ((event.x - (panelLeft + panelWidth * .10f)) /
+                            (panelWidth * .80f)).coerceIn(0f, 1f)
+                        if (controlCenterPage == 2) {
+                            val max = volumeLevel().second
+                            val target = (fraction * max).toInt().coerceIn(0, max)
+                            runCatching { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0) }
+                        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context)) {
+                            adjustControlBrightness(0)
+                        } else {
+                            val target = (fraction * 255f).toInt().coerceIn(1, 255)
+                            runCatching { Settings.System.putInt(context.contentResolver,
+                                Settings.System.SCREEN_BRIGHTNESS, target) }
+                        }
+                    } else {
+                        val row = if (controlCenterPage == 0) {
+                            val first = height * .075f + height * .85f * .225f
+                            val gap = height * .85f * .116f
+                            ((event.y - first) / gap).toInt().coerceIn(0, 5)
+                        } else {
+                            val first = height * .075f + height * .85f * .225f
+                            val gap = height * .85f * .112f
+                            ((event.y - first) / gap).toInt().coerceIn(0, minOf(5, controlInputs.lastIndex.coerceAtLeast(0)))
+                        }
+                        controlCenterFocus = row
+                        activateControlCenterItem()
+                    }
                 }
                 performClick()
             }
@@ -2594,13 +2616,25 @@ class LauncherView(context: Context) : View(context) {
             return handleBack()
         }
         if (controlCenterOpen) {
-            val count = if (controlCenterPage == 0) 4 else 1
+            val count = when (controlCenterPage) {
+                0 -> 6
+                1 -> controlInputs.size.coerceAtLeast(1).coerceAtMost(6)
+                else -> 1
+            }
             when (keyCode) {
                 KeyEvent.KEYCODE_DPAD_UP -> controlCenterFocus = (controlCenterFocus - 1).coerceAtLeast(0)
                 KeyEvent.KEYCODE_DPAD_DOWN -> controlCenterFocus = (controlCenterFocus + 1).coerceAtMost(count - 1)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> activateControlCenterItem()
-                KeyEvent.KEYCODE_DPAD_LEFT -> if (controlCenterPage == 1) { controlCenterPage = 0; controlCenterFocus = 1 }
-                KeyEvent.KEYCODE_DPAD_RIGHT -> if (controlCenterPage == 1) activateControlCenterItem()
+                KeyEvent.KEYCODE_DPAD_LEFT -> when (controlCenterPage) {
+                    1 -> { controlCenterPage = 0; controlCenterFocus = 1 }
+                    2 -> adjustControlVolume(-1)
+                    3 -> adjustControlBrightness(-1)
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> when (controlCenterPage) {
+                    1 -> activateControlCenterItem()
+                    2 -> adjustControlVolume(1)
+                    3 -> adjustControlBrightness(1)
+                }
             }
             invalidate()
             return true
