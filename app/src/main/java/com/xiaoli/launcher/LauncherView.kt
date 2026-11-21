@@ -112,6 +112,10 @@ class LauncherView(context: Context) : View(context) {
     private var homeTopFocus = -1
     private var homeIconScale = prefs.getFloat("home_icon_scale", 1f).coerceIn(.65f, 1.6f)
     private var homeIconEditMode = false
+    private var homePositionEditMode = false
+    private var homePositionEditPackage = ""
+    private var homePositionEditOriginal: Pair<Float, Float>? = null
+    private var homePositionWasCustom = false
     private var homeAppManageMode = false
     private var homeManageSlot = 0
     private var homeIconScaleBeforeEdit = 1f
@@ -317,6 +321,46 @@ class LauncherView(context: Context) : View(context) {
         android.widget.Toast.makeText(context, "应用已从桌面移除，可在应用抽屉中重新添加", android.widget.Toast.LENGTH_SHORT).show()
     }
 
+    private fun beginHomePositionEdit(slot: Int) {
+        val app = favorites.getOrNull(slot) ?: return
+        if (app.packageName == emptySlot.packageName || width <= 0 || height <= 0) return
+        val rect = homeIconCardRect(slot, width.toFloat(), height.toFloat())
+        homePositionEditPackage = app.packageName
+        homePositionWasCustom = homeIconPositions.containsKey(app.packageName)
+        homePositionEditOriginal = homeIconPositions[app.packageName]
+            ?: Pair(rect.left / width.toFloat(), rect.top / height.toFloat())
+        homeIconPositions[app.packageName] = homePositionEditOriginal!!
+        homeIndex = slot
+        homePositionEditMode = true
+        invalidate()
+    }
+
+    private fun moveSelectedHomeIcon(dx: Float, dy: Float) {
+        if (!homePositionEditMode || width <= 0 || height <= 0) return
+        val current = homeIconPositions[homePositionEditPackage] ?: return
+        val size = homeIconCardRect(homeIndex, width.toFloat(), height.toFloat()).width()
+        val maxX = ((width.toFloat() - size) / width.toFloat()).coerceAtLeast(0f)
+        val maxY = ((height.toFloat() - size) / height.toFloat()).coerceAtLeast(0f)
+        homeIconPositions[homePositionEditPackage] = Pair(
+            (current.first + dx * .01f).coerceIn(0f, maxX),
+            (current.second + dy * .01f).coerceIn(0f, maxY)
+        )
+        invalidate()
+    }
+
+    private fun finishHomePositionEdit(save: Boolean) {
+        if (!homePositionEditMode) return
+        if (save) saveHomeIconPositions()
+        else if (homePositionWasCustom) {
+            homePositionEditOriginal?.let { homeIconPositions[homePositionEditPackage] = it }
+        } else homeIconPositions.remove(homePositionEditPackage)
+        homePositionEditMode = false
+        homePositionEditPackage = ""
+        homePositionEditOriginal = null
+        homePositionWasCustom = false
+        invalidate()
+    }
+
     private fun openAppActionMenu(source: String, index: Int, app: AppEntry) {
         actionMenuSource = source
         actionMenuIndex = index
@@ -340,6 +384,7 @@ class LauncherView(context: Context) : View(context) {
                     drawerScrollRow = 0
                 }
                 1 -> { hideDesktopApp(actionMenuIndex); actionMenuOpen = false }
+                2 -> { actionMenuOpen = false; beginHomePositionEdit(actionMenuIndex) }
                 else -> {
                     actionMenuOpen = false
                     isDrawerOpen = true
@@ -371,16 +416,18 @@ class LauncherView(context: Context) : View(context) {
         val h = height.toFloat()
         paint.color = 0xB9001028.toInt()
         c.drawRect(0f, 0f, w, h, paint)
-        val panel = RectF(w * .34f, h * .31f, w * .66f, h * .70f)
+        val panel = if (actionMenuSource == "home") RectF(w * .34f, h * .20f, w * .66f, h * .80f)
+            else RectF(w * .34f, h * .31f, w * .66f, h * .70f)
         paint.color = 0xF20A3470.toInt()
         c.drawRoundRect(panel, h * .025f, h * .025f, paint)
-        val options = if (actionMenuSource == "home") listOf("移动 APP", "隐藏 APP", "返回抽屉") else listOf("加入主屏幕", "返回")
+        val options = if (actionMenuSource == "home") listOf("移动 APP", "隐藏 APP", "调整位置", "返回抽屉") else listOf("加入主屏幕", "返回")
         text(c, if (actionMenuSource == "home") "桌面应用管理" else "添加到主屏幕",
-            panel.left + panel.width() * .09f, panel.top + panel.height() * .20f, h * .031f, -1, true)
+            panel.left + panel.width() * .09f, panel.top + panel.height() * (if (actionMenuSource == "home") .16f else .20f), h * .031f, -1, true)
         options.forEachIndexed { i, label ->
-            val top = panel.top + panel.height() * (.29f + i * .22f)
+            val top = panel.top + panel.height() * (if (actionMenuSource == "home") .25f + i * .17f else .29f + i * .22f)
+            val rowHeight = panel.height() * if (actionMenuSource == "home") .14f else .18f
             val row = RectF(panel.left + panel.width() * .07f, top,
-                panel.right - panel.width() * .07f, top + panel.height() * .18f)
+                panel.right - panel.width() * .07f, top + rowHeight)
             paint.color = if (i == actionMenuChoice) 0xFF1688E8.toInt() else 0x554D9BEA
             c.drawRoundRect(row, h * .012f, h * .012f, paint)
             paint.textAlign = Paint.Align.CENTER
@@ -395,6 +442,7 @@ class LauncherView(context: Context) : View(context) {
             isSettingsOpen -> closeLauncherSettings()
             isDrawerOpen -> closeDrawer()
             widgetEditMode -> toggleWidgetEditMode()
+            homePositionEditMode -> finishHomePositionEdit(false)
             homeIconEditMode -> {
                 homeIconScale = homeIconScaleBeforeEdit
                 homeIconEditMode = false
@@ -833,13 +881,23 @@ class LauncherView(context: Context) : View(context) {
             }
             paint.textAlign = Paint.Align.LEFT
         }
-        if (homeIconEditMode || homeAppManageMode) {
+        if (homeIconEditMode || homeAppManageMode || homePositionEditMode) {
             paint.textAlign = Paint.Align.CENTER
-            val hint = if (homeIconEditMode)
-                "图标大小调整：↑ 放大   ↓ 缩小   ←→ 选择图标   OK 保存   返回取消"
-            else
-                "应用管理：←→ 选择桌面位置   OK 选择应用   返回退出"
+            val hint = when {
+                homePositionEditMode -> "调整图标位置：方向键移动   OK 保存   返回取消"
+                homeIconEditMode -> "图标大小调整：↑ 放大   ↓ 缩小   ←→ 选择图标   OK 保存   返回取消"
+                else -> "应用管理：←→ 选择桌面位置   OK 选择应用   返回退出"
+            }
             text(c, hint, w * .5f, h * .91f, h * .023f, 0xFFBDEBFF.toInt(), true)
+            if (homePositionEditMode) {
+                val selected = homeIconCardRect(homeIndex, w, h)
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = (h * .006f).coerceAtLeast(3f)
+                paint.color = 0xFFFFD166.toInt()
+                c.drawRoundRect(RectF(selected.left - 8f, selected.top - 8f,
+                    selected.right + 8f, selected.bottom + 8f), 18f, 18f, paint)
+                paint.style = Paint.Style.FILL
+            }
             if (homeAppManageMode && homeManageSlot < favorites.size) {
                 val selected = homeIconCardRect(homeManageSlot, w, h)
                 paint.style = Paint.Style.STROKE
@@ -861,7 +919,7 @@ class LauncherView(context: Context) : View(context) {
         RectF(w * .93f, h * .028f, w * .99f, h * .128f)
 
     private fun drawHomeTopFocus(c: Canvas, w: Float, h: Float) {
-        if (isDrawerOpen || isSettingsOpen || widgetEditMode || homeIconEditMode ||
+        if (isDrawerOpen || isSettingsOpen || widgetEditMode || homeIconEditMode || homePositionEditMode ||
             homeAppManageMode || homeTopFocus !in 0..2) return
         if (homeTopFocus == 0 && !showClock && !showDate) return
         val rect = when (homeTopFocus) {
@@ -1448,6 +1506,10 @@ class LauncherView(context: Context) : View(context) {
         drawerMetrics().indexAt(x, y, drawerScrollRow, apps.size)
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (homePositionEditMode) {
+            if (event.actionMasked == MotionEvent.ACTION_UP) performClick()
+            return true
+        }
         when (event.actionMasked) {
             MotionEvent.ACTION_BUTTON_PRESS -> {
                 if ((event.buttonState and MotionEvent.BUTTON_SECONDARY) != 0 &&
@@ -1597,11 +1659,13 @@ class LauncherView(context: Context) : View(context) {
                     return true
                 }
                 if (actionMenuOpen) {
-                    val count = if (actionMenuSource == "home") 3 else 2
-                    val top = height * .31f
-                    val bottom = height * .70f
+                    val count = if (actionMenuSource == "home") 4 else 2
+                    val top = height * if (actionMenuSource == "home") .20f else .31f
+                    val bottom = height * if (actionMenuSource == "home") .80f else .70f
+                    val rowStart = if (actionMenuSource == "home") .25f else .29f
+                    val rowStep = if (actionMenuSource == "home") .17f else .22f
                     if (event.x in (width * .34f)..(width * .66f) && event.y in top..bottom) {
-                        val row = ((event.y - top - (bottom - top) * .29f) / ((bottom - top) * .22f)).toInt()
+                        val row = ((event.y - top - (bottom - top) * rowStart) / ((bottom - top) * rowStep)).toInt()
                         actionMenuChoice = row.coerceIn(0, count - 1)
                         runAppAction()
                     } else actionMenuOpen = false
@@ -1815,7 +1879,7 @@ class LauncherView(context: Context) : View(context) {
     }
 
     override fun onKeyLongPress(keyCode: Int, event: KeyEvent): Boolean {
-        if (!widgetEditMode && !isSettingsOpen && !isDrawerOpen && !homeIconEditMode && homeTopFocus == -1 &&
+        if (!widgetEditMode && !isSettingsOpen && !isDrawerOpen && !homeIconEditMode && !homePositionEditMode && homeTopFocus == -1 &&
             (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
             favorites.getOrNull(homeIndex)?.packageName != emptySlot.packageName) {
             favorites.getOrNull(homeIndex)?.let { openAppActionMenu("home", homeIndex, it) }
@@ -1844,7 +1908,7 @@ class LauncherView(context: Context) : View(context) {
     override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
         if ((keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
             !event.isCanceled && !event.isLongPress && !actionMenuOpen &&
-            !isSettingsOpen && !widgetEditMode && !homeIconEditMode) {
+            !isSettingsOpen && !widgetEditMode && !homeIconEditMode && !homePositionEditMode) {
             if (!isDrawerOpen && homeTopFocus in 0..2) {
                 activateHomeTopFocus()
                 return true
@@ -1885,7 +1949,7 @@ class LauncherView(context: Context) : View(context) {
         if (actionMenuOpen) {
             when (keyCode) {
                 KeyEvent.KEYCODE_DPAD_UP -> actionMenuChoice = (actionMenuChoice - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_DOWN -> actionMenuChoice = (actionMenuChoice + 1).coerceAtMost(if (actionMenuSource == "home") 2 else 1)
+                KeyEvent.KEYCODE_DPAD_DOWN -> actionMenuChoice = (actionMenuChoice + 1).coerceAtMost(if (actionMenuSource == "home") 3 else 1)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> { runAppAction(); return true }
                 KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> actionMenuOpen = false
             }
@@ -1894,9 +1958,21 @@ class LauncherView(context: Context) : View(context) {
         }
         if (keyCode == KeyEvent.KEYCODE_SETTINGS) {
             if (widgetEditMode) widgetEditMode = false
+            if (homePositionEditMode) finishHomePositionEdit(false)
             homeIconEditMode = false
             homeAppManageMode = false
             openLauncherSettings()
+            return true
+        }
+        if (homePositionEditMode && !isSettingsOpen && !isDrawerOpen) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_LEFT -> moveSelectedHomeIcon(-1f, 0f)
+                KeyEvent.KEYCODE_DPAD_RIGHT -> moveSelectedHomeIcon(1f, 0f)
+                KeyEvent.KEYCODE_DPAD_UP -> moveSelectedHomeIcon(0f, -1f)
+                KeyEvent.KEYCODE_DPAD_DOWN -> moveSelectedHomeIcon(0f, 1f)
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> finishHomePositionEdit(true)
+            }
+            invalidate()
             return true
         }
         if (homeAppManageMode && !isSettingsOpen && !isDrawerOpen) {
