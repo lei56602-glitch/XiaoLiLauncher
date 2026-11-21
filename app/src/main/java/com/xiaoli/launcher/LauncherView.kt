@@ -1363,7 +1363,7 @@ class LauncherView(context: Context) : View(context) {
         val activity = runCatching { context.packageManager.getActivityInfo(player, 0) }.getOrNull() ?: return null
         if (!activity.exported || !activity.enabled || !activity.applicationInfo.enabled) return null
         val hardware = Regex("/HW(\\d+)$").find(info.id)?.groupValues?.get(1)?.toIntOrNull()
-        val ordinal = hardware?.takeIf { kind != "其他输入" } ?: when (kind) {
+        val ordinal = hardware?.takeIf { kind != "外接输入" } ?: when (kind) {
             "HDMI" -> Regex("(\\d)").find(label)?.groupValues?.get(1)?.toIntOrNull()
                 ?.takeIf { it in 1..4 }?.let { 7 + it }
             "电视调谐器" -> 2
@@ -1668,7 +1668,10 @@ class LauncherView(context: Context) : View(context) {
                     }
                     text(canvas, input.label, rect.left + rect.width() * .07f,
                         rect.top + rect.height() * .44f, h * .020f, 0xFFF4FAFF.toInt(), true)
-                    val detail = if (controlCenterPage == 1) input.kind else {
+                    val detail = if (controlCenterPage == 1) {
+                        input.kind + " · " + (if (input.connected) "已连接" else "未连接") +
+                            (input.deviceName?.let { " · $it" } ?: "")
+                    } else {
                         val pinned = input.id in pinnedControlInputIds()
                         val hidden = input.id in hiddenControlInputIds()
                         (if (pinned) "已固定" else "未固定") + " · " + (if (hidden) "已隐藏" else "显示中")
