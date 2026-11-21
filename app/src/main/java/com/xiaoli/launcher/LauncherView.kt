@@ -1306,6 +1306,32 @@ class LauncherView(context: Context) : View(context) {
         settingsFocus = SettingsFocusNavigator.next(settingsFocus, direction)
     }
 
+    private fun moveSettingsCategoryFocus(direction: Int) {
+        val targets = (0..6).map { index ->
+            FocusTarget(30 + index, .5f, index.toFloat())
+        }
+        settingsFocus = SpatialFocusNavigator.next(
+            settingsFocus,
+            direction,
+            targets
+        )
+    }
+
+    private fun moveActionMenuFocus(direction: Int) {
+        val count = if (actionMenuSource == "home") 4 else 2
+        val targets = (0 until count).map { index ->
+            val y = if (actionMenuSource == "home") .25f + index * .17f
+                else .29f + index * .22f
+            FocusTarget(index, .5f, y)
+        }
+        actionMenuChoice = SpatialFocusNavigator.next(actionMenuChoice, direction, targets)
+    }
+
+    private fun moveClockMenuFocus(direction: Int) {
+        val targets = listOf(FocusTarget(0, .5f, .35f), FocusTarget(1, .5f, .65f))
+        clockEditChoice = SpatialFocusNavigator.next(clockEditChoice, direction, targets)
+    }
+
     private fun drawerMetrics(): DrawerGridMetrics =
         DrawerGridMetrics(width.toFloat(), height.toFloat(), drawerColumns(), drawerRows())
 
@@ -2172,8 +2198,8 @@ class LauncherView(context: Context) : View(context) {
         }
         if (clockEditMenuOpen) {
             when (keyCode) {
-                KeyEvent.KEYCODE_DPAD_UP -> clockEditChoice = (clockEditChoice - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_DOWN -> clockEditChoice = (clockEditChoice + 1).coerceAtMost(1)
+                KeyEvent.KEYCODE_DPAD_UP -> moveClockMenuFocus(SpatialFocusNavigator.UP)
+                KeyEvent.KEYCODE_DPAD_DOWN -> moveClockMenuFocus(SpatialFocusNavigator.DOWN)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> beginClockComponentEdit(if (clockEditChoice == 0) "resize" else "move")
                 KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> clockEditMenuOpen = false
             }
@@ -2198,8 +2224,8 @@ class LauncherView(context: Context) : View(context) {
         }
         if (actionMenuOpen) {
             when (keyCode) {
-                KeyEvent.KEYCODE_DPAD_UP -> actionMenuChoice = (actionMenuChoice - 1).coerceAtLeast(0)
-                KeyEvent.KEYCODE_DPAD_DOWN -> actionMenuChoice = (actionMenuChoice + 1).coerceAtMost(if (actionMenuSource == "home") 3 else 1)
+                KeyEvent.KEYCODE_DPAD_UP -> moveActionMenuFocus(SpatialFocusNavigator.UP)
+                KeyEvent.KEYCODE_DPAD_DOWN -> moveActionMenuFocus(SpatialFocusNavigator.DOWN)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     actionMenuSelectionConsumed = true
                     runAppAction()
@@ -2312,8 +2338,8 @@ class LauncherView(context: Context) : View(context) {
         if (isSettingsOpen) {
             if (settingsFocus in 30..36) {
                 when (keyCode) {
-                    KeyEvent.KEYCODE_DPAD_UP -> settingsFocus = (settingsFocus - 1).coerceAtLeast(30)
-                    KeyEvent.KEYCODE_DPAD_DOWN -> settingsFocus = (settingsFocus + 1).coerceAtMost(36)
+                    KeyEvent.KEYCODE_DPAD_UP -> moveSettingsCategoryFocus(SpatialFocusNavigator.UP)
+                    KeyEvent.KEYCODE_DPAD_DOWN -> moveSettingsCategoryFocus(SpatialFocusNavigator.DOWN)
                     KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER ->
                         settingsFocus = settingsCategoryControl(settingsFocus - 30)
                     KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> { closeLauncherSettings(); return true }
