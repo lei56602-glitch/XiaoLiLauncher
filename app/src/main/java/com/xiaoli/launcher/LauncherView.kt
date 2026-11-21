@@ -1102,27 +1102,46 @@ class LauncherView(context: Context) : View(context) {
         else -> w * .96f
     }
 
-    private fun moveHomeFocusToTop() {
+    private fun homeFocusTargets(): List<FocusTarget> {
         val w = width.toFloat()
-        val appX = homeIconCardRect(homeIndex, w, height.toFloat()).centerX()
+        val h = height.toFloat()
         val targets = buildList {
-            if (showClock || showDate) add(0)
-            add(1)
-            add(2)
+            favorites.indices.forEach { index ->
+                val rect = homeIconCardRect(index, w, h)
+                add(FocusTarget(index, rect.centerX(), rect.centerY()))
+            }
+            if (showClock || showDate) {
+                val rect = RectF(w * (clockX - .025f), h * (clockY - .045f),
+                    w * (clockX + .245f), h * (clockY + .065f * clockScale))
+                add(FocusTarget(100, rect.centerX(), rect.centerY()))
+            }
+            val wifi = wifiShortcutRect(w, h)
+            val settings = settingsShortcutRect(w, h)
+            add(FocusTarget(101, wifi.centerX(), wifi.centerY()))
+            add(FocusTarget(102, settings.centerX(), settings.centerY()))
         }
-        homeTopFocus = targets.minByOrNull { kotlin.math.abs(homeTopFocusCenterX(it, w) - appX) } ?: 1
+        return targets
+    }
+
+    private fun moveHomeSpatialFocus(direction: Int) {
+        val targets = homeFocusTargets()
+        val currentId = if (homeTopFocus in 0..2) 100 + homeTopFocus else homeIndex
+        val current = targets.firstOrNull { it.id == currentId } ?: return
+        val directionalTargets = if (direction == SpatialFocusNavigator.LEFT ||
+            direction == SpatialFocusNavigator.RIGHT) {
+            targets.filter { kotlin.math.abs(it.centerY - current.centerY) <= height * .12f }
+        } else targets
+        val next = SpatialFocusNavigator.next(currentId, direction, directionalTargets)
+        when (next) {
+            in 0..4 -> { homeIndex = next; homeTopFocus = -1 }
+            in 100..102 -> homeTopFocus = next - 100
+        }
         invalidate()
     }
 
-    private fun moveHomeFocusToApps() {
-        if (homeTopFocus !in 0..2) return
-        val x = homeTopFocusCenterX(homeTopFocus, width.toFloat())
-        homeIndex = favorites.indices.minByOrNull {
-            kotlin.math.abs(homeIconCardRect(it, width.toFloat(), height.toFloat()).centerX() - x)
-        } ?: homeIndex
-        homeTopFocus = -1
-        invalidate()
-    }
+    private fun moveHomeFocusToTop() = moveHomeSpatialFocus(SpatialFocusNavigator.UP)
+
+    private fun moveHomeFocusToApps() = moveHomeSpatialFocus(SpatialFocusNavigator.DOWN)
 
     private fun activateHomeTopFocus() {
         when (homeTopFocus) {
@@ -2395,7 +2414,7 @@ class LauncherView(context: Context) : View(context) {
             KeyEvent.KEYCODE_DPAD_UP -> {
                 if (homeTopFocus == -1) moveHomeFocusToTop()
                 else {
-                    // A second UP from the top shortcuts retains the existing UP-to-open-drawer gesture.
+                    // Preserve the launcher's established UP gesture for opening the app drawer.
                     isDrawerOpen = true
                     homeTopFocus = -1
                     drawerIndex = 0
@@ -2411,19 +2430,11 @@ class LauncherView(context: Context) : View(context) {
                 }
             }
             KeyEvent.KEYCODE_DPAD_LEFT -> {
-                if (homeTopFocus in 0..2) {
-                    homeTopFocus = (homeTopFocus - 1).coerceAtLeast(0)
-                    if (homeTopFocus == 0 && !showClock && !showDate) homeTopFocus = 1
-                } else if (favorites.isNotEmpty()) homeIndex = (homeIndex - 1).coerceAtLeast(0)
-                invalidate()
+                moveHomeSpatialFocus(SpatialFocusNavigator.LEFT)
                 return true
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if (homeTopFocus in 0..2) {
-                    homeTopFocus = (homeTopFocus + 1).coerceAtMost(2)
-                    if (homeTopFocus == 0 && !showClock && !showDate) homeTopFocus = 1
-                } else if (favorites.isNotEmpty()) homeIndex = (homeIndex + 1).coerceAtMost(favorites.lastIndex)
-                invalidate()
+                moveHomeSpatialFocus(SpatialFocusNavigator.RIGHT)
                 return true
             }
         }
