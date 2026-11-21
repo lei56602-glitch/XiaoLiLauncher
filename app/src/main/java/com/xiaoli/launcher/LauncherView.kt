@@ -1113,7 +1113,7 @@ class LauncherView(context: Context) : View(context) {
 
     private fun activateHomeTopFocus() {
         when (homeTopFocus) {
-            0 -> openLauncherSettings(33) // Time/date controls live under Desktop Widgets.
+            0 -> openClockEditMenu()
             1 -> runCatching {
                 context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -1813,6 +1813,12 @@ class LauncherView(context: Context) : View(context) {
                     performClick()
                     return true
                 }
+                // The movable clock/date component owns its visible hit area, even if moved near a shortcut.
+                if (!isSettingsOpen && !isDrawerOpen && widgetIndexAt(event.x, event.y) == 0) {
+                    openClockEditMenu()
+                    performClick()
+                    return true
+                }
                 if (!isSettingsOpen && !isDrawerOpen && wifiShortcutRect(width.toFloat(), height.toFloat()).contains(event.x, event.y)) {
                     runCatching {
                         context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -1985,16 +1991,6 @@ class LauncherView(context: Context) : View(context) {
                             return true
                         }
                     }
-                    if (settingsShortcutRect(width.toFloat(), height.toFloat()).contains(event.x, event.y)) {
-                        openLauncherSettings()
-                        invalidate()
-                        return true
-                    }
-                    if (wifiShortcutRect(width.toFloat(), height.toFloat()).contains(event.x, event.y)) {
-                        runCatching { context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                            .onFailure { runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
-                        return true
-                    }
                     if (showWeather && widgetIndexAt(event.x, event.y) == 3) {
                         openWeatherCityDialog()
                         invalidate()
@@ -2014,8 +2010,6 @@ class LauncherView(context: Context) : View(context) {
                         isDrawerOpen = true
                         drawerIndex = 0
                         resetDrawerScroll()
-                    } else if (event.y < height * .16f && event.x < width * .28f) {
-                        openLauncherSettings()
                     }
                 }
                 invalidate()
@@ -2404,11 +2398,6 @@ class LauncherView(context: Context) : View(context) {
                     if (homeTopFocus == 0 && !showClock && !showDate) homeTopFocus = 1
                 } else if (favorites.isNotEmpty()) homeIndex = (homeIndex + 1).coerceAtMost(favorites.lastIndex)
                 invalidate()
-                return true
-            }
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                if (homeTopFocus in 0..2) activateHomeTopFocus()
-                else favorites.getOrNull(homeIndex)?.let { runCatching { context.startActivity(it.intent) } }
                 return true
             }
         }
