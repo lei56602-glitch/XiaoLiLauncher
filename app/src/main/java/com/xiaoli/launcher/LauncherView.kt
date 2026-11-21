@@ -44,6 +44,7 @@ import android.view.View
 import android.animation.ValueAnimator
 import android.view.animation.DecelerateInterpolator
 import java.text.SimpleDateFormat
+import java.io.File
 import java.util.Date
 import java.util.Locale
 import kotlin.concurrent.thread
@@ -1407,15 +1408,64 @@ class LauncherView(context: Context) : View(context) {
                 val konka = konkaFallbackInputs()
                 if (konka.isNotEmpty()) discovered + konka
                 else {
+                    val vidaa = vidaaFallbackInputs()
+                    if (vidaa.isNotEmpty()) discovered + vidaa
+                    else {
                     val xgimi = xgimiMstarFallbackInputs()
                     if (xgimi.isNotEmpty()) discovered + xgimi
                     else {
                         val tcl = tclFallbackInputs()
                         if (tcl.isNotEmpty()) discovered + tcl else discovered + xiaomiFallbackInputs()
                     }
+                    }
                 }
             }
         }
+    }
+
+    private fun vidaaFallbackInputs(): List<ControlInput> {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) return emptyList()
+        if (runCatching { context.packageManager.getPackageInfo("com.hisense.tv.tiletransition", 0) }.isSuccess)
+            return emptyList()
+        val config = File("/system/etc/silo_config.xml")
+        if (!config.canRead()) return emptyList()
+        val xml = runCatching { config.readText() }.getOrNull() ?: return emptyList()
+        val physical = Regex("<physical_inputs>(.*?)</physical_inputs>", RegexOption.DOT_MATCHES_ALL)
+            .find(xml)?.groupValues?.get(1) ?: return emptyList()
+        val silo = Regex("<silo\\s+name=\"([^\"]+)\"[^>]*>(.*?)</silo>", RegexOption.DOT_MATCHES_ALL)
+        val type = Regex("<type>\\s*([A-Z_]+)\\s*</type>")
+        val input = Regex("<input>\\s*HDMI\\s*(\\d+)\\s*</input>", RegexOption.IGNORE_CASE)
+        val ids = mapOf(1 to 1281, 2 to 1282)
+        val current = runCatching {
+            Class.forName("android.os.SystemProperties")
+                .getMethod("get", String::class.java, String::class.java)
+                .invoke(null, "persist.sys.last_source", "")?.toString()?.toIntOrNull() ?: 0
+        }.getOrDefault(0)
+        val hdmi = silo.findAll(physical).mapNotNull { match ->
+            val body = match.groupValues[2]
+            if (type.find(body)?.groupValues?.get(1) != "HDMI") return@mapNotNull null
+            val port = input.find(body)?.groupValues?.get(1)?.toIntOrNull() ?: return@mapNotNull null
+            val id = ids[port] ?: return@mapNotNull null
+            ControlInput(
+                id = "vidaa:$id",
+                label = "HDMI $port",
+                kind = "HDMI",
+                switchIntent = Intent("com.jamdeo.tv.policy.SILO_SWITCH_EVENT")
+                    .putExtra("silo_input_src_id", id),
+                setupIntent = null,
+                connected = current == id,
+                deviceName = null,
+            )
+        }.distinctBy { it.id }.sortedBy { it.label }
+        return if (hdmi.isEmpty()) emptyList() else hdmi + ControlInput(
+            id = "vidaa:257",
+            label = "电视",
+            kind = "电视调谐器",
+            switchIntent = Intent("com.jamdeo.tv.policy.SILO_SWITCH_EVENT").putExtra("silo_input_src_id", 257),
+            setupIntent = null,
+            connected = current == 257,
+            deviceName = null,
+        )
     }
 
     private fun konkaFallbackInputs(): List<ControlInput> = runCatching {
@@ -1639,6 +1689,11 @@ class LauncherView(context: Context) : View(context) {
 
     private fun openControlInput(input: ControlInput) {
         val route = input.switchIntent
+        if (input.id.startsWith("vidaa:") && route != null) {
+            runCatching { context.sendBroadcast(Intent(route)) }
+                .onFailure { android.util.Log.w("XiaoLiControlCenter", "Could not switch VIDAA input", it) }
+            return
+        }
         if (route != null && runCatching {
                 context.packageManager.resolveActivity(route, PackageManager.MATCH_DEFAULT_ONLY) != null &&
                     runCatching { context.startActivity(route) }.isSuccess
