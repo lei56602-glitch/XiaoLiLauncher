@@ -157,6 +157,8 @@ class LauncherView(context: Context) : View(context) {
     private var controlCenterFocus = 0
     private var controlCenterInputOffset = 0
     private var controlCecEnabled = prefs.getBoolean("control_cec_switch", false)
+    private var controlBootInputId = prefs.getString("control_boot_input_id", "").orEmpty()
+    private var bootInputLaunchChecked = false
     private var controlExternalVolume = false
     private var controlStuckVolumeSteps = 0
     private var controlCenterReturnFocus = -1
@@ -181,6 +183,39 @@ class LauncherView(context: Context) : View(context) {
             }
             target?.let(::openControlInput)
         }
+    }
+
+    private fun currentBootCount(): Int? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return null
+        return runCatching {
+            Settings.Global.getInt(context.contentResolver, Settings.Global.BOOT_COUNT)
+        }.getOrNull()
+    }
+
+    private fun toggleControlBootInput(input: ControlInput) {
+        controlBootInputId = if (controlBootInputId == input.id) "" else input.id
+        val edit = prefs.edit().putString("control_boot_input_id", controlBootInputId)
+        currentBootCount()?.let { edit.putInt("control_last_boot_count", it) }
+        edit.apply()
+        android.widget.Toast.makeText(context,
+            if (controlBootInputId.isEmpty()) "已取消开机默认信源" else "已设为开机默认信源：${input.label}",
+            android.widget.Toast.LENGTH_SHORT).show()
+        invalidate()
+    }
+
+    private fun maybeOpenBootInput() {
+        if (bootInputLaunchChecked) return
+        bootInputLaunchChecked = true
+        val current = currentBootCount() ?: return
+        if (controlBootInputId.isBlank()) return
+        val previous = prefs.getInt("control_last_boot_count", current)
+        if (previous == current) return
+        prefs.edit().putInt("control_last_boot_count", current).apply()
+        handler.postDelayed({
+            refreshControlInputs()
+            val input = controlInputs.firstOrNull { it.id == controlBootInputId }
+            if (input != null) openControlInput(input) else openControlInputPicker()
+        }, 2500L)
     }
 
     private fun toggleControlCec() {
