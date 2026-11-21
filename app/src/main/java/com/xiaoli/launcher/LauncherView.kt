@@ -1953,16 +1953,18 @@ class LauncherView(context: Context) : View(context) {
                     h * .019f, 0xFFF4FAFF.toInt(), true)
                 paint.textAlign = Paint.Align.LEFT
             } else {
+                val hisenseLevel = if (isVolume) null else hisenseLaserLevel()
                 val xgimiLevel = if (isVolume) null else xgimiBrightnessLevel()
+                val nativeBrightnessLevel = hisenseLevel ?: xgimiLevel
                 val current = if (isVolume) {
                     val (level, max) = volumeLevel()
                     level.toFloat() / max
-                } else if (xgimiLevel != null) xgimiLevel / 10f else brightnessLevel() / 255f
+                } else if (nativeBrightnessLevel != null) nativeBrightnessLevel / 10f else brightnessLevel() / 255f
                 val valueLabel = if (isVolume) {
                     val (level, max) = volumeLevel()
                     if (controlExternalVolume) "外接音响" else if (audioManager.isStreamMute(AudioManager.STREAM_MUSIC))
                         "已静音" else "$level / $max"
-                } else if (xgimiLevel != null) "$xgimiLevel / 10" else "${brightnessLevel()} / 255"
+                } else if (nativeBrightnessLevel != null) "$nativeBrightnessLevel / 10" else "${brightnessLevel()} / 255"
                 val slider = RectF(panel.left + panel.width() * .10f, panel.top + panel.height() * .43f,
                     panel.right - panel.width() * .10f, panel.top + panel.height() * .49f)
                 paint.color = 0x665D8FB8
@@ -1976,6 +1978,7 @@ class LauncherView(context: Context) : View(context) {
                     h * .027f, 0xFFF4FAFF.toInt(), true)
                 paint.textAlign = Paint.Align.LEFT
                 val hint = if (isVolume) "左右键调节 · OK 切换静音"
+                    else if (hisenseLevel != null) "左右键调节 VIDAA 激光背光"
                     else if (xgimiLevel != null) "左右键调节 XGIMI DLP 光源亮度"
                     else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context))
                         "尚未授权修改系统亮度 · OK 打开授权页面"
@@ -2615,6 +2618,8 @@ class LauncherView(context: Context) : View(context) {
                                 val target = (fraction * max).toInt().coerceIn(0, max)
                                 runCatching { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0) }
                             }
+                        } else if (hisenseLaserLevel() != null) {
+                            setHisenseLaserLevel((fraction * 10f).toInt().coerceIn(0, 10))
                         } else if (xgimiBrightnessLevel() != null) {
                             setXgimiBrightnessLevel((fraction * 10f).toInt().coerceIn(1, 10))
                         } else if (isPlaybackDevice() || hasVendorBrightnessBackend() ||
