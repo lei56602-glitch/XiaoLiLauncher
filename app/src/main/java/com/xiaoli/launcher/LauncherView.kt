@@ -1351,7 +1351,7 @@ class LauncherView(context: Context) : View(context) {
             4 -> {
                 drawSettingCard(c, RectF(w * .13f, h * .39f, w * .87f, h * .64f),
                     if (isDefaultHomeLauncher()) "小李桌面已设为电视默认主屏幕" else "设为电视默认主屏幕",
-                    "设为默认后，按遥控器 Home 键直接进入小李桌面；除非更改默认桌面，否则持续生效。\n遥控器：上键进入顶部快捷区，再按上键打开应用抽屉 · 长按菜单进入应用管理 · 长按 OK 调整图标大小",
+                    "设为默认后，按遥控器 Home 键直接进入小李桌面；除非更改默认桌面，否则持续生效。\n遥控器：上键进入顶部快捷区，再按上键打开应用抽屉 · 长按菜单进入应用管理 · 长按 OK 打开应用操作菜单",
                     settingsFocus == 14)
             }
             5 -> {
