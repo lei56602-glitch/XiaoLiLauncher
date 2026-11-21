@@ -1608,6 +1608,44 @@ class LauncherView(context: Context) : View(context) {
         }
     }.getOrDefault("网络状态未知")
 
+    private val hisenseTvManagerClass by lazy {
+        runCatching { Class.forName("com.jamdeo.tv.TvManager") }.getOrNull()
+    }
+    @Volatile
+    private var hisensePictureManager: Any? = null
+
+    private fun hisensePictureManager(): Any? {
+        hisensePictureManager?.let { return it }
+        synchronized(this) {
+            hisensePictureManager?.let { return it }
+            val clazz = hisenseTvManagerClass ?: return null
+            val manager = runCatching {
+                val tv = clazz.getMethod("getInstance").invoke(null) ?: return null
+                tv.javaClass.getMethod("getPictureManager", Context::class.java)
+                    .invoke(tv, context.applicationContext)
+            }.getOrNull() ?: return null
+            hisensePictureManager = manager
+            return manager
+        }
+    }
+
+    private fun hisenseMethod(target: Any, name: String): java.lang.reflect.Method? =
+        runCatching { target.javaClass.getMethod(name) }.getOrNull()
+
+    private fun hisenseLaserLevel(): Int? = runCatching {
+        val manager = hisensePictureManager() ?: return@runCatching null
+        if (hisenseMethod(manager, "getLaserOverLapOrCL0Mode") == null) return@runCatching null
+        (hisenseMethod(manager, "getCustomBacklight")?.invoke(manager) as? Int)?.takeIf { it in 0..10 }
+    }.getOrNull()
+
+    private fun setHisenseLaserLevel(level: Int): Boolean = runCatching {
+        val manager = hisensePictureManager() ?: return@runCatching false
+        val intType = Int::class.javaPrimitiveType ?: return@runCatching false
+        manager.javaClass.getMethod("setBacklightMode", intType).invoke(manager, 0)
+        manager.javaClass.getMethod("setCustomBacklight", intType).invoke(manager, level.coerceIn(0, 10))
+        true
+    }.getOrDefault(false)
+
     private val xgimiDisplayManagerClass by lazy {
         runCatching { Class.forName("com.xgimi.gmpf.api.DisplayManager") }.getOrNull()
     }
