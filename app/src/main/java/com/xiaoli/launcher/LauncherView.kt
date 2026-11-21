@@ -331,15 +331,15 @@ class LauncherView(context: Context) : View(context) {
         loadSavedWallpaper()
         handler.post(clockTick)
         updateAnimationLoop()
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
         runCatching {
             val filter = IntentFilter("droidlogic.tv.action.OTP_INPUT_SOURCE_CHANGED")
             if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(controlCecReceiver, filter, Context.RECEIVER_EXPORTED)
             else context.registerReceiver(controlCecReceiver, filter)
         }
-    }
-
-    override fun onAttachedToWindow() {
-        super.onAttachedToWindow()
         // The launcher is a single custom-drawn surface; keep it as the TV remote key target.
         isFocusable = true
         isFocusableInTouchMode = true
