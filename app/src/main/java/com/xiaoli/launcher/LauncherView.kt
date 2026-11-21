@@ -1348,18 +1348,20 @@ class LauncherView(context: Context) : View(context) {
                     }
                 }
                 1 -> { refreshControlInputs(); controlCenterPage = 1; controlCenterFocus = 0 }
-                2 -> { controlCenterPage = 2; controlCenterFocus = 0 }
-                3 -> { controlCenterPage = 3; controlCenterFocus = 0 }
-                4 -> { controlCenterOpen = false; openLauncherSettings() }
-                5 -> runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                2 -> { refreshControlInputs(); controlCenterPage = 4; controlCenterFocus = 0 }
+                3 -> { controlCenterPage = 2; controlCenterFocus = 0 }
+                4 -> { controlCenterPage = 3; controlCenterFocus = 0 }
+                5 -> { controlCenterOpen = false; openLauncherSettings() }
+                6 -> runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             }
             1 -> {
-                val input = controlInputs.getOrNull(controlCenterFocus)
+                val input = visibleControlInputs().getOrNull(controlCenterFocus)
                 if (input != null) openControlInput(input)
                 else runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
             }
             2 -> toggleControlMute()
             3 -> adjustControlBrightness(0)
+            4 -> visibleControlInputs().getOrNull(controlCenterFocus)?.let(::toggleControlInputPinned)
         }
         invalidate()
     }
