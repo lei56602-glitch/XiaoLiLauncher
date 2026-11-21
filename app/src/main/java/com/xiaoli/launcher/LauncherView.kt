@@ -2688,11 +2688,14 @@ class LauncherView(context: Context) : View(context) {
                             val first = height * .075f + height * .85f * .18f
                             val gap = height * .85f * .085f
                             ((event.y - first) / gap).toInt().coerceIn(0, 7)
+                        } else if (controlCenterPage == 4) {
+                            val first = height * .075f + height * .85f * .205f
+                            val gap = height * .85f * .102f
+                            ((event.y - first) / gap).toInt().coerceIn(0, minOf(5, controlInputs.size.coerceAtMost(5)))
                         } else {
                             val first = height * .075f + height * .85f * .225f
                             val gap = height * .85f * .10f
-                            val maxIndex = if (controlCenterPage == 1)
-                                visibleControlInputs().lastIndex else controlInputs.lastIndex
+                            val maxIndex = visibleControlInputs().lastIndex
                             ((event.y - first) / gap).toInt().coerceIn(0, minOf(5, maxIndex.coerceAtLeast(0)))
                         }
                         controlCenterFocus = row
