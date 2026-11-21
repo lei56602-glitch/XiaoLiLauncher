@@ -17,6 +17,7 @@ import android.graphics.RadialGradient
 import android.graphics.Shader
 import android.graphics.Typeface
 import android.net.ConnectivityManager
+import android.net.wifi.WifiManager
 import android.media.AudioManager
 import android.media.tv.TvInputManager
 import android.media.tv.TvContract
@@ -1354,11 +1355,52 @@ class LauncherView(context: Context) : View(context) {
         invalidate()
     }
 
+    private fun controlNetworkLabel(): String = runCatching {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = cm.activeNetwork ?: return@runCatching "未连接网络"
+        val caps = cm.getNetworkCapabilities(network) ?: return@runCatching "网络状态未知"
+        when {
+            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET) -> "以太网已连接"
+            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> {
+                @Suppress("DEPRECATION")
+                val ssid = (context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager)
+                    .connectionInfo?.ssid?.trim('"')?.takeUnless { it.isBlank() || it == "<unknown ssid>" }
+                ssid?.let { "Wi-Fi · $it" } ?: "Wi-Fi 已连接"
+            }
+            else -> "网络已连接"
+        }
+    }.getOrDefault("网络状态未知")
+
+    private fun hasVendorBrightnessBackend(): Boolean {
+        val packages = listOf(
+            "com.xiaomi.mitv.settings", "com.tcl.settings", "com.sony.dtv.configsettings",
+            "com.jamdeo.tv.vod", "com.hisense.vidaaassistant", "com.xgimi.xhplayer",
+            "com.konka.tvsettings", "com.skyworth.tv"
+        )
+        return Build.MANUFACTURER.equals("Sony", true) || packages.any {
+            runCatching { context.packageManager.getPackageInfo(it, 0) }.isSuccess
+        }
+    }
+
+    private fun openPictureSettings() {
+        runCatching {
+            context.startActivity(Intent(Settings.ACTION_DISPLAY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }.onFailure {
+            runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        }
+    }
+
     private fun brightnessLevel(): Int = runCatching {
         Settings.System.getInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128).coerceIn(1, 255)
     }.getOrDefault(128)
 
     private fun adjustControlBrightness(direction: Int) {
+        if (hasVendorBrightnessBackend()) {
+            android.widget.Toast.makeText(context, "此电视使用厂商画面服务控制背光，请在电视原生画面设置中调节",
+                android.widget.Toast.LENGTH_LONG).show()
+            openPictureSettings()
+            return
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context)) {
             runCatching { context.startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,
                 Uri.parse("package:" + context.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
