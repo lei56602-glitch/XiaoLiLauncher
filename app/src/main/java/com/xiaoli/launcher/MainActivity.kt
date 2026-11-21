@@ -32,7 +32,10 @@ class MainActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
-        if (::launcherView.isInitialized) launcherView.refreshInstalledApps()
+        if (::launcherView.isInitialized) {
+            launcherView.refreshInstalledApps()
+            launcherView.requestFocus()
+        }
     }
 
     @Deprecated("Deprecated in Android API; retained for broad device compatibility")
@@ -76,13 +79,8 @@ class MainActivity : Activity() {
     }
 
     override fun onBackPressed() {
-        if (::launcherView.isInitialized && launcherView.isLauncherSettingsOpen) {
-            launcherView.closeLauncherSettings()
-        } else if (::launcherView.isInitialized && launcherView.isDrawerOpen) {
-            launcherView.closeDrawer()
-        } else {
-            super.onBackPressed()
-        }
+        if (::launcherView.isInitialized && launcherView.handleBack()) return
+        super.onBackPressed()
     }
 
     companion object {
