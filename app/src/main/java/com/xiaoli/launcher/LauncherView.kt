@@ -304,6 +304,7 @@ class LauncherView(context: Context) : View(context) {
     }
 
     // One shared remote-focus renderer: a subtle chasing light with a short cyan tail.
+    // One shared remote-focus renderer: three subtle chasing light streaks with cyan tails.
     private fun drawFocusChase(c: Canvas, source: RectF, cornerRadius: Float) {
         if (source.width() <= 0f || source.height() <= 0f) return
         val stroke = (minOf(source.width(), source.height()) * .018f).coerceAtLeast(2f)
@@ -313,32 +314,39 @@ class LauncherView(context: Context) : View(context) {
         val measure = PathMeasure(outline, false)
         val perimeter = measure.length
         if (perimeter <= 0f) return
-        val chaseLength = perimeter * .145f
+        val streakCount = 3
+        val chaseLength = perimeter * .105f
         val pieces = 12
         val pieceLength = chaseLength / pieces
-        val head = focusChasePhase * perimeter
+        val baseHead = focusChasePhase * perimeter
         val oldStyle = paint.style
         val oldCap = paint.strokeCap
         val oldJoin = paint.strokeJoin
         paint.style = Paint.Style.STROKE
         paint.strokeCap = Paint.Cap.ROUND
         paint.strokeJoin = Paint.Join.ROUND
-        for (index in pieces - 1 downTo 0) {
-            val end = ((head - index * pieceLength) % perimeter + perimeter) % perimeter
-            val start = end - pieceLength
-            val segment = Path()
-            if (start < 0f) {
-                measure.getSegment(perimeter + start, perimeter, segment, true)
-                measure.getSegment(0f, end, segment, false)
-            } else {
-                measure.getSegment(start, end, segment, true)
+        for (streak in 0 until streakCount) {
+            // Evenly distribute the three streaks around the same rounded outline.
+            val head = baseHead + perimeter * streak / streakCount
+            for (index in pieces - 1 downTo 0) {
+                val end = ((head - index * pieceLength) % perimeter + perimeter) % perimeter
+                val start = end - pieceLength
+                val segment = Path()
+                if (start < 0f) {
+                    measure.getSegment(perimeter + start, perimeter, segment, true)
+                    measure.getSegment(0f, end, segment, false)
+                } else {
+                    measure.getSegment(start, end, segment, true)
+                }
+                val strength = (1f - index.toFloat() / pieces).coerceIn(0f, 1f)
+                // Slightly soften the secondary streaks so the leading edge remains readable.
+                val streakScale = if (streak == 0) 1f else .88f
+                paint.color = android.graphics.Color.argb((30f + strength * 190f * streakScale).toInt(), 91, 224, 255)
+                paint.strokeWidth = stroke * .95f
+                paint.setShadowLayer(stroke * 1.5f, 0f, 0f,
+                    android.graphics.Color.argb((strength * 82f).toInt(), 39, 191, 255))
+                c.drawPath(segment, paint)
             }
-            val strength = (1f - index.toFloat() / pieces).coerceIn(0f, 1f)
-            paint.color = android.graphics.Color.argb((34f + strength * 190f).toInt(), 91, 224, 255)
-            paint.strokeWidth = stroke * .95f
-            paint.setShadowLayer(stroke * 1.6f, 0f, 0f,
-                android.graphics.Color.argb((strength * 95f).toInt(), 39, 191, 255))
-            c.drawPath(segment, paint)
         }
         paint.clearShadowLayer()
         paint.style = oldStyle
