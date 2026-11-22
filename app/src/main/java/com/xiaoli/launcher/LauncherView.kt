@@ -3008,19 +3008,19 @@ class LauncherView(context: Context) : View(context) {
                 drawSettingsSectionLabel(c, "桌面图标", w * .13f, h * .310f, w * .74f)
                 drawIconScaleSlider(c, RectF(w * .13f, h * .32f, w * .87f, h * .45f),
                     settingsFocus == 8)
-                drawSettingsSectionLabel(c, "应用抽屉列数", w * .13f, h * .505f, w * .74f)
+                drawSettingsSectionLabel(c, "应用抽屉列数", w * .13f, h * .475f, w * .74f)
                 for (i in 0..2) {
                     val rect = SettingsLayout.drawerGridOptionBounds(i, 0, w, h)
                     drawGridChoice(c, rect, i + 4, drawerColumns() == i + 4,
                         settingsFocus == i, "${i + 4} 列")
                 }
-                drawSettingsSectionLabel(c, "应用抽屉行数", w * .13f, h * .675f, w * .74f)
+                drawSettingsSectionLabel(c, "应用抽屉行数", w * .13f, h * .68f, w * .74f)
                 for (i in 0..2) {
                     val rect = SettingsLayout.drawerGridOptionBounds(i, 1, w, h)
                     drawGridChoice(c, rect, i + 2, drawerRows() == i + 2,
                         settingsFocus == i + 17, "${i + 2} 行")
                 }
-                drawSettingCard(c, RectF(w * .13f, h * .82f, w * .62f, h * .92f),
+                drawSettingCard(c, RectF(w * .13f, h * .88f, w * .60f, h * .945f),
                     "恢复桌面图标位置", "只恢复五个常用应用的位置，不改变应用顺序",
                     settingsFocus == 23)
             }
