@@ -2791,20 +2791,20 @@ class LauncherView(context: Context) : View(context) {
             0 -> {
                 drawSettingsSectionLabel(c, "桌面图标", w * .13f, h * .310f, w * .74f)
                 drawSettingCard(c, RectF(w * .13f, h * .32f, w * .87f, h * .45f),
-                    "图标大小  ·  \${(homeIconScale * 100).toInt()}%",
+                    "图标大小  ·  ${(homeIconScale * 100).toInt()}%",
                     "同步影响首页与应用抽屉中的图标视觉比例 · 确认键调整",
                     settingsFocus == 8)
                 drawSettingsSectionLabel(c, "应用抽屉列数", w * .13f, h * .505f, w * .74f)
                 for (i in 0..2) {
                     val rect = SettingsLayout.drawerGridOptionBounds(i, 0, w, h)
-                    drawSettingCard(c, rect, "\${i + 4} 列",
+                    drawSettingCard(c, rect, "${i + 4} 列",
                         if (drawerColumns() == i + 4) "当前布局" else "设为布局",
                         settingsFocus == i)
                 }
                 drawSettingsSectionLabel(c, "应用抽屉行数", w * .13f, h * .675f, w * .74f)
                 for (i in 0..2) {
                     val rect = SettingsLayout.drawerGridOptionBounds(i, 1, w, h)
-                    drawSettingCard(c, rect, "\${i + 2} 行",
+                    drawSettingCard(c, rect, "${i + 2} 行",
                         if (drawerRows() == i + 2) "当前布局" else "设为布局",
                         settingsFocus == i + 17)
                 }
