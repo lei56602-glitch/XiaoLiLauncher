@@ -3127,22 +3127,27 @@ class LauncherView(context: Context) : View(context) {
                 paint.color = 0x55FFFFFF
                 c.drawRoundRect(qrPanel, h * .018f, h * .018f, paint)
                 paint.style = Paint.Style.FILL
-                val qrSize = minOf(h * .27f, w * .15f)
-                val qrRect = RectF(qrPanel.centerX() - qrSize / 2f, qrPanel.top + h * .025f,
-                    qrPanel.centerX() + qrSize / 2f, qrPanel.top + h * .025f + qrSize)
+                paint.textAlign = Paint.Align.CENTER
+                text(c, "小李全联 · 手机安装", qrPanel.centerX(), qrPanel.top + h * .055f,
+                    h * .024f, 0xFFF7FAFF.toInt(), true)
+                text(c, "使用微信长按识别二维码，进入百度网盘获取安装包",
+                    qrPanel.centerX(), qrPanel.top + h * .092f,
+                    h * .0115f, 0xFFB9C7D8.toInt())
+                val qrSize = minOf(h * .285f, w * .19f)
+                val qrRect = RectF(qrPanel.centerX() - qrSize / 2f, qrPanel.top + h * .125f,
+                    qrPanel.centerX() + qrSize / 2f, qrPanel.top + h * .125f + qrSize)
                 paint.color = android.graphics.Color.WHITE
-                c.drawRoundRect(qrRect, h * .006f, h * .006f, paint)
+                c.drawRoundRect(qrRect, h * .012f, h * .012f, paint)
                 quanLianDownloadQrBitmap?.let { bitmap ->
-                    val imageRect = RectF(qrRect).apply { inset(qrSize * .035f, qrSize * .035f) }
+                    // Keep the source QR perfectly square and preserve its built-in quiet zone.
                     paint.isFilterBitmap = false
-                    c.drawBitmap(bitmap, null, imageRect, paint)
+                    c.drawBitmap(bitmap, null, qrRect, paint)
                     paint.isFilterBitmap = true
                 }
-                paint.textAlign = Paint.Align.CENTER
-                text(c, "扫码下载 APK", qrPanel.centerX(), qrRect.bottom + h * .035f,
-                    h * .017f, 0xFFF1F8FF.toInt(), true)
-                text(c, "百度网盘提取码：1234", qrPanel.centerX(), qrRect.bottom + h * .065f,
-                    h * .012f, 0xFF8CEBFF.toInt())
+                text(c, "链接下载密码：1234", qrPanel.centerX(), qrRect.bottom + h * .052f,
+                    h * .018f, 0xFFF7FAFF.toInt(), true)
+                text(c, "百度网盘分享 · 无需跳转 GitHub", qrPanel.centerX(),
+                    qrRect.bottom + h * .086f, h * .0125f, 0xFF9AA9BC.toInt())
                 paint.textAlign = Paint.Align.LEFT
                 val left = w * .40f
                 val gap = w * .014f
