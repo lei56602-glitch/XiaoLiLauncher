@@ -3739,8 +3739,8 @@ class LauncherView(context: Context) : View(context) {
                                 } else if ((0..2).any { SettingsLayout.drawerGridOptionBounds(it, 1, width.toFloat(), height.toFloat()).contains(settingsHitX, event.y) }) {
                                     val selected = (0..2).first { SettingsLayout.drawerGridOptionBounds(it, 1, width.toFloat(), height.toFloat()).contains(settingsHitX, event.y) }
                                     setDrawerRows(selected + 2)
-                                } else if (event.y in (height * .82f)..(height * .92f) &&
-                                    settingsHitX in (width * .13f)..(width * .62f)) {
+                                } else if (event.y in (height * .88f)..(height * .945f) &&
+                                    settingsHitX in (width * .13f)..(width * .60f)) {
                                     settingsFocus = 23
                                     resetHomeIconPositions()
                                 }
