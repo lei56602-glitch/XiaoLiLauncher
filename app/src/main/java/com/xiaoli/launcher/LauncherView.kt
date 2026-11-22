@@ -2595,8 +2595,7 @@ class LauncherView(context: Context) : View(context) {
             h * .011f, 0xFF8FAFCB.toInt(), true)
         val labels = listOf("桌面布局", "外观与壁纸", "应用管理", "桌面组件", "遥控器与操作", "小李全联", "电视系统设置")
         labels.forEachIndexed { index, label ->
-            val top = h * (.285f + index * .087f)
-            val rect = RectF(rail.left + w * .014f, top, rail.right - w * .014f, top + h * .066f)
+            val rect = SettingsLayout.categoryBounds(index, w, h, rail)
             val selected = settingsFocus == 30 + index || settingsCategoryForControl(settingsFocus) == index
             if (selected) {
                 val selectedRect = if (settingsFocus == 30 + index) scaledFocusRect(rect) else rect
@@ -2695,15 +2694,13 @@ class LauncherView(context: Context) : View(context) {
                     "桌面与应用抽屉使用同一缩放比例 · 点击调整", settingsFocus == 8)
                 text(c, "应用抽屉列数", w * .13f, h * .515f, h * .022f, 0xFFDDEEFF.toInt(), true)
                 for (i in 0..2) {
-                    val rect = RectF(w * (.13f + i * .105f), h * .54f,
-                        w * (.13f + i * .105f) + w * .095f, h * .63f)
+                    val rect = SettingsLayout.drawerGridOptionBounds(i, 0, w, h)
                     drawSettingCard(c, rect, "${i + 4}列",
                         if (drawerColumns() == i + 4) "当前" else "选择", settingsFocus == i)
                 }
                 text(c, "应用抽屉行数", w * .13f, h * .685f, h * .022f, 0xFFDDEEFF.toInt(), true)
                 for (i in 0..2) {
-                    val rect = RectF(w * (.13f + i * .105f), h * .71f,
-                        w * (.13f + i * .105f) + w * .095f, h * .80f)
+                    val rect = SettingsLayout.drawerGridOptionBounds(i, 1, w, h)
                     drawSettingCard(c, rect, "${i + 2}行",
                         if (drawerRows() == i + 2) "当前" else "选择", settingsFocus == i + 17)
                 }
@@ -3291,9 +3288,8 @@ class LauncherView(context: Context) : View(context) {
                         runAppAction()
                     } else actionMenuOpen = false
                 } else if (isSettingsOpen) {
-                    if (event.x in (width * .055f)..(width * .225f) &&
-                        event.y >= height * .275f && event.y <= height * .912f) {
-                        val category = ((event.y - height * .275f) / (height * .091f)).toInt().coerceIn(0, 6)
+                    if ((0..6).any { SettingsLayout.categoryBounds(it, width.toFloat(), height.toFloat()).contains(event.x, event.y) }) {
+                        val category = (0..6).first { SettingsLayout.categoryBounds(it, width.toFloat(), height.toFloat()).contains(event.x, event.y) }
                         settingsFocus = 30 + category
                         animateSpatialFocus()
                         invalidate()
@@ -3314,12 +3310,12 @@ class LauncherView(context: Context) : View(context) {
                                     settingsHitX in (width * .13f)..(width * .87f)) {
                                     settingsFocus = 8
                                     cycleHomeIconScale()
-                                } else if (event.y in (height * .54f)..(height * .63f)) {
-                                    val selected = ((settingsHitX - width * .13f) / (width * .105f)).toInt()
-                                    if (selected in 0..2) setDrawerColumns(selected + 4)
-                                } else if (event.y in (height * .71f)..(height * .80f)) {
-                                    val selected = ((settingsHitX - width * .13f) / (width * .105f)).toInt()
-                                    if (selected in 0..2) setDrawerRows(selected + 2)
+                                } else if ((0..2).any { SettingsLayout.drawerGridOptionBounds(it, 0, width.toFloat(), height.toFloat()).contains(settingsHitX, event.y) }) {
+                                    val selected = (0..2).first { SettingsLayout.drawerGridOptionBounds(it, 0, width.toFloat(), height.toFloat()).contains(settingsHitX, event.y) }
+                                    setDrawerColumns(selected + 4)
+                                } else if ((0..2).any { SettingsLayout.drawerGridOptionBounds(it, 1, width.toFloat(), height.toFloat()).contains(settingsHitX, event.y) }) {
+                                    val selected = (0..2).first { SettingsLayout.drawerGridOptionBounds(it, 1, width.toFloat(), height.toFloat()).contains(settingsHitX, event.y) }
+                                    setDrawerRows(selected + 2)
                                 } else if (event.y in (height * .82f)..(height * .92f) &&
                                     settingsHitX in (width * .13f)..(width * .62f)) {
                                     settingsFocus = 23
