@@ -2913,25 +2913,38 @@ class LauncherView(context: Context) : View(context) {
             rect.height() * .105f, 0xFFB5C7D8.toInt())
     }
 
+    /**
+     * Informational TV tile: icon, title and supporting text share a left edge.
+     * The compact centered-poster treatment was too small at sofa distance.
+     */
     private fun drawCompactFeatureTile(c: Canvas, bounds: RectF, title: String, detail: String, symbol: String) {
         val rect = RectF(bounds)
-        val radius = rect.height() * .13f
+        val radius = rect.height() * .14f
         paint.style = Paint.Style.FILL
         paint.shader = LinearGradient(rect.left, rect.top, rect.left, rect.bottom,
-            intArrayOf(0xD3224565.toInt(), 0xC6112B46.toInt()), null, Shader.TileMode.CLAMP)
+            intArrayOf(0xD3294F72.toInt(), 0xC615304D.toInt()), null, Shader.TileMode.CLAMP)
         c.drawRoundRect(rect, radius, radius, paint)
         paint.shader = null
         paint.style = Paint.Style.STROKE
-        paint.strokeWidth = (height * .0009f).coerceAtLeast(1f)
-        paint.color = 0x554F86B1
+        paint.strokeWidth = (height * .0011f).coerceAtLeast(1.2f)
+        paint.color = 0x665F9BC5
         c.drawRoundRect(rect, radius, radius, paint)
         paint.style = Paint.Style.FILL
-        text(c, symbol, rect.centerX(), rect.top + rect.height() * .43f,
-            minOf(rect.height() * .25f, rect.width() * .25f), 0xFF8CEBFF.toInt(), true)
-        text(c, title, rect.centerX(), rect.top + rect.height() * .70f,
-            minOf(rect.height() * .105f, rect.width() * .105f), 0xFFF2F7FF.toInt(), true)
-        text(c, detail, rect.centerX(), rect.top + rect.height() * .84f,
-            minOf(rect.height() * .070f, rect.width() * .078f), 0xFFB5C7D8.toInt())
+
+        val compact = rect.height() < height * .17f
+        val iconSize = minOf(rect.height() * if (compact) .25f else .22f, rect.width() * .18f)
+        val iconX = rect.left + rect.width() * .09f
+        val textX = rect.left + rect.width() * .27f
+        val titleSize = minOf(rect.height() * if (compact) .19f else .16f,
+            rect.width() * .085f).coerceAtLeast(height * .015f)
+        val detailSize = minOf(rect.height() * if (compact) .13f else .115f,
+            rect.width() * .065f).coerceAtLeast(height * .0105f)
+        text(c, symbol, iconX, rect.centerY() + iconSize * .34f,
+            iconSize, 0xFF8CEBFF.toInt(), true)
+        text(c, title, textX, rect.centerY() - rect.height() * .015f,
+            titleSize, 0xFFF2F7FF.toInt(), true)
+        text(c, detail, textX, rect.centerY() + rect.height() * .24f,
+            detailSize, 0xFFBBD0E3.toInt())
     }
 
     private fun drawSettingsSectionLabel(c: Canvas, label: String, x: Float, y: Float, w: Float) {
@@ -3111,14 +3124,15 @@ class LauncherView(context: Context) : View(context) {
                     "按遥控器 Home 键时进入小李桌面；默认应用由 Android 系统管理。",
                     settingsFocus == 14)
                 drawSettingsSectionLabel(c, "遥控器快捷操作", w * .13f, h * .655f, w * .74f)
-                drawCompactFeatureTile(c, RectF(w * .13f, h * .68f, w * .485f, h * .82f),
-                    "打开应用抽屉", "遥控器下键", "↓")
-                drawCompactFeatureTile(c, RectF(w * .515f, h * .68f, w * .87f, h * .82f),
-                    "应用操作菜单", "长按 OK", "OK")
-                drawCompactFeatureTile(c, RectF(w * .13f, h * .835f, w * .485f, h * .945f),
-                    "打开控制中心", "菜单键", "☰")
-                text(c, "按返回键退出设置页面；系统默认桌面切换由 Android 设置流程确认。",
-                    w * .13f, h * .86f, h * .013f, 0xFF9FBBD3.toInt())
+                val remoteTileW = (w * .74f - w * .025f) / 2f
+                drawCompactFeatureTile(c, RectF(w * .13f, h * .68f,
+                    w * .13f + remoteTileW, h * .805f), "打开应用抽屉", "按遥控器下键", "↓")
+                drawCompactFeatureTile(c, RectF(w * .13f + remoteTileW + w * .025f, h * .68f,
+                    w * .87f, h * .805f), "应用操作菜单", "长按 OK 键", "OK")
+                drawCompactFeatureTile(c, RectF(w * .13f, h * .825f,
+                    w * .13f + remoteTileW, h * .95f), "打开控制中心", "按遥控器菜单键", "☰")
+                drawCompactFeatureTile(c, RectF(w * .13f + remoteTileW + w * .025f, h * .825f,
+                    w * .87f, h * .95f), "退出设置", "按返回键关闭当前页面", "↩")
             }
             5 -> {
                 drawSettingsSectionLabel(c, "小李全联 · 应用下载与功能", w * .13f, h * .335f, w * .74f)
@@ -3154,26 +3168,26 @@ class LauncherView(context: Context) : View(context) {
                 paint.textAlign = Paint.Align.LEFT
                 val left = w * .40f
                 val gap = w * .014f
-                val tileW = (w * .47f - gap * 2f) / 3f
-                drawCompactFeatureTile(c, RectF(left, h * .405f, left + tileW, h * .705f),
+                val tileW = (w * .47f - gap) / 2f
+                drawCompactFeatureTile(c, RectF(left, h * .405f, left + tileW, h * .535f),
                     "发送文件", "设备互传", "↑")
                 drawCompactFeatureTile(c, RectF(left + tileW + gap, h * .405f,
-                    left + 2 * tileW + gap, h * .705f), "接收文件", "接收设备文件", "↓")
-                drawCompactFeatureTile(c, RectF(left + 2 * (tileW + gap), h * .405f,
-                    w * .87f, h * .705f), "传输历史", "查看记录", "◷")
-                drawSettingCard(c, RectF(left, h * .755f, w * .87f, h * .835f),
-                    "打开小李全联", "进入独立文件传输应用", settingsFocus == 6)
+                    w * .87f, h * .535f), "接收文件", "接收设备文件", "↓")
+                drawCompactFeatureTile(c, RectF(left, h * .555f, left + tileW, h * .685f),
+                    "传输历史", "查看传输记录", "◷")
+                drawSettingCard(c, RectF(left + tileW + gap, h * .555f, w * .87f, h * .685f),
+                    "打开小李全联", "进入文件传输应用", settingsFocus == 6)
             }
             6 -> {
-                drawSettingsSectionLabel(c, "Android TV 系统入口", w * .13f, h * .335f, w * .74f)
-                drawCompactFeatureTile(c, RectF(w * .13f, h * .385f, w * .485f, h * .535f),
-                    "网络", "Wi-Fi 与连接", "⌁")
-                drawCompactFeatureTile(c, RectF(w * .515f, h * .385f, w * .87f, h * .535f),
-                    "显示", "画面与亮度", "☼")
-                drawCompactFeatureTile(c, RectF(w * .13f, h * .56f, w * .485f, h * .71f),
-                    "设备偏好", "系统与设备", "⚙")
-                drawSettingCard(c, RectF(w * .515f, h * .56f, w * .87f, h * .71f),
-                    "打开 Android 系统设置", "进入电视系统设置", settingsFocus == 7)
+                drawSettingsSectionLabel(c, "电视系统入口说明", w * .13f, h * .335f, w * .74f)
+                drawCompactFeatureTile(c, RectF(w * .13f, h * .385f, w * .485f, h * .565f),
+                    "网络连接", "管理 Wi-Fi 与网络状态", "⌁")
+                drawCompactFeatureTile(c, RectF(w * .515f, h * .385f, w * .87f, h * .565f),
+                    "显示设置", "调整画面与显示效果", "☼")
+                drawCompactFeatureTile(c, RectF(w * .13f, h * .59f, w * .485f, h * .77f),
+                    "设备偏好", "查看系统与设备选项", "⚙")
+                drawSettingCard(c, RectF(w * .515f, h * .59f, w * .87f, h * .77f),
+                    "打开系统设置", "进入 Android TV 完整设置", settingsFocus == 7)
             }
         }
 
@@ -3799,13 +3813,13 @@ class LauncherView(context: Context) : View(context) {
                                 settingsFocus = 14
                                 onRequestDefaultHome?.invoke()
                             }
-                            5 -> if (event.y in (height * .39f)..(height * .64f) &&
-                                settingsHitX in (width * .13f)..(width * .87f)) {
+                            5 -> if (event.y in (height * .555f)..(height * .685f) &&
+                                settingsHitX in (width * .40f)..(width * .87f)) {
                                 settingsFocus = 6
                                 context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
                             }
-                            6 -> if ((event.y in (height * .385f)..(height * .715f) &&
-                                settingsHitX in (width * .13f)..(width * .87f))) {
+                            6 -> if (event.y in (height * .59f)..(height * .77f) &&
+                                settingsHitX in (width * .515f)..(width * .87f)) {
                                 settingsFocus = 7
                                 runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                             }
