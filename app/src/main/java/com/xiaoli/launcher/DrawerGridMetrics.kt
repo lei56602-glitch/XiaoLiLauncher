@@ -57,6 +57,10 @@ internal data class DrawerGridMetrics(
         return SpatialFocusNavigator.next(current, spatialDirection, targets)
     }
 
+    /** Backward-compatible whole-row hit testing for existing callers/tests. */
+    fun indexAt(x: Float, y: Float, scrollRow: Int, itemCount: Int): Int =
+        indexAt(x, y, scrollRow.toFloat(), itemCount)
+
     fun indexAt(x: Float, y: Float, scrollVisualRow: Float, itemCount: Int): Int {
         if (x < gridLeft || x >= gridRight || y < contentTop || y >= contentBottom ||
             cellWidth <= 0f || cellHeight <= 0f) return -1
