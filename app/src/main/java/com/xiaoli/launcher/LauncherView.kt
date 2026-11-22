@@ -2976,7 +2976,7 @@ class LauncherView(context: Context) : View(context) {
             if (controlCenterPage == 1 || controlCenterPage == 4) {
                 val panelTop = height * .075f
                 val panelBottom = height * .925f
-                val rowPitch = height * .85f * if (controlCenterPage == 4) .102f else .10f
+                val rowPitch = height * .85f * (if (controlCenterPage == 4) .102f else .10f)
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
                         controlListTouchActive = event.x >= width * .60f &&
