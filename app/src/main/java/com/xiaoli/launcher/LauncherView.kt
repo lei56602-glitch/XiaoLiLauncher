@@ -2809,6 +2809,79 @@ class LauncherView(context: Context) : View(context) {
         }
     }
 
+    private fun drawGridChoice(c: Canvas, bounds: RectF, count: Int, selected: Boolean, focused: Boolean, label: String) {
+        val rect = if (focused) scaledFocusRect(bounds) else RectF(bounds)
+        paint.style = Paint.Style.FILL
+        paint.color = if (selected) 0xD92A78B5.toInt() else 0xB21A3554.toInt()
+        c.drawRoundRect(rect, rect.height() * .15f, rect.height() * .15f, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = if (focused) 2.5f else 1f
+        paint.color = if (focused || selected) 0xFF75DEFF.toInt() else 0x55FFFFFF
+        c.drawRoundRect(rect, rect.height() * .15f, rect.height() * .15f, paint)
+        paint.style = Paint.Style.FILL
+        if (focused) drawFocusChase(c, rect, rect.height() * .15f)
+        val cols = if (label.contains("列")) count else minOf(count, 4)
+        val rows = if (label.contains("行")) count else 2
+        val gap = rect.width() * .035f
+        val cellW = (rect.width() * .56f - gap * (cols - 1)) / cols
+        val cellH = (rect.height() * .36f - gap * (rows - 1)) / rows
+        val totalW = cols * cellW + (cols - 1) * gap
+        val startX = rect.centerX() - totalW / 2f
+        val startY = rect.top + rect.height() * .12f
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = (height * .0012f).coerceAtLeast(1f)
+        paint.color = if (selected) 0xFF8CEBFF.toInt() else 0xFF91AFC8.toInt()
+        for (row in 0 until rows) for (col in 0 until cols) {
+            val cell = RectF(startX + col * (cellW + gap), startY + row * (cellH + gap),
+                startX + col * (cellW + gap) + cellW, startY + row * (cellH + gap) + cellH)
+            if (selected) { paint.style = Paint.Style.FILL; c.drawRoundRect(cell, 3f, 3f, paint); paint.style = Paint.Style.STROKE }
+            c.drawRoundRect(cell, 3f, 3f, paint)
+        }
+        paint.style = Paint.Style.FILL
+        text(c, label, rect.centerX(), rect.bottom - rect.height() * .12f,
+            rect.height() * .19f, if (selected) 0xFF8CEBFF.toInt() else 0xFFE2EDF7.toInt(), true)
+    }
+
+    private fun drawSwitchCard(c: Canvas, bounds: RectF, label: String, enabled: Boolean, focused: Boolean) {
+        val rect = if (focused) scaledFocusRect(bounds) else RectF(bounds)
+        paint.style = Paint.Style.FILL
+        paint.color = if (focused) 0xE52B6795.toInt() else 0xC21A3554.toInt()
+        c.drawRoundRect(rect, rect.height() * .18f, rect.height() * .18f, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = if (focused) 2.5f else 1f
+        paint.color = if (focused) 0xFF78DFFF.toInt() else 0x44FFFFFF
+        c.drawRoundRect(rect, rect.height() * .18f, rect.height() * .18f, paint)
+        paint.style = Paint.Style.FILL
+        if (focused) drawFocusChase(c, rect, rect.height() * .18f)
+        text(c, label, rect.left + rect.width() * .08f, rect.centerY() + rect.height() * .07f,
+            rect.height() * .24f, -1, true)
+        val sw = RectF(rect.right - rect.width() * .29f, rect.centerY() - rect.height() * .19f,
+            rect.right - rect.width() * .07f, rect.centerY() + rect.height() * .19f)
+        paint.color = if (enabled) 0xFF168AC7.toInt() else 0xFF53677B.toInt()
+        c.drawRoundRect(sw, sw.height(), sw.height(), paint)
+        paint.color = -1
+        c.drawCircle(if (enabled) sw.right - sw.height() * .5f else sw.left + sw.height() * .5f,
+            sw.centerY(), sw.height() * .39f, paint)
+    }
+
+    private fun drawSymbolTile(c: Canvas, bounds: RectF, title: String, detail: String, symbol: String) {
+        val rect = RectF(bounds)
+        paint.style = Paint.Style.FILL
+        paint.color = 0xC21A3554.toInt()
+        c.drawRoundRect(rect, rect.height() * .14f, rect.height() * .14f, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 1f
+        paint.color = 0x44FFFFFF
+        c.drawRoundRect(rect, rect.height() * .14f, rect.height() * .14f, paint)
+        paint.style = Paint.Style.FILL
+        text(c, symbol, rect.centerX(), rect.top + rect.height() * .48f,
+            rect.height() * .38f, 0xFF8CEBFF.toInt(), true)
+        text(c, title, rect.centerX(), rect.top + rect.height() * .76f,
+            rect.height() * .16f, -1, true)
+        if (detail.isNotBlank()) text(c, detail, rect.centerX(), rect.top + rect.height() * .90f,
+            rect.height() * .105f, 0xFFB5C7D8.toInt())
+    }
+
     private fun drawSettingsSectionLabel(c: Canvas, label: String, x: Float, y: Float, w: Float) {
         text(c, label, x, y, height * .013f, 0xFF83B6D9.toInt(), true)
         paint.style = Paint.Style.FILL
@@ -2888,16 +2961,14 @@ class LauncherView(context: Context) : View(context) {
                 drawSettingsSectionLabel(c, "应用抽屉列数", w * .13f, h * .505f, w * .74f)
                 for (i in 0..2) {
                     val rect = SettingsLayout.drawerGridOptionBounds(i, 0, w, h)
-                    drawSettingCard(c, rect, "${i + 4} 列",
-                        if (drawerColumns() == i + 4) "当前" else "",
-                        settingsFocus == i)
+                    drawGridChoice(c, rect, i + 4, drawerColumns() == i + 4,
+                        settingsFocus == i, "${i + 4} 列")
                 }
                 drawSettingsSectionLabel(c, "应用抽屉行数", w * .13f, h * .675f, w * .74f)
                 for (i in 0..2) {
                     val rect = SettingsLayout.drawerGridOptionBounds(i, 1, w, h)
-                    drawSettingCard(c, rect, "${i + 2} 行",
-                        if (drawerRows() == i + 2) "当前" else "",
-                        settingsFocus == i + 17)
+                    drawGridChoice(c, rect, i + 2, drawerRows() == i + 2,
+                        settingsFocus == i + 17, "${i + 2} 行")
                 }
                 drawSettingCard(c, RectF(w * .13f, h * .82f, w * .62f, h * .92f),
                     "恢复桌面图标位置", "只恢复五个常用应用的位置，不改变应用顺序",
@@ -2943,8 +3014,8 @@ class LauncherView(context: Context) : View(context) {
                 val cardW = (w * .74f - gap * 3f) / 4f
                 for (i in 0..3) {
                     val left = w * .13f + i * (cardW + gap)
-                    drawSettingCard(c, RectF(left, h * .34f, left + cardW, h * .49f),
-                        labels[i], "", settingsFocus == ids[i])
+                    drawSwitchCard(c, RectF(left, h * .34f, left + cardW, h * .49f),
+                        labels[i].substringBefore(" ·"), states[i], settingsFocus == ids[i])
                 }
                 drawSettingsSectionLabel(c, "组件位置与尺寸", w * .13f, h * .565f, w * .74f)
                 drawSettingCard(c, RectF(w * .13f, h * .60f, w * .87f, h * .75f),
