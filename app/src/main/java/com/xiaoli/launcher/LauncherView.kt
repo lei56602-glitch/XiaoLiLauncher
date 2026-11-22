@@ -3077,29 +3077,28 @@ class LauncherView(context: Context) : View(context) {
             }
             3 -> {
                 drawSettingsSectionLabel(c, "时间与日期显示", w * .13f, h * .315f, w * .74f)
-                val labels = listOf(if (showClock) "时间 · 开启" else "时间 · 关闭",
-                    if (showDate) "日期 · 开启" else "日期 · 关闭",
+                val labels = listOf(if (showClock) "时间" else "时间",
+                    if (showDate) "日期" else "日期",
                     if (use24HourClock) "24 小时制" else "12 小时制",
                     if (showClockSeconds) "显示秒数" else "隐藏秒数")
                 val states = listOf(showClock, showDate, use24HourClock, showClockSeconds)
                 val ids = listOf(9, 10, 15, 16)
-                val gap = w * .012f
-                val cardW = (w * .74f - gap * 3f) / 4f
-                for (i in 0..3) {
-                    val left = w * .13f + i * (cardW + gap)
-                    drawSwitchCard(c, RectF(left, h * .34f, left + cardW, h * .49f),
-                        labels[i].substringBefore(" ·"), states[i], settingsFocus == ids[i])
-                }
-                drawSettingsSectionLabel(c, "组件位置与尺寸", w * .13f, h * .565f, w * .74f)
-                drawSettingCard(c, RectF(w * .13f, h * .60f, w * .87f, h * .75f),
-                    "编辑桌面组件", "拖动调整时间日期整体位置 · 使用方向键微调 · 音量键调整大小",
+                val switchRects = listOf(
+                    RectF(w * .13f, h * .35f, w * .485f, h * .475f),
+                    RectF(w * .515f, h * .35f, w * .87f, h * .475f),
+                    RectF(w * .13f, h * .495f, w * .485f, h * .62f),
+                    RectF(w * .515f, h * .495f, w * .87f, h * .62f)
+                )
+                for (i in 0..3) drawSwitchCard(c, switchRects[i],
+                    labels[i], states[i], settingsFocus == ids[i])
+                drawSettingsSectionLabel(c, "组件位置与尺寸", w * .13f, h * .675f, w * .74f)
+                drawSettingCard(c, RectF(w * .13f, h * .705f, w * .87f, h * .825f),
+                    "编辑桌面组件", "拖动调整时间日期整体位置 · 方向键微调 · 音量键调整大小",
                     settingsFocus == 22)
-                drawSettingsMetaTile(c, RectF(w * .13f, h * .77f, w * .36f, h * .85f),
+                drawSettingsMetaTile(c, RectF(w * .13f, h * .84f, w * .485f, h * .925f),
                     "时间 / 日期", "显示开关")
-                drawSettingsMetaTile(c, RectF(w * .39f, h * .77f, w * .62f, h * .85f),
-                    "位置调整", "组件编辑")
-                drawSettingsMetaTile(c, RectF(w * .65f, h * .77f, w * .87f, h * .85f),
-                    "尺寸调整", "组件编辑")
+                drawSettingsMetaTile(c, RectF(w * .515f, h * .84f, w * .87f, h * .925f),
+                    "位置与尺寸", "组件编辑")
             }
             4 -> {
                 drawSettingsSectionLabel(c, "默认主屏幕", w * .13f, h * .335f, w * .74f)
@@ -3108,11 +3107,11 @@ class LauncherView(context: Context) : View(context) {
                     "按遥控器 Home 键时进入小李桌面；默认应用由 Android 系统管理。",
                     settingsFocus == 14)
                 drawSettingsSectionLabel(c, "遥控器快捷操作", w * .13f, h * .655f, w * .74f)
-                drawSymbolTile(c, RectF(w * .13f, h * .68f, w * .36f, h * .84f),
-                    "打开应用抽屉", "下键", "↓")
-                drawSymbolTile(c, RectF(w * .39f, h * .68f, w * .62f, h * .84f),
+                drawCompactFeatureTile(c, RectF(w * .13f, h * .68f, w * .485f, h * .82f),
+                    "打开应用抽屉", "遥控器下键", "↓")
+                drawCompactFeatureTile(c, RectF(w * .515f, h * .68f, w * .87f, h * .82f),
                     "应用操作菜单", "长按 OK", "OK")
-                drawSymbolTile(c, RectF(w * .65f, h * .68f, w * .87f, h * .84f),
+                drawCompactFeatureTile(c, RectF(w * .13f, h * .835f, w * .485f, h * .945f),
                     "打开控制中心", "菜单键", "☰")
                 text(c, "按返回键退出设置页面；系统默认桌面切换由 Android 设置流程确认。",
                     w * .13f, h * .86f, h * .013f, 0xFF9FBBD3.toInt())
@@ -3163,13 +3162,13 @@ class LauncherView(context: Context) : View(context) {
             }
             6 -> {
                 drawSettingsSectionLabel(c, "Android TV 系统入口", w * .13f, h * .335f, w * .74f)
-                drawCompactFeatureTile(c, RectF(w * .13f, h * .405f, w * .35f, h * .715f),
+                drawCompactFeatureTile(c, RectF(w * .13f, h * .385f, w * .485f, h * .535f),
                     "网络", "Wi-Fi 与连接", "⌁")
-                drawCompactFeatureTile(c, RectF(w * .385f, h * .405f, w * .605f, h * .715f),
+                drawCompactFeatureTile(c, RectF(w * .515f, h * .385f, w * .87f, h * .535f),
                     "显示", "画面与亮度", "☼")
-                drawCompactFeatureTile(c, RectF(w * .64f, h * .405f, w * .87f, h * .715f),
+                drawCompactFeatureTile(c, RectF(w * .13f, h * .56f, w * .485f, h * .71f),
                     "设备偏好", "系统与设备", "⚙")
-                drawSettingCard(c, RectF(w * .13f, h * .81f, w * .60f, h * .92f),
+                drawSettingCard(c, RectF(w * .515f, h * .56f, w * .87f, h * .71f),
                     "打开 Android 系统设置", "进入电视系统设置", settingsFocus == 7)
             }
         }
