@@ -586,7 +586,7 @@ class LauncherView(context: Context) : View(context) {
             return
         }
         if (editingFavorites) {
-            if (app.packageName in pinnedPackages) {
+            if (favorites.any { it.packageName == app.packageName }) {
                 android.widget.Toast.makeText(context, "该应用已经在桌面", android.widget.Toast.LENGTH_SHORT).show()
             } else {
                 val slot = favorites.indexOfFirst { it.packageName == emptySlot.packageName }
