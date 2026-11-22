@@ -3026,15 +3026,15 @@ class LauncherView(context: Context) : View(context) {
             }
             1 -> {
                 drawSettingsSectionLabel(c, "壁纸与背景效果", w * .13f, h * .335f, w * .74f)
-                drawSettingCard(c, RectF(w * .13f, h * .37f, w * .39f, h * .51f),
+                drawWallpaperPreview(c, RectF(w * .13f, h * .37f, w * .485f, h * .59f))
+                drawSettingCard(c, RectF(w * .515f, h * .37f, w * .87f, h * .59f),
                     "选择壁纸", "从设备图片中选择", settingsFocus == 3)
-                drawSettingCard(c, RectF(w * .13f, h * .535f, w * .39f, h * .675f),
+                drawSettingCard(c, RectF(w * .13f, h * .62f, w * .485f, h * .80f),
                     if (dynamicWallpaperEnabled) "动态背景 · 开启" else "动态背景 · 关闭",
                     "切换动态光效", settingsFocus == 4)
-                drawSettingCard(c, RectF(w * .13f, h * .70f, w * .39f, h * .84f),
+                drawSettingCard(c, RectF(w * .515f, h * .62f, w * .87f, h * .80f),
                     "恢复默认壁纸", "移除自定义图片", settingsFocus == 5)
-                drawWallpaperPreview(c, RectF(w * .43f, h * .37f, w * .87f, h * .84f))
-                drawSettingCard(c, RectF(w * .13f, h * .875f, w * .62f, h * .945f),
+                drawSettingCard(c, RectF(w * .13f, h * .835f, w * .485f, h * .945f),
                     "从手机接收壁纸", "通过小李全联接收图片", settingsFocus == 24)
             }
             2 -> {
@@ -3740,23 +3740,20 @@ class LauncherView(context: Context) : View(context) {
                                 }
                             }
                             1 -> {
-                                if (event.y in (height * .36f)..(height * .51f)) {
-                                    when {
-                                        settingsHitX in (width * .13f)..(width * .35f) -> {
-                                            settingsFocus = 3
-                                            onChooseWallpaper?.invoke()
-                                        }
-                                        settingsHitX in (width * .38f)..(width * .62f) -> {
-                                            settingsFocus = 4
-                                            toggleDynamicWallpaper()
-                                        }
-                                        settingsHitX in (width * .65f)..(width * .87f) -> {
-                                            settingsFocus = 5
-                                            clearWallpaper()
-                                        }
+                                if (event.y in (height * .37f)..(height * .59f) &&
+                                    settingsHitX in (width * .515f)..(width * .87f)) {
+                                    settingsFocus = 3
+                                    onChooseWallpaper?.invoke()
+                                } else if (event.y in (height * .62f)..(height * .80f)) {
+                                    if (settingsHitX in (width * .13f)..(width * .485f)) {
+                                        settingsFocus = 4
+                                        toggleDynamicWallpaper()
+                                    } else if (settingsHitX in (width * .515f)..(width * .87f)) {
+                                        settingsFocus = 5
+                                        clearWallpaper()
                                     }
-                                } else if (event.y in (height * .865f)..(height * .945f) &&
-                                    settingsHitX in (width * .13f)..(width * .62f)) {
+                                } else if (event.y in (height * .835f)..(height * .945f) &&
+                                    settingsHitX in (width * .13f)..(width * .485f)) {
                                     settingsFocus = 24
                                     context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java)
                                         .putExtra(com.xiaoli.quanlian.QuanLianActivity.EXTRA_WALLPAPER_MODE, true))
