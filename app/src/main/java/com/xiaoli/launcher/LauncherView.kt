@@ -2746,11 +2746,11 @@ class LauncherView(context: Context) : View(context) {
 
     private fun drawSettingCard(c: Canvas, bounds: RectF, heading: String, detail: String, focused: Boolean) {
         val rect = if (focused) scaledFocusRect(bounds) else RectF(bounds)
-        val radius = rect.height() * .17f
+        val radius = rect.height() * .16f
         paint.style = Paint.Style.FILL
         paint.shader = LinearGradient(rect.left, rect.top, rect.left, rect.bottom,
-            if (focused) intArrayOf(0xF02B6594.toInt(), 0xE817426B.toInt(), 0xE8112E50.toInt())
-            else intArrayOf(0xD91A3554.toInt(), 0xD00F2742.toInt(), 0xCC0B2038.toInt()),
+            if (focused) intArrayOf(0xF04491C9.toInt(), 0xEE1A5685.toInt(), 0xE8112E50.toInt())
+            else intArrayOf(0xC92B4662.toInt(), 0xB817304C.toInt(), 0xB20B2038.toInt()),
             null, Shader.TileMode.CLAMP)
         c.drawRoundRect(rect, radius, radius, paint)
         paint.shader = null
@@ -2758,14 +2758,14 @@ class LauncherView(context: Context) : View(context) {
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = if (focused) (height * .0024f).coerceAtLeast(2f)
             else (height * .0009f).coerceAtLeast(1f)
-        paint.color = if (focused) 0xCC78DFFF.toInt() else 0x445E8BB4
+        paint.color = if (focused) 0xFF78DFFF.toInt() else 0x33FFFFFF
         c.drawRoundRect(rect, radius, radius, paint)
         paint.style = Paint.Style.FILL
         if (focused) drawFocusChase(c, rect, radius)
 
         val sheen = RectF(rect.left + rect.width() * .025f, rect.top + rect.height() * .045f,
             rect.right - rect.width() * .025f, rect.top + rect.height() * .060f)
-        paint.color = if (focused) 0x667DE8FF else 0x224E91C7
+        paint.color = if (focused) 0x667DE8FF else 0x18FFFFFF
         c.drawRoundRect(sheen, sheen.height(), sheen.height(), paint)
 
         val accent = RectF(rect.left + rect.width() * .026f, rect.top + rect.height() * .22f,
@@ -2883,20 +2883,20 @@ class LauncherView(context: Context) : View(context) {
                 drawSettingsSectionLabel(c, "桌面图标", w * .13f, h * .310f, w * .74f)
                 drawSettingCard(c, RectF(w * .13f, h * .32f, w * .87f, h * .45f),
                     "图标大小  ·  ${(homeIconScale * 100).toInt()}%",
-                    "同步影响首页与应用抽屉中的图标视觉比例 · 确认键调整",
+                    "A−                         A+",
                     settingsFocus == 8)
                 drawSettingsSectionLabel(c, "应用抽屉列数", w * .13f, h * .505f, w * .74f)
                 for (i in 0..2) {
                     val rect = SettingsLayout.drawerGridOptionBounds(i, 0, w, h)
                     drawSettingCard(c, rect, "${i + 4} 列",
-                        if (drawerColumns() == i + 4) "当前布局" else "设为布局",
+                        if (drawerColumns() == i + 4) "当前" else "",
                         settingsFocus == i)
                 }
                 drawSettingsSectionLabel(c, "应用抽屉行数", w * .13f, h * .675f, w * .74f)
                 for (i in 0..2) {
                     val rect = SettingsLayout.drawerGridOptionBounds(i, 1, w, h)
                     drawSettingCard(c, rect, "${i + 2} 行",
-                        if (drawerRows() == i + 2) "当前布局" else "设为布局",
+                        if (drawerRows() == i + 2) "当前" else "",
                         settingsFocus == i + 17)
                 }
                 drawSettingCard(c, RectF(w * .13f, h * .82f, w * .62f, h * .92f),
@@ -2944,7 +2944,7 @@ class LauncherView(context: Context) : View(context) {
                 for (i in 0..3) {
                     val left = w * .13f + i * (cardW + gap)
                     drawSettingCard(c, RectF(left, h * .34f, left + cardW, h * .49f),
-                        labels[i], "确认键切换", settingsFocus == ids[i])
+                        labels[i], "", settingsFocus == ids[i])
                 }
                 drawSettingsSectionLabel(c, "组件位置与尺寸", w * .13f, h * .565f, w * .74f)
                 drawSettingCard(c, RectF(w * .13f, h * .60f, w * .87f, h * .75f),
