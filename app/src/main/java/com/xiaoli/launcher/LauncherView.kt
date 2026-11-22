@@ -1016,6 +1016,7 @@ class LauncherView(context: Context) : View(context) {
                 c.drawRoundRect(row, h * .014f, h * .014f, paint)
                 paint.textAlign = Paint.Align.CENTER
                 text(c, label, row.centerX(), row.centerY() + h * .010f, h * .028f, -1, clockEditChoice == i)
+                if (clockEditChoice == i) drawFocusChase(c, row, h * .014f)
                 paint.textAlign = Paint.Align.LEFT
             }
             text(c, "方向键选择  ·  OK 确认  ·  返回取消", panel.left + panel.width() * .08f,
@@ -1074,6 +1075,7 @@ class LauncherView(context: Context) : View(context) {
         paint.color = 0xFF55D9FF.toInt()
         c.drawRoundRect(rect, 12f, 12f, paint)
         paint.style = Paint.Style.FILL
+        drawFocusChase(c, rect, 12f)
         paint.color = 0xFF55D9FF.toInt()
         val handle = (height * .009f).coerceAtLeast(6f)
         listOf(
@@ -1302,6 +1304,7 @@ class LauncherView(context: Context) : View(context) {
                 paint.color = if (focused) 0xFF8BE7FF.toInt() else 0x88FFFFFF.toInt()
                 c.drawRoundRect(icon, icon.width() * .20f, icon.width() * .20f, paint)
                 paint.style = Paint.Style.FILL
+                if (focused) drawFocusChase(c, scaledFocusRect(icon), icon.width() * .20f)
                 paint.textAlign = Paint.Align.CENTER
                 text(c, "+", icon.centerX(), icon.centerY() + icon.height() * .15f, icon.height() * .62f, -1, true)
                 text(c, "添加应用", icon.centerX(), icon.bottom + h * .038f, h * .022f, -1, true)
@@ -1334,9 +1337,11 @@ class LauncherView(context: Context) : View(context) {
                 paint.style = Paint.Style.STROKE
                 paint.strokeWidth = (h * .006f).coerceAtLeast(3f)
                 paint.color = 0xFFFFD166.toInt()
-                c.drawRoundRect(scaledFocusRect(RectF(selected.left - 8f, selected.top - 8f,
-                    selected.right + 8f, selected.bottom + 8f)), 18f, 18f, paint)
+                val manageFocusRect = scaledFocusRect(RectF(selected.left - 8f, selected.top - 8f,
+                    selected.right + 8f, selected.bottom + 8f))
+                c.drawRoundRect(manageFocusRect, 18f, 18f, paint)
                 paint.style = Paint.Style.FILL
+                drawFocusChase(c, manageFocusRect, 18f)
             }
             paint.textAlign = Paint.Align.LEFT
         }
@@ -2317,6 +2322,7 @@ class LauncherView(context: Context) : View(context) {
                 val filled = RectF(slider.left, slider.top,
                     slider.left + slider.width() * current.coerceIn(0f, 1f), slider.bottom)
                 canvas.drawRoundRect(filled, slider.height() / 2f, slider.height() / 2f, paint)
+                drawFocusChase(canvas, slider, slider.height() / 2f)
                 paint.textAlign = Paint.Align.CENTER
                 text(canvas, valueLabel, panel.centerX(), panel.top + panel.height() * .37f,
                     h * .027f, 0xFFF4FAFF.toInt(), true)
@@ -2351,6 +2357,7 @@ class LauncherView(context: Context) : View(context) {
         drawable.setBounds(target.left.toInt(), target.top.toInt(), target.right.toInt(), target.bottom.toInt())
         drawable.draw(c)
         // A restrained glass sheen unifies third-party icons without replacing their artwork.
+        paint.style = Paint.Style.FILL
         paint.shader = LinearGradient(target.left, target.top, target.left, target.bottom,
             intArrayOf(0x26FFFFFF, 0x08FFFFFF, 0x00FFFFFF), null, Shader.TileMode.CLAMP)
         paint.color = -1
