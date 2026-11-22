@@ -15,8 +15,8 @@ internal object SettingsLayout {
     }
 
     /**
-     * Three evenly distributed choices across the full settings content width.
-     * row 0 = drawer columns; row 1 = drawer rows.
+     * Three drawer choices arranged as two cards plus one centered card.
+     * row 0 = drawer columns; row 1 = drawer rows. Drawing and touch share bounds.
      */
     fun drawerGridOptionBounds(index: Int, row: Int, width: Float, height: Float): RectF {
         val safeIndex = index.coerceIn(0, 2)
