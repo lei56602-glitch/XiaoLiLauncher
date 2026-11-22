@@ -2718,6 +2718,33 @@ class LauncherView(context: Context) : View(context) {
         }
     }
 
+    private fun drawSettingsSectionLabel(c: Canvas, label: String, x: Float, y: Float, w: Float) {
+        text(c, label, x, y, height * .013f, 0xFF83B6D9.toInt(), true)
+        paint.style = Paint.Style.FILL
+        paint.color = 0x335B8AB4
+        c.drawRect(x, y + height * .012f, x + w, y + height * .0132f, paint)
+    }
+
+    private fun drawSettingsMetaTile(c: Canvas, bounds: RectF, title: String, detail: String) {
+        val radius = bounds.height() * .16f
+        paint.style = Paint.Style.FILL
+        paint.shader = LinearGradient(bounds.left, bounds.top, bounds.left, bounds.bottom,
+            intArrayOf(0xC91B3A5A.toInt(), 0xB80E2843.toInt()), null, Shader.TileMode.CLAMP)
+        c.drawRoundRect(bounds, radius, radius, paint)
+        paint.shader = null
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = (height * .0008f).coerceAtLeast(1f)
+        paint.color = 0x334E8AB8
+        c.drawRoundRect(bounds, radius, radius, paint)
+        paint.style = Paint.Style.FILL
+        text(c, title, bounds.left + bounds.width() * .08f,
+            bounds.top + bounds.height() * .40f, bounds.height() * .22f,
+            0xFFEAF5FF.toInt(), true)
+        text(c, detail, bounds.left + bounds.width() * .08f,
+            bounds.top + bounds.height() * .73f, bounds.height() * .14f,
+            0xFF9FBBD3.toInt())
+    }
+
     private fun drawLauncherSettings(c: Canvas, w: Float, h: Float) {
         val category = if (settingsFocus in 30..36) settingsFocus - 30
             else settingsCategoryForControl(settingsFocus) ?: 0
@@ -2739,94 +2766,152 @@ class LauncherView(context: Context) : View(context) {
         paint.color = 0x5548B8EA
         c.drawRect(panel.left + w * .035f, panel.top + h * .018f,
             panel.right - w * .035f, panel.top + h * .020f, paint)
-        text(c, "PERSONALIZE YOUR TV", w * .13f, h * .190f,
-            h * .010f, 0xFF79B7DE.toInt(), true)
-        text(c, "%02d  /  07".format(category + 1), w * .82f, h * .222f,
-            h * .014f, 0xFF78A7CA.toInt(), true)
 
         val headings = listOf("桌面布局", "外观与壁纸", "应用管理", "桌面组件",
             "遥控器与操作", "小李全联", "电视系统设置")
         val descriptions = listOf(
-            "调整首页图标尺寸与应用抽屉网格",
-            "选择壁纸、动态背景或恢复默认背景",
-            "管理首页最多五个常用应用",
-            "设置时间日期显示，并编辑组件位置与大小",
-            "查看遥控器操作方式并设置默认主屏幕",
-            "打开内置局域网文件传输中心",
-            "打开 Android 电视系统设置"
+            "控制首页图标比例与应用抽屉网格密度",
+            "管理静态壁纸、动态背景与壁纸来源",
+            "整理首页常用应用，控制桌面入口",
+            "调整时间、日期显示与组件布局",
+            "设置默认主屏幕，查看遥控器操作方式",
+            "进入独立的局域网文件传输应用",
+            "打开 Android TV 系统级配置"
         )
-        text(c, headings[category], w * .13f, h * .225f, h * .04f, -1, true)
-        text(c, descriptions[category], w * .13f, h * .258f, h * .019f, 0xFFDDEEFF.toInt())
+        val categoryEyebrows = listOf("LAYOUT & GRID", "LOOK & FEEL", "APP SHORTCUTS",
+            "HOME WIDGETS", "REMOTE CONTROL", "FILE TRANSFER", "ANDROID TV")
+        text(c, categoryEyebrows[category], w * .13f, h * .190f,
+            h * .010f, 0xFF79B7DE.toInt(), true)
+        text(c, "%02d  /  07".format(category + 1), w * .82f, h * .190f,
+            h * .012f, 0xFF78A7CA.toInt(), true)
+        text(c, headings[category], w * .13f, h * .235f, h * .038f, -1, true)
+        text(c, descriptions[category], w * .13f, h * .267f, h * .016f, 0xFFB4CBE0.toInt())
 
         when (category) {
             0 -> {
-                drawSettingCard(c, RectF(w * .13f, h * .32f, w * .87f, h * .45f),
-                    "应用图标大小：${(homeIconScale * 100).toInt()}%",
-                    "桌面与应用抽屉使用同一缩放比例 · 点击调整", settingsFocus == 8)
-                text(c, "应用抽屉列数", w * .13f, h * .515f, h * .022f, 0xFFDDEEFF.toInt(), true)
+                drawSettingsSectionLabel(c, "桌面图标", w * .13f, h * .310f, w * .74f)
+                drawSettingCard(c, RectF(w * .13f, h * .33f, w * .87f, h * .445f),
+                    "图标大小  ·  \${(homeIconScale * 100).toInt()}%",
+                    "同步影响首页与应用抽屉中的图标视觉比例 · 确认键调整",
+                    settingsFocus == 8)
+                drawSettingsSectionLabel(c, "应用抽屉列数", w * .13f, h * .505f, w * .74f)
                 for (i in 0..2) {
                     val rect = SettingsLayout.drawerGridOptionBounds(i, 0, w, h)
-                    drawSettingCard(c, rect, "${i + 4}列",
-                        if (drawerColumns() == i + 4) "当前" else "选择", settingsFocus == i)
+                    drawSettingCard(c, rect, "\${i + 4} 列",
+                        if (drawerColumns() == i + 4) "当前布局" else "设为布局",
+                        settingsFocus == i)
                 }
-                text(c, "应用抽屉行数", w * .13f, h * .685f, h * .022f, 0xFFDDEEFF.toInt(), true)
+                drawSettingsSectionLabel(c, "应用抽屉行数", w * .13f, h * .675f, w * .74f)
                 for (i in 0..2) {
                     val rect = SettingsLayout.drawerGridOptionBounds(i, 1, w, h)
-                    drawSettingCard(c, rect, "${i + 2}行",
-                        if (drawerRows() == i + 2) "当前" else "选择", settingsFocus == i + 17)
+                    drawSettingCard(c, rect, "\${i + 2} 行",
+                        if (drawerRows() == i + 2) "当前布局" else "设为布局",
+                        settingsFocus == i + 17)
                 }
                 drawSettingCard(c, RectF(w * .13f, h * .82f, w * .62f, h * .92f),
-                    "恢复五个桌面图标默认位置", "保留当前应用和顺序，只恢复预设位置", settingsFocus == 23)
+                    "恢复桌面图标位置", "只恢复五个常用应用的位置，不改变应用顺序",
+                    settingsFocus == 23)
             }
             1 -> {
-                drawSettingCard(c, RectF(w * .13f, h * .36f, w * .35f, h * .51f),
-                    "选择壁纸", "从图片中选择", settingsFocus == 3)
-                drawSettingCard(c, RectF(w * .38f, h * .36f, w * .62f, h * .51f),
-                    if (dynamicWallpaperEnabled) "动态壁纸：开" else "动态壁纸：关",
+                drawSettingsSectionLabel(c, "壁纸来源与显示", w * .13f, h * .325f, w * .74f)
+                drawSettingCard(c, RectF(w * .13f, h * .35f, w * .35f, h * .50f),
+                    "选择壁纸", "从设备图片中选择", settingsFocus == 3)
+                drawSettingCard(c, RectF(w * .38f, h * .35f, w * .62f, h * .50f),
+                    if (dynamicWallpaperEnabled) "动态背景 · 已开启" else "动态背景 · 已关闭",
                     "切换动态光效背景", settingsFocus == 4)
-                drawSettingCard(c, RectF(w * .65f, h * .36f, w * .87f, h * .51f),
-                    "恢复默认", "移除自定义图片", settingsFocus == 5)
-                drawWallpaperPreview(c, RectF(w * .13f, h * .57f, w * .87f, h * .84f))
-                drawSettingCard(c, RectF(w * .13f, h * .865f, w * .62f, h * .945f),
-                    "从手机接收壁纸", "通过小李全联局域网传输，无需扫码", settingsFocus == 24)
+                drawSettingCard(c, RectF(w * .65f, h * .35f, w * .87f, h * .50f),
+                    "恢复默认壁纸", "移除当前自定义图片", settingsFocus == 5)
+                drawSettingsSectionLabel(c, "当前壁纸预览", w * .13f, h * .545f, w * .74f)
+                drawWallpaperPreview(c, RectF(w * .13f, h * .57f, w * .87f, h * .82f))
+                drawSettingCard(c, RectF(w * .13f, h * .85f, w * .62f, h * .935f),
+                    "从手机接收壁纸", "通过小李全联传输图片；小李全联应用本身保持独立",
+                    settingsFocus == 24)
             }
             2 -> {
-                drawSettingCard(c, RectF(w * .13f, h * .39f, w * .87f, h * .64f),
-                    "管理桌面应用", "从应用抽屉选择、固定或移除首页常用应用（最多五个）",
+                drawSettingsSectionLabel(c, "首页快捷入口", w * .13f, h * .335f, w * .74f)
+                drawSettingCard(c, RectF(w * .13f, h * .36f, w * .87f, h * .59f),
+                    "管理桌面应用", "从应用抽屉选择、固定或移除首页常用应用",
                     settingsFocus == 21)
+                drawSettingsMetaTile(c, RectF(w * .13f, h * .64f, w * .36f, h * .77f),
+                    "最多五个", "首页常用应用")
+                drawSettingsMetaTile(c, RectF(w * .39f, h * .64f, w * .62f, h * .77f),
+                    "应用抽屉", "选择已安装应用")
+                drawSettingsMetaTile(c, RectF(w * .65f, h * .64f, w * .87f, h * .77f),
+                    "即时生效", "保存快捷入口")
+                text(c, "通过遥控器进入应用抽屉后，可选择需要固定到首页的应用。",
+                    w * .13f, h * .835f, h * .014f, 0xFF9FBBD3.toInt())
             }
             3 -> {
-                val labels = listOf(if (showClock) "时间：开" else "时间：关",
-                    if (showDate) "日期：开" else "日期：关",
-                    if (use24HourClock) "24小时制" else "12小时制",
+                drawSettingsSectionLabel(c, "时间与日期显示", w * .13f, h * .315f, w * .74f)
+                val labels = listOf(if (showClock) "时间 · 开启" else "时间 · 关闭",
+                    if (showDate) "日期 · 开启" else "日期 · 关闭",
+                    if (use24HourClock) "24 小时制" else "12 小时制",
                     if (showClockSeconds) "显示秒数" else "隐藏秒数")
                 val ids = listOf(9, 10, 15, 16)
                 val gap = w * .012f
                 val cardW = (w * .74f - gap * 3f) / 4f
                 for (i in 0..3) {
                     val left = w * .13f + i * (cardW + gap)
-                    drawSettingCard(c, RectF(left, h * .34f, left + cardW, h * .49f),
-                        labels[i], "点击切换", settingsFocus == ids[i])
+                    drawSettingCard(c, RectF(left, h * .35f, left + cardW, h * .50f),
+                        labels[i], "确认键切换", settingsFocus == ids[i])
                 }
-                drawSettingCard(c, RectF(w * .13f, h * .60f, w * .87f, h * .75f),
-                    "组件布局编辑", "拖动时间日期整体位置 · 调整组件大小 · 遥控器方向键微调",
+                drawSettingsSectionLabel(c, "组件位置与尺寸", w * .13f, h * .565f, w * .74f)
+                drawSettingCard(c, RectF(w * .13f, h * .59f, w * .87f, h * .735f),
+                    "编辑桌面组件", "拖动调整时间日期整体位置 · 使用方向键微调 · 音量键调整大小",
                     settingsFocus == 22)
+                drawSettingsMetaTile(c, RectF(w * .13f, h * .78f, w * .36f, h * .89f),
+                    "时间 / 日期", "位置与缩放")
+                drawSettingsMetaTile(c, RectF(w * .39f, h * .78f, w * .62f, h * .89f),
+                    "农历信息", "显示与布局")
+                drawSettingsMetaTile(c, RectF(w * .65f, h * .78f, w * .87f, h * .89f),
+                    "天气信息", "显示与布局")
             }
             4 -> {
-                drawSettingCard(c, RectF(w * .13f, h * .39f, w * .87f, h * .64f),
-                    if (isDefaultHomeLauncher()) "小李桌面已设为电视默认主屏幕" else "设为电视默认主屏幕",
-                    "设为默认后，按遥控器 Home 键直接进入小李桌面；除非更改默认桌面，否则持续生效。\n遥控器：上键进入顶部快捷区，再按上键打开应用抽屉 · 长按菜单进入应用管理 · 长按 OK 打开应用操作菜单",
+                drawSettingsSectionLabel(c, "默认主屏幕", w * .13f, h * .335f, w * .74f)
+                drawSettingCard(c, RectF(w * .13f, h * .36f, w * .87f, h * .59f),
+                    if (isDefaultHomeLauncher()) "小李桌面 · 当前默认主屏幕" else "设为默认主屏幕",
+                    "按遥控器 Home 键时进入小李桌面；默认应用由 Android 系统管理。",
                     settingsFocus == 14)
+                drawSettingsSectionLabel(c, "遥控器快捷操作", w * .13f, h * .655f, w * .74f)
+                drawSettingsMetaTile(c, RectF(w * .13f, h * .68f, w * .36f, h * .81f),
+                    "方向上键", "进入应用抽屉")
+                drawSettingsMetaTile(c, RectF(w * .39f, h * .68f, w * .62f, h * .81f),
+                    "长按 OK", "打开应用操作")
+                drawSettingsMetaTile(c, RectF(w * .65f, h * .68f, w * .87f, h * .81f),
+                    "菜单键", "打开控制中心")
+                text(c, "按返回键退出设置页面；系统默认桌面切换由 Android 设置流程确认。",
+                    w * .13f, h * .86f, h * .013f, 0xFF9FBBD3.toInt())
             }
             5 -> {
-                drawSettingCard(c, RectF(w * .13f, h * .39f, w * .87f, h * .64f),
-                    "打开小李全联", "发送 · 接收 · 附近设备 · 传输历史", settingsFocus == 6)
+                drawSettingsSectionLabel(c, "独立应用入口", w * .13f, h * .335f, w * .74f)
+                drawSettingCard(c, RectF(w * .13f, h * .36f, w * .87f, h * .59f),
+                    "打开小李全联", "发送 · 接收 · 附近设备 · 传输历史",
+                    settingsFocus == 6)
+                drawSettingsMetaTile(c, RectF(w * .13f, h * .65f, w * .36f, h * .78f),
+                    "独立项目", "保持原样")
+                drawSettingsMetaTile(c, RectF(w * .39f, h * .65f, w * .62f, h * .78f),
+                    "独立界面", "从此处启动")
+                drawSettingsMetaTile(c, RectF(w * .65f, h * .65f, w * .87f, h * .78f),
+                    "独立功能", "不在此处修改")
+                text(c, "此处仅提供启动入口。本次设置中心改造不会修改小李全联项目。",
+                    w * .13f, h * .835f, h * .014f, 0xFF9FBBD3.toInt())
             }
             6 -> {
-                drawSettingCard(c, RectF(w * .13f, h * .39f, w * .87f, h * .64f),
-                    "打开 Android 系统设置", "网络、显示、设备偏好和系统管理", settingsFocus == 7)
+                drawSettingsSectionLabel(c, "Android TV 系统管理", w * .13f, h * .335f, w * .74f)
+                drawSettingCard(c, RectF(w * .13f, h * .36f, w * .87f, h * .59f),
+                    "打开 Android 系统设置", "网络、显示、设备偏好和系统管理",
+                    settingsFocus == 7)
+                drawSettingsMetaTile(c, RectF(w * .13f, h * .65f, w * .36f, h * .78f),
+                    "网络", "由 Android 管理")
+                drawSettingsMetaTile(c, RectF(w * .39f, h * .65f, w * .62f, h * .78f),
+                    "显示", "由设备管理")
+                drawSettingsMetaTile(c, RectF(w * .65f, h * .65f, w * .87f, h * .78f),
+                    "设备偏好", "系统级选项")
+                text(c, "系统设置页面由电视设备及 Android 版本提供，具体选项可能有所不同。",
+                    w * .13f, h * .835f, h * .014f, 0xFF9FBBD3.toInt())
             }
         }
+
         drawSettingCard(c, RectF(w * .665f, h * .865f, w * .87f, h * .945f),
             "返回", "关闭设置中心", settingsFocus == 13)
         c.restoreToCount(contentSave)
