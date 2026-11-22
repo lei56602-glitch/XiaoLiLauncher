@@ -3648,25 +3648,10 @@ class LauncherView(context: Context) : View(context) {
     }
 
     override fun onKeyLongPress(keyCode: Int, event: KeyEvent): Boolean {
-        if (!widgetEditMode && !isSettingsOpen && !isDrawerOpen && !homeIconEditMode && !homePositionEditMode && homeTopFocus == -1 &&
-            (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
-            favorites.getOrNull(homeIndex)?.packageName != emptySlot.packageName) {
-            handler.removeCallbacks(okLongPressRunnable)
-            okPressPending = false
-            okLongPressTriggered = true
-            longPressReleaseConsumed = true
-            favorites.getOrNull(homeIndex)?.let { openAppActionMenu("home", homeIndex, it) }
-            return true
-        }
-        if (!widgetEditMode && !isSettingsOpen && isDrawerOpen && !drawerHeaderFocused &&
-            (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) {
-            handler.removeCallbacks(okLongPressRunnable)
-            okPressPending = false
-            okLongPressTriggered = true
-            longPressReleaseConsumed = true
-            apps.getOrNull(drawerIndex)?.let { openAppActionMenu("drawer", drawerIndex, it) }
-            return true
-        }
+        // OK long-press is handled only by okLongPressRunnable. Keep Android's
+        // native callback from opening a second menu or changing press state.
+        if ((keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
+            (okPressPending || longPressReleaseConsumed || actionMenuOpen)) return true
         if (widgetEditMode && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
                 keyCode == KeyEvent.KEYCODE_ENTER)) {
             resetSelectedWidget()
@@ -3734,6 +3719,9 @@ class LauncherView(context: Context) : View(context) {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if ((keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
+            (actionMenuSelectionConsumed || longPressReleaseConsumed ||
+                (okPressPending && okLongPressTriggered))) return true
         if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) {
             return handleBack()
         }
@@ -3820,8 +3808,12 @@ class LauncherView(context: Context) : View(context) {
                 KeyEvent.KEYCODE_DPAD_UP -> moveActionMenuFocus(SpatialFocusNavigator.UP)
                 KeyEvent.KEYCODE_DPAD_DOWN -> moveActionMenuFocus(SpatialFocusNavigator.DOWN)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                    actionMenuSelectionConsumed = true
-                    runAppAction()
+                    // A held OK key may generate repeat events after the menu opens.
+                    // Only a fresh press may activate the focused menu item.
+                    if (event.repeatCount == 0 && !okLongPressTriggered) {
+                        actionMenuSelectionConsumed = true
+                        runAppAction()
+                    }
                     return true
                 }
                 KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> actionMenuOpen = false
@@ -3905,7 +3897,7 @@ class LauncherView(context: Context) : View(context) {
         }
         if (!widgetEditMode && !isSettingsOpen && !isDrawerOpen &&
             (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
-            (homeTopFocus in 0..1 || favorites.isNotEmpty()) && !event.isLongPress) {
+            (homeTopFocus in 0..1 || favorites.isNotEmpty())) {
             if (event.repeatCount == 0) {
                 event.startTracking()
                 if (homeTopFocus == -1) beginOkPressTracking("home", homeIndex)
