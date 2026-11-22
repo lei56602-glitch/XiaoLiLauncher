@@ -28,7 +28,7 @@ internal object SettingsFocusNavigator {
     private val horizontalPosition = mapOf(
         8 to .38f, 22 to .50f, 23 to .38f,
         9 to .30f, 10 to .70f, 15 to .30f, 16 to .70f,
-        0 to .30f, 1 to .70f, 2 to .30f, 17 to .30f, 18 to .70f, 19 to .30f,
+        0 to .30f, 1 to .70f, 2 to .50f, 17 to .30f, 18 to .70f, 19 to .50f,
         3 to .70f, 4 to .30f, 5 to .70f, 24 to .30f,
         6 to .31f, 21 to .70f,
         7 to .22f, 14 to .52f, 13 to .82f
