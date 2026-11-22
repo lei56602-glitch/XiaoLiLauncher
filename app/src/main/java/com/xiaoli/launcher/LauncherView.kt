@@ -303,8 +303,8 @@ class LauncherView(context: Context) : View(context) {
     private fun animateSpatialFocus() {
         spatialFocusAnimator?.cancel()
         spatialFocusScale = 1f
-        spatialFocusAnimator = ValueAnimator.ofFloat(1f, 1.08f).apply {
-            duration = 150L
+        spatialFocusAnimator = ValueAnimator.ofFloat(1f, 1.05f).apply {
+            duration = 200L
             interpolator = DecelerateInterpolator(1.2f)
             addUpdateListener { animator ->
                 spatialFocusScale = animator.animatedValue as Float
