@@ -6,7 +6,7 @@ package com.xiaoli.launcher
  */
 internal object SettingsFocusNavigator {
     private val rowsByCategory = mapOf(
-        0 to listOf(listOf(8), listOf(0, 1, 2), listOf(17, 18, 19), listOf(23)),
+        0 to listOf(listOf(8), listOf(0, 1), listOf(2), listOf(17, 18), listOf(19), listOf(23)),
         1 to listOf(listOf(3), listOf(4, 5), listOf(24)),
         2 to listOf(listOf(21)),
         3 to listOf(listOf(9, 10), listOf(15, 16), listOf(22)),
@@ -28,7 +28,7 @@ internal object SettingsFocusNavigator {
     private val horizontalPosition = mapOf(
         8 to .38f, 22 to .50f, 23 to .38f,
         9 to .30f, 10 to .70f, 15 to .30f, 16 to .70f,
-        0 to .18f, 1 to .28f, 2 to .38f, 17 to .18f, 18 to .28f, 19 to .38f,
+        0 to .30f, 1 to .70f, 2 to .30f, 17 to .30f, 18 to .70f, 19 to .30f,
         3 to .70f, 4 to .30f, 5 to .70f, 24 to .30f,
         6 to .31f, 21 to .70f,
         7 to .22f, 14 to .52f, 13 to .82f
