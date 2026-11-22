@@ -12,6 +12,8 @@ import android.content.pm.PackageManager
 import android.graphics.Canvas
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
@@ -75,6 +77,20 @@ class LauncherView(context: Context) : View(context) {
         }
     }
     private var wallpaperBitmap: Bitmap? = null
+    // QR for the user's Baidu Netdisk share; the extraction code is prefilled.
+    private val quanLianDownloadQrBitmap: Bitmap? by lazy {
+        runCatching {
+            val matrix = QRCodeWriter().encode(
+                "https://pan.baidu.com/s/1XEKJzSC9qvFMumkhwbhYIw?pwd=1234",
+                BarcodeFormat.QR_CODE, 512, 512
+            )
+            Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888).also { bitmap ->
+                for (y in 0 until 512) for (x in 0 until 512) {
+                    bitmap.setPixel(x, y, if (matrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+                }
+            }
+        }.getOrNull()
+    }
     private var dynamicWallpaperEnabled = prefs.getBoolean("dynamic_wallpaper", false)
     private var animationStarted = false
     private var weatherCity = prefs.getString("weather_city", "") ?: ""
@@ -2949,7 +2965,7 @@ class LauncherView(context: Context) : View(context) {
                     settingsFocus == 14)
                 drawSettingsSectionLabel(c, "遥控器快捷操作", w * .13f, h * .655f, w * .74f)
                 drawSettingsMetaTile(c, RectF(w * .13f, h * .68f, w * .36f, h * .81f),
-                    "上键 × 2", "打开应用抽屉")
+                    "下键", "打开应用抽屉")
                 drawSettingsMetaTile(c, RectF(w * .39f, h * .68f, w * .62f, h * .81f),
                     "长按 OK", "打开应用操作菜单")
                 drawSettingsMetaTile(c, RectF(w * .65f, h * .68f, w * .87f, h * .81f),
@@ -2958,18 +2974,38 @@ class LauncherView(context: Context) : View(context) {
                     w * .13f, h * .86f, h * .013f, 0xFF9FBBD3.toInt())
             }
             5 -> {
-                drawSettingsSectionLabel(c, "独立应用入口", w * .13f, h * .335f, w * .74f)
-                drawSettingCard(c, RectF(w * .13f, h * .36f, w * .87f, h * .59f),
+                drawSettingsSectionLabel(c, "小李全联 · 应用入口与下载", w * .13f, h * .335f, w * .74f)
+                drawSettingCard(c, RectF(w * .13f, h * .39f, w * .49f, h * .59f),
                     "打开小李全联", "发送 · 接收 · 附近设备 · 传输历史",
                     settingsFocus == 6)
-                drawSettingsMetaTile(c, RectF(w * .13f, h * .65f, w * .36f, h * .78f),
-                    "独立项目", "保持原样")
-                drawSettingsMetaTile(c, RectF(w * .39f, h * .65f, w * .62f, h * .78f),
-                    "独立界面", "从此处启动")
-                drawSettingsMetaTile(c, RectF(w * .65f, h * .65f, w * .87f, h * .78f),
-                    "独立功能", "不在此处修改")
-                text(c, "此处提供快捷入口；发送、接收与传输管理请在小李全联中操作。",
-                    w * .13f, h * .835f, h * .014f, 0xFF9FBBD3.toInt())
+                val qrPanel = RectF(w * .54f, h * .36f, w * .87f, h * .82f)
+                paint.color = 0xD91A3554.toInt()
+                c.drawRoundRect(qrPanel, h * .018f, h * .018f, paint)
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = (h * .001f).coerceAtLeast(1f)
+                paint.color = 0x5565A6D6
+                c.drawRoundRect(qrPanel, h * .018f, h * .018f, paint)
+                paint.style = Paint.Style.FILL
+                val qrSize = minOf(h * .285f, w * .155f)
+                val qrRect = RectF(qrPanel.centerX() - qrSize / 2f,
+                    qrPanel.top + h * .018f, qrPanel.centerX() + qrSize / 2f,
+                    qrPanel.top + h * .018f + qrSize)
+                paint.color = android.graphics.Color.WHITE
+                c.drawRoundRect(qrRect, h * .006f, h * .006f, paint)
+                quanLianDownloadQrBitmap?.let { bitmap ->
+                    val imageRect = RectF(qrRect).apply { inset(qrSize * .035f, qrSize * .035f) }
+                    paint.isFilterBitmap = false
+                    c.drawBitmap(bitmap, null, imageRect, paint)
+                    paint.isFilterBitmap = true
+                }
+                paint.textAlign = Paint.Align.CENTER
+                text(c, "扫码下载小李全联 APK", qrPanel.centerX(), qrRect.bottom + h * .030f,
+                    h * .019f, 0xFFF1F8FF.toInt(), true)
+                text(c, "百度网盘提取码：1234", qrPanel.centerX(), qrRect.bottom + h * .058f,
+                    h * .015f, 0xFFB8D1E8.toInt())
+                paint.textAlign = Paint.Align.LEFT
+                text(c, "二维码打开百度网盘分享页，下载 APK 后安装。",
+                    w * .13f, h * .70f, h * .014f, 0xFF9FBBD3.toInt())
             }
             6 -> {
                 drawSettingsSectionLabel(c, "Android TV 系统管理", w * .13f, h * .335f, w * .74f)
@@ -4110,17 +4146,9 @@ class LauncherView(context: Context) : View(context) {
         when (keyCode) {
             KeyEvent.KEYCODE_MENU -> { if (!event.isLongPress) openControlCenter(); return true }
             KeyEvent.KEYCODE_DPAD_UP -> {
+                // UP moves focus toward the top widgets; it no longer opens the app drawer.
                 if (homeTopFocus == -1) moveHomeFocusToTop()
-                else {
-                    // Preserve the launcher's established UP gesture for opening the app drawer,
-                    // while remembering the prior target for Aerial-style focus restoration.
-                    drawerReturnHomeTopFocus = homeTopFocus
-                    isDrawerOpen = true
-                    homeTopFocus = -1
-                    drawerIndex = 0
-                    resetDrawerScroll()
-                    invalidate()
-                }
+                invalidate()
                 return true
             }
             KeyEvent.KEYCODE_DPAD_DOWN -> {
@@ -4128,6 +4156,14 @@ class LauncherView(context: Context) : View(context) {
                     moveHomeFocusToApps()
                     return true
                 }
+                // From the home app area, DOWN opens the app drawer.
+                drawerReturnHomeTopFocus = homeTopFocus
+                isDrawerOpen = true
+                homeTopFocus = -1
+                drawerIndex = 0
+                resetDrawerScroll()
+                invalidate()
+                return true
             }
             KeyEvent.KEYCODE_DPAD_LEFT -> {
                 moveHomeSpatialFocus(SpatialFocusNavigator.LEFT)
