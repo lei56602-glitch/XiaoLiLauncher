@@ -3040,39 +3040,45 @@ class LauncherView(context: Context) : View(context) {
             2 -> {
                 drawSettingsSectionLabel(c, "首页常用应用", w * .13f, h * .335f, w * .74f)
                 val slots = favorites.take(5)
-                val gap = w * .018f
-                val tileW = (w * .74f - gap * 4f) / 5f
+                val gapX = w * .03f
+                val gapY = h * .012f
+                val tileW = (w * .74f - gapX) / 2f
+                val tileH = h * .125f
                 for (i in 0..4) {
-                    val left = w * .13f + i * (tileW + gap)
-                    val rect = RectF(left, h * .385f, left + tileW, h * .625f)
+                    val col = i % 2
+                    val row = i / 2
+                    val left = w * .13f + col * (tileW + gapX)
+                    val top = h * .365f + row * (tileH + gapY)
+                    val rect = RectF(left, top, left + tileW, top + tileH)
                     paint.style = Paint.Style.FILL
-                    paint.color = 0xCC1A3554.toInt()
-                    c.drawRoundRect(rect, h * .016f, h * .016f, paint)
+                    paint.shader = LinearGradient(rect.left, rect.top, rect.left, rect.bottom,
+                        intArrayOf(0xD3224565.toInt(), 0xC6112B46.toInt()), null, Shader.TileMode.CLAMP)
+                    c.drawRoundRect(rect, h * .014f, h * .014f, paint)
+                    paint.shader = null
                     paint.style = Paint.Style.STROKE
                     paint.strokeWidth = 1f
-                    paint.color = 0x44FFFFFF
-                    c.drawRoundRect(rect, h * .016f, h * .016f, paint)
+                    paint.color = 0x554F86B1
+                    c.drawRoundRect(rect, h * .014f, h * .014f, paint)
                     paint.style = Paint.Style.FILL
                     val entry = slots.getOrNull(i)
                     val app = entry?.let { item -> apps.firstOrNull { it.packageName == item.packageName } }
                     if (app != null) runCatching {
                         val drawable = context.packageManager.getApplicationIcon(app.packageName)
-                        val iconSize = h * .075f
-                        drawable.setBounds((rect.centerX() - iconSize / 2f).toInt(),
-                            (rect.top + h * .035f).toInt(), (rect.centerX() + iconSize / 2f).toInt(),
-                            (rect.top + h * .035f + iconSize).toInt())
+                        val iconSize = h * .064f
+                        drawable.setBounds((rect.left + rect.width() * .12f).toInt(),
+                            (rect.centerY() - iconSize / 2f).toInt(),
+                            (rect.left + rect.width() * .12f + iconSize).toInt(),
+                            (rect.centerY() + iconSize / 2f).toInt())
                         drawable.draw(c)
                     }
-                    text(c, app?.label ?: "＋", rect.centerX(), rect.bottom - h * .040f,
-                        h * .0125f, 0xFFE8F2FC.toInt(), true)
+                    text(c, app?.label ?: "添加应用", rect.left + rect.width() * .27f,
+                        rect.centerY() + h * .006f, h * .015f, 0xFFE8F2FC.toInt(), true)
                 }
-                drawSymbolTile(c, RectF(w * .13f, h * .675f, w * .35f, h * .805f),
-                    "最多五个", "首页快捷入口", "5")
-                drawSymbolTile(c, RectF(w * .385f, h * .675f, w * .605f, h * .805f),
-                    "应用抽屉", "选择已安装应用", "▦")
-                drawSymbolTile(c, RectF(w * .64f, h * .675f, w * .87f, h * .805f),
-                    "即时生效", "保存快捷入口", "✓")
-                drawSettingCard(c, RectF(w * .13f, h * .825f, w * .54f, h * .915f),
+                drawSettingsMetaTile(c, RectF(w * .13f, h * .785f, w * .485f, h * .86f),
+                    "最多五个", "首页快捷入口")
+                drawSettingsMetaTile(c, RectF(w * .515f, h * .785f, w * .87f, h * .86f),
+                    "应用抽屉", "选择已安装应用")
+                drawSettingCard(c, RectF(w * .13f, h * .875f, w * .60f, h * .945f),
                     "管理桌面应用", "编辑首页入口", settingsFocus == 21)
             }
             3 -> {
@@ -3759,8 +3765,10 @@ class LauncherView(context: Context) : View(context) {
                                         .putExtra(com.xiaoli.quanlian.QuanLianActivity.EXTRA_WALLPAPER_MODE, true))
                                 }
                             }
-                            2 -> if (event.y in (height * .39f)..(height * .64f) &&
-                                settingsHitX in (width * .13f)..(width * .87f)) {
+                            2 -> if ((event.y in (height * .365f)..(height * .755f) &&
+                                settingsHitX in (width * .13f)..(width * .87f)) ||
+                                (event.y in (height * .875f)..(height * .945f) &&
+                                    settingsHitX in (width * .13f)..(width * .60f))) {
                                 settingsFocus = 21
                                 isSettingsOpen = false
                                 isDrawerOpen = true
