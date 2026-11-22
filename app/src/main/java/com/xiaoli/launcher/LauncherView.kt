@@ -3058,12 +3058,12 @@ class LauncherView(context: Context) : View(context) {
                     "按遥控器 Home 键时进入小李桌面；默认应用由 Android 系统管理。",
                     settingsFocus == 14)
                 drawSettingsSectionLabel(c, "遥控器快捷操作", w * .13f, h * .655f, w * .74f)
-                drawSettingsMetaTile(c, RectF(w * .13f, h * .68f, w * .36f, h * .81f),
-                    "下键", "打开应用抽屉")
-                drawSettingsMetaTile(c, RectF(w * .39f, h * .68f, w * .62f, h * .81f),
-                    "长按 OK", "打开应用操作菜单")
-                drawSettingsMetaTile(c, RectF(w * .65f, h * .68f, w * .87f, h * .81f),
-                    "菜单键", "打开控制中心")
+                drawSymbolTile(c, RectF(w * .13f, h * .68f, w * .36f, h * .84f),
+                    "打开应用抽屉", "下键", "↓")
+                drawSymbolTile(c, RectF(w * .39f, h * .68f, w * .62f, h * .84f),
+                    "应用操作菜单", "长按 OK", "OK")
+                drawSymbolTile(c, RectF(w * .65f, h * .68f, w * .87f, h * .84f),
+                    "打开控制中心", "菜单键", "☰")
                 text(c, "按返回键退出设置页面；系统默认桌面切换由 Android 设置流程确认。",
                     w * .13f, h * .86f, h * .013f, 0xFF9FBBD3.toInt())
             }
