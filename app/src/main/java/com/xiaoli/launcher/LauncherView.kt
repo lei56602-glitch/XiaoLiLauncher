@@ -2745,156 +2745,77 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun drawSettingCard(c: Canvas, bounds: RectF, heading: String, detail: String, focused: Boolean) {
+        // Aerial TV-inspired glass setting row with restrained focus treatment.
         val rect = if (focused) scaledFocusRect(bounds) else RectF(bounds)
-        val radius = rect.height() * .16f
+        val radius = (height * .018f).coerceAtLeast(10f)
         paint.style = Paint.Style.FILL
-        paint.shader = LinearGradient(rect.left, rect.top, rect.left, rect.bottom,
-            if (focused) intArrayOf(0xF04491C9.toInt(), 0xEE1A5685.toInt(), 0xE8112E50.toInt())
-            else intArrayOf(0xC92B4662.toInt(), 0xB817304C.toInt(), 0xB20B2038.toInt()),
-            null, Shader.TileMode.CLAMP)
+        paint.color = if (focused) 0xE52A78B5.toInt() else 0x14FFFFFF
         c.drawRoundRect(rect, radius, radius, paint)
-        paint.shader = null
-
         paint.style = Paint.Style.STROKE
-        paint.strokeWidth = if (focused) (height * .0024f).coerceAtLeast(2f)
-            else (height * .0009f).coerceAtLeast(1f)
-        paint.color = if (focused) 0xFF78DFFF.toInt() else 0x33FFFFFF
+        paint.strokeWidth = if (focused) (height * .002f).coerceAtLeast(2f) else (height * .0008f).coerceAtLeast(1f)
+        paint.color = if (focused) 0xFF83DFFF.toInt() else 0x26FFFFFF
         c.drawRoundRect(rect, radius, radius, paint)
         paint.style = Paint.Style.FILL
         if (focused) drawFocusChase(c, rect, radius)
-
-        val sheen = RectF(rect.left + rect.width() * .025f, rect.top + rect.height() * .045f,
-            rect.right - rect.width() * .025f, rect.top + rect.height() * .060f)
-        paint.color = if (focused) 0x667DE8FF else 0x18FFFFFF
-        c.drawRoundRect(sheen, sheen.height(), sheen.height(), paint)
-
-        val accent = RectF(rect.left + rect.width() * .026f, rect.top + rect.height() * .22f,
-            rect.left + rect.width() * .033f, rect.bottom - rect.height() * .22f)
-        paint.color = if (focused) 0xFF6DE0FF.toInt() else 0x665E9ACB
-        c.drawRoundRect(accent, accent.width(), accent.width(), paint)
-
-        val left = rect.left + rect.width() * .075f
-        val maxWidth = rect.width() * .79f
-        val titleSize = (rect.height() * .235f).coerceAtLeast(height * .017f)
-        val detailSize = (rect.height() * .145f).coerceAtLeast(height * .011f)
-        text(c, heading, left, rect.top + rect.height() * .40f, titleSize,
-            if (focused) -1 else 0xFFF0F6FF.toInt(), true)
+        val left = rect.left + rect.width() * .055f
+        val maxWidth = rect.width() * .82f
+        val titleSize = (rect.height() * .22f).coerceAtLeast(height * .016f)
+        val detailSize = (rect.height() * .135f).coerceAtLeast(height * .0105f)
+        text(c, heading, left, rect.top + rect.height() * .43f, titleSize, if (focused) -1 else 0xFFF0F6FF.toInt(), true)
         paint.textSize = detailSize
         paint.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
         val lines = mutableListOf<String>()
         var remaining = detail.replace("\\n", " ")
-        val maxLines = if (rect.height() > height * .18f) 3 else 1
+        val maxLines = if (rect.height() > height * .18f) 2 else 1
         while (remaining.isNotEmpty() && lines.size < maxLines) {
             val count = paint.breakText(remaining, true, maxWidth, null).coerceAtLeast(1)
             lines.add(remaining.substring(0, count))
             remaining = remaining.substring(count).trimStart()
         }
-        val lineHeight = detailSize * 1.38f
-        val firstBaseline = if (lines.size > 1) rect.top + rect.height() * .65f
-            else rect.top + rect.height() * .75f
-        lines.forEachIndexed { index, line ->
-            text(c, line, left, firstBaseline + index * lineHeight, detailSize,
-                if (focused) 0xFFDDF5FF.toInt() else 0xFFAFC4DA.toInt())
-        }
+        val lineHeight = detailSize * 1.35f
+        val firstBaseline = if (lines.size > 1) rect.top + rect.height() * .66f else rect.top + rect.height() * .76f
+        lines.forEachIndexed { index, line -> text(c, line, left, firstBaseline + index * lineHeight, detailSize, if (focused) 0xFFDDF5FF.toInt() else 0xFF9FB6CC.toInt()) }
         if (rect.width() > width * .18f) {
             val cx = rect.right - rect.width() * .055f
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = (height * .0012f).coerceAtLeast(1f)
-            paint.color = if (focused) 0xAA8BE7FF.toInt() else 0x556F94B7
-            c.drawCircle(cx, rect.centerY(), rect.height() * .105f, paint)
-            paint.style = Paint.Style.FILL
-            text(c, "›", cx - rect.height() * .035f,
-                rect.centerY() + rect.height() * .10f, rect.height() * .25f,
-                if (focused) 0xFFB8F3FF.toInt() else 0xFF7898B8.toInt(), true)
+            text(c, "›", cx, rect.centerY() + rect.height() * .10f, rect.height() * .28f, if (focused) 0xFFB5EDFF.toInt() else 0x668AA9C5, true)
         }
     }
-
     private fun drawIconScaleSlider(c: Canvas, bounds: RectF, focused: Boolean) {
-        val rect = if (focused) scaledFocusRect(bounds) else RectF(bounds)
-        paint.style = Paint.Style.FILL
-        paint.color = if (focused) 0xE52B6795.toInt() else 0xC21A3554.toInt()
-        c.drawRoundRect(rect, rect.height() * .16f, rect.height() * .16f, paint)
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = if (focused) 2.5f else 1f
-        paint.color = if (focused) 0xFF78DFFF.toInt() else 0x44FFFFFF
-        c.drawRoundRect(rect, rect.height() * .16f, rect.height() * .16f, paint)
-        paint.style = Paint.Style.FILL
-        if (focused) drawFocusChase(c, rect, rect.height() * .16f)
-        val cy = rect.centerY()
-        text(c, "A−", rect.left + rect.width() * .09f, cy + rect.height() * .10f,
-            rect.height() * .28f, 0xFFBFEFFF.toInt(), true)
-        text(c, "A+", rect.right - rect.width() * .09f, cy + rect.height() * .10f,
-            rect.height() * .28f, 0xFFBFEFFF.toInt(), true)
-        val left = rect.left + rect.width() * .22f
-        val right = rect.right - rect.width() * .22f
-        val track = RectF(left, cy - rect.height() * .025f, right, cy + rect.height() * .025f)
-        paint.color = 0x665B7892
-        c.drawRoundRect(track, track.height(), track.height(), paint)
-        val fraction = ((homeIconScale - .65f) / .95f).coerceIn(0f, 1f)
-        paint.color = 0xFF31B9F2.toInt()
-        c.drawRoundRect(RectF(track.left, track.top, track.left + track.width() * fraction, track.bottom),
-            track.height(), track.height(), paint)
-        paint.color = -1
-        c.drawCircle(track.left + track.width() * fraction, cy, rect.height() * .105f, paint)
-        text(c, "${(homeIconScale * 100).toInt()}%", rect.centerX(),
-            rect.bottom - rect.height() * .08f, rect.height() * .13f, 0xFF8CEBFF.toInt(), true)
+        val rect = if (focused) scaledFocusRect(bounds) else RectF(bounds); val radius = (height * .018f).coerceAtLeast(10f)
+        paint.style = Paint.Style.FILL; paint.color = if (focused) 0xE52A78B5.toInt() else 0x12FFFFFF; c.drawRoundRect(rect, radius, radius, paint)
+        paint.style = Paint.Style.STROKE; paint.strokeWidth = if (focused) (height * .002f).coerceAtLeast(2f) else 1f; paint.color = if (focused) 0xFF83DFFF.toInt() else 0x26FFFFFF; c.drawRoundRect(rect, radius, radius, paint)
+        paint.style = Paint.Style.FILL; if (focused) drawFocusChase(c, rect, radius)
+        val cy = rect.centerY(); text(c, "A−", rect.left + rect.width() * .09f, cy + rect.height() * .10f, rect.height() * .28f, 0xFFBFEFFF.toInt(), true)
+        text(c, "A+", rect.right - rect.width() * .09f, cy + rect.height() * .10f, rect.height() * .28f, 0xFFBFEFFF.toInt(), true)
+        val left = rect.left + rect.width() * .22f; val right = rect.right - rect.width() * .22f; val track = RectF(left, cy - rect.height() * .025f, right, cy + rect.height() * .025f)
+        paint.color = 0x665B7892; c.drawRoundRect(track, track.height(), track.height(), paint)
+        val fraction = ((homeIconScale - .65f) / .95f).coerceIn(0f, 1f); paint.color = 0xFF31B9F2.toInt()
+        c.drawRoundRect(RectF(track.left, track.top, track.left + track.width() * fraction, track.bottom), track.height(), track.height(), paint)
+        paint.color = -1; c.drawCircle(track.left + track.width() * fraction, cy, rect.height() * .105f, paint)
+        text(c, "${(homeIconScale * 100).toInt()}%", rect.centerX(), rect.bottom - rect.height() * .08f, rect.height() * .13f, 0xFF8CEBFF.toInt(), true)
     }
-
     private fun drawGridChoice(c: Canvas, bounds: RectF, count: Int, selected: Boolean, focused: Boolean, label: String) {
-        val rect = if (focused) scaledFocusRect(bounds) else RectF(bounds)
-        paint.style = Paint.Style.FILL
-        paint.color = if (selected) 0xD92A78B5.toInt() else 0xB21A3554.toInt()
-        c.drawRoundRect(rect, rect.height() * .15f, rect.height() * .15f, paint)
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = if (focused) 2.5f else 1f
-        paint.color = if (focused || selected) 0xFF75DEFF.toInt() else 0x55FFFFFF
-        c.drawRoundRect(rect, rect.height() * .15f, rect.height() * .15f, paint)
-        paint.style = Paint.Style.FILL
-        if (focused) drawFocusChase(c, rect, rect.height() * .15f)
-        val cols = if (label.contains("列")) count else minOf(count, 4)
-        val rows = if (label.contains("行")) count else 2
-        val gap = rect.width() * .035f
-        val cellW = (rect.width() * .56f - gap * (cols - 1)) / cols
-        val cellH = (rect.height() * .36f - gap * (rows - 1)) / rows
-        val totalW = cols * cellW + (cols - 1) * gap
-        val startX = rect.centerX() - totalW / 2f
-        val startY = rect.top + rect.height() * .12f
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = (height * .0012f).coerceAtLeast(1f)
-        paint.color = if (selected) 0xFF8CEBFF.toInt() else 0xFF91AFC8.toInt()
-        for (row in 0 until rows) for (col in 0 until cols) {
-            val cell = RectF(startX + col * (cellW + gap), startY + row * (cellH + gap),
-                startX + col * (cellW + gap) + cellW, startY + row * (cellH + gap) + cellH)
-            if (selected) { paint.style = Paint.Style.FILL; c.drawRoundRect(cell, 3f, 3f, paint); paint.style = Paint.Style.STROKE }
-            c.drawRoundRect(cell, 3f, 3f, paint)
-        }
-        paint.style = Paint.Style.FILL
-        text(c, label, rect.centerX(), rect.bottom - rect.height() * .12f,
-            rect.height() * .19f, if (selected) 0xFF8CEBFF.toInt() else 0xFFE2EDF7.toInt(), true)
+        val rect = if (focused) scaledFocusRect(bounds) else RectF(bounds); val radius = (height * .018f).coerceAtLeast(10f)
+        paint.style = Paint.Style.FILL; paint.color = if (focused) 0xE52A78B5.toInt() else if (selected) 0x3358A4D4 else 0x12FFFFFF; c.drawRoundRect(rect, radius, radius, paint)
+        paint.style = Paint.Style.STROKE; paint.strokeWidth = if (focused) (height * .002f).coerceAtLeast(2f) else 1f; paint.color = if (focused || selected) 0xFF83DFFF.toInt() else 0x26FFFFFF; c.drawRoundRect(rect, radius, radius, paint)
+        paint.style = Paint.Style.FILL; if (focused) drawFocusChase(c, rect, radius)
+        val cols = if (label.contains("列")) count else minOf(count, 4); val rows = if (label.contains("行")) count else 2
+        val gap = rect.width() * .035f; val cellW = (rect.width() * .56f - gap * (cols - 1)) / cols; val cellH = (rect.height() * .36f - gap * (rows - 1)) / rows
+        val totalW = cols * cellW + (cols - 1) * gap; val startX = rect.centerX() - totalW / 2f; val startY = rect.top + rect.height() * .12f
+        paint.style = Paint.Style.STROKE; paint.strokeWidth = (height * .0012f).coerceAtLeast(1f); paint.color = if (selected) 0xFF8CEBFF.toInt() else 0xFF91AFC8.toInt()
+        for (row in 0 until rows) for (col in 0 until cols) { val cell = RectF(startX + col * (cellW + gap), startY + row * (cellH + gap), startX + col * (cellW + gap) + cellW, startY + row * (cellH + gap) + cellH); if (selected) { paint.style = Paint.Style.FILL; paint.color = 0xFF64BDE9.toInt(); c.drawRoundRect(cell, 3f, 3f, paint); paint.style = Paint.Style.STROKE; paint.color = 0xFF8CEBFF.toInt() }; c.drawRoundRect(cell, 3f, 3f, paint) }
+        paint.style = Paint.Style.FILL; text(c, label, rect.centerX(), rect.bottom - rect.height() * .12f, rect.height() * .19f, if (selected) 0xFF8CEBFF.toInt() else 0xFFE2EDF7.toInt(), true)
     }
-
     private fun drawSwitchCard(c: Canvas, bounds: RectF, label: String, enabled: Boolean, focused: Boolean) {
-        val rect = if (focused) scaledFocusRect(bounds) else RectF(bounds)
-        paint.style = Paint.Style.FILL
-        paint.color = if (focused) 0xE52B6795.toInt() else 0xC21A3554.toInt()
-        c.drawRoundRect(rect, rect.height() * .18f, rect.height() * .18f, paint)
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = if (focused) 2.5f else 1f
-        paint.color = if (focused) 0xFF78DFFF.toInt() else 0x44FFFFFF
-        c.drawRoundRect(rect, rect.height() * .18f, rect.height() * .18f, paint)
-        paint.style = Paint.Style.FILL
-        if (focused) drawFocusChase(c, rect, rect.height() * .18f)
-        text(c, label, rect.left + rect.width() * .08f, rect.centerY() + rect.height() * .07f,
-            rect.height() * .24f, -1, true)
-        val sw = RectF(rect.right - rect.width() * .29f, rect.centerY() - rect.height() * .19f,
-            rect.right - rect.width() * .07f, rect.centerY() + rect.height() * .19f)
-        paint.color = if (enabled) 0xFF168AC7.toInt() else 0xFF53677B.toInt()
-        c.drawRoundRect(sw, sw.height(), sw.height(), paint)
-        paint.color = -1
-        c.drawCircle(if (enabled) sw.right - sw.height() * .5f else sw.left + sw.height() * .5f,
-            sw.centerY(), sw.height() * .39f, paint)
+        val rect = if (focused) scaledFocusRect(bounds) else RectF(bounds); val radius = (height * .018f).coerceAtLeast(10f)
+        paint.style = Paint.Style.FILL; paint.color = if (focused) 0xE52A78B5.toInt() else 0x12FFFFFF; c.drawRoundRect(rect, radius, radius, paint)
+        paint.style = Paint.Style.STROKE; paint.strokeWidth = if (focused) (height * .002f).coerceAtLeast(2f) else 1f; paint.color = if (focused) 0xFF83DFFF.toInt() else 0x26FFFFFF; c.drawRoundRect(rect, radius, radius, paint)
+        paint.style = Paint.Style.FILL; if (focused) drawFocusChase(c, rect, radius)
+        text(c, label, rect.left + rect.width() * .07f, rect.centerY() + rect.height() * .07f, rect.height() * .22f, if (focused) -1 else 0xFFE5EEF8.toInt(), true)
+        val sw = RectF(rect.right - rect.width() * .27f, rect.centerY() - rect.height() * .17f, rect.right - rect.width() * .07f, rect.centerY() + rect.height() * .17f)
+        paint.color = if (enabled) 0xFF218CCB.toInt() else 0xFF53677B.toInt(); c.drawRoundRect(sw, sw.height(), sw.height(), paint); paint.color = -1
+        c.drawCircle(if (enabled) sw.right - sw.height() * .5f else sw.left + sw.height() * .5f, sw.centerY(), sw.height() * .39f, paint)
     }
-
     private fun drawSymbolTile(c: Canvas, bounds: RectF, title: String, detail: String, symbol: String) {
         val rect = RectF(bounds)
         paint.style = Paint.Style.FILL
@@ -2918,63 +2839,35 @@ class LauncherView(context: Context) : View(context) {
      * The compact centered-poster treatment was too small at sofa distance.
      */
     private fun drawCompactFeatureTile(c: Canvas, bounds: RectF, title: String, detail: String, symbol: String) {
-        val rect = RectF(bounds)
-        val radius = rect.height() * .14f
-        paint.style = Paint.Style.FILL
-        paint.shader = LinearGradient(rect.left, rect.top, rect.left, rect.bottom,
-            intArrayOf(0xD3294F72.toInt(), 0xC615304D.toInt()), null, Shader.TileMode.CLAMP)
-        c.drawRoundRect(rect, radius, radius, paint)
-        paint.shader = null
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = (height * .0011f).coerceAtLeast(1.2f)
-        paint.color = 0x665F9BC5
-        c.drawRoundRect(rect, radius, radius, paint)
-        paint.style = Paint.Style.FILL
-        paint.textAlign = Paint.Align.LEFT
-
-        val compact = rect.height() < height * .17f
-        val iconSize = minOf(rect.height() * if (compact) .25f else .22f, rect.width() * .18f)
-        val iconX = rect.left + rect.width() * .09f
-        val textX = rect.left + rect.width() * .27f
-        val titleSize = minOf(rect.height() * if (compact) .19f else .16f,
-            rect.width() * .085f).coerceAtLeast(height * .018f)
-        val detailSize = minOf(rect.height() * if (compact) .13f else .115f,
-            rect.width() * .065f).coerceAtLeast(height * .012f)
-        text(c, symbol, iconX, rect.centerY() + iconSize * .34f,
-            iconSize, 0xFF8CEBFF.toInt(), true)
-        text(c, title, textX, rect.centerY() - rect.height() * .015f,
-            titleSize, 0xFFF2F7FF.toInt(), true)
-        text(c, detail, textX, rect.centerY() + rect.height() * .24f,
-            detailSize, 0xFFBBD0E3.toInt())
+        val rect = RectF(bounds); val radius = (height * .018f).coerceAtLeast(10f)
+        paint.style = Paint.Style.FILL; paint.color = 0x12FFFFFF; c.drawRoundRect(rect, radius, radius, paint)
+        paint.style = Paint.Style.STROKE; paint.strokeWidth = (height * .0008f).coerceAtLeast(1f); paint.color = 0x26FFFFFF; c.drawRoundRect(rect, radius, radius, paint)
+        paint.style = Paint.Style.FILL; paint.textAlign = Paint.Align.LEFT
+        val compact = rect.height() < height * .17f; val iconSize = minOf(rect.height() * if (compact) .24f else .21f, rect.width() * .16f)
+        val iconX = rect.left + rect.width() * .075f; val textX = rect.left + rect.width() * .25f
+        val titleSize = minOf(rect.height() * if (compact) .18f else .15f, rect.width() * .08f).coerceAtLeast(height * .017f)
+        val detailSize = minOf(rect.height() * if (compact) .12f else .105f, rect.width() * .06f).coerceAtLeast(height * .011f)
+        text(c, symbol, iconX, rect.centerY() + iconSize * .34f, iconSize, 0xFF8CEBFF.toInt(), true)
+        text(c, title, textX, rect.centerY() - rect.height() * .015f, titleSize, 0xFFF2F7FF.toInt(), true)
+        text(c, detail, textX, rect.centerY() + rect.height() * .24f, detailSize, 0xFF9FB6CC.toInt())
     }
-
     private fun drawSettingsSectionLabel(c: Canvas, label: String, x: Float, y: Float, w: Float) {
-        text(c, label, x, y, height * .013f, 0xFF83B6D9.toInt(), true)
-        paint.style = Paint.Style.FILL
-        paint.color = 0x335B8AB4
-        c.drawRect(x, y + height * .012f, x + w, y + height * .0132f, paint)
+        text(c, label, x, y, height * .013f, 0xFF9ABBD7.toInt(), true); paint.style = Paint.Style.FILL; paint.color = 0x267DAED2
+        c.drawRect(x, y + height * .012f, x + w, y + height * .0130f, paint)
     }
-
     private fun drawSettingsMetaTile(c: Canvas, bounds: RectF, title: String, detail: String) {
-        val radius = bounds.height() * .16f
+        val radius = (height * .018f).coerceAtLeast(10f)
         paint.style = Paint.Style.FILL
-        paint.shader = LinearGradient(bounds.left, bounds.top, bounds.left, bounds.bottom,
-            intArrayOf(0xC91B3A5A.toInt(), 0xB80E2843.toInt()), null, Shader.TileMode.CLAMP)
+        paint.color = 0x0DFFFFFF
         c.drawRoundRect(bounds, radius, radius, paint)
-        paint.shader = null
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = (height * .0008f).coerceAtLeast(1f)
-        paint.color = 0x334E8AB8
+        paint.color = 0x26FFFFFF
         c.drawRoundRect(bounds, radius, radius, paint)
         paint.style = Paint.Style.FILL
-        text(c, title, bounds.left + bounds.width() * .08f,
-            bounds.top + bounds.height() * .40f, bounds.height() * .22f,
-            0xFFEAF5FF.toInt(), true)
-        text(c, detail, bounds.left + bounds.width() * .08f,
-            bounds.top + bounds.height() * .73f, bounds.height() * .14f,
-            0xFF9FBBD3.toInt())
+        text(c, title, bounds.left + bounds.width() * .07f, bounds.top + bounds.height() * .40f, bounds.height() * .21f, 0xFFEAF5FF.toInt(), true)
+        text(c, detail, bounds.left + bounds.width() * .07f, bounds.top + bounds.height() * .73f, bounds.height() * .13f, 0xFF9FBBD3.toInt())
     }
-
     private fun drawLauncherSettings(c: Canvas, w: Float, h: Float) {
         val category = if (settingsFocus in 30..36) settingsFocus - 30
             else settingsCategoryForControl(settingsFocus) ?: 0
