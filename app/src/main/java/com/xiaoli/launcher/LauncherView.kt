@@ -3772,18 +3772,19 @@ class LauncherView(context: Context) : View(context) {
                                 resetDrawerScroll()
                             }
                             3 -> {
-                                if (event.y in (height * .34f)..(height * .49f)) {
-                                    val gap = width * .012f
-                                    val cardW = (width * .74f - gap * 3f) / 4f
-                                    val selected = ((settingsHitX - width * .13f) / (cardW + gap)).toInt()
-                                    settingsFocus = listOf(9, 10, 15, 16).getOrNull(selected) ?: settingsFocus
+                                if (event.y in (height * .35f)..(height * .62f) &&
+                                    settingsHitX in (width * .13f)..(width * .87f)) {
+                                    val row = if (event.y < height * .485f) 0 else 1
+                                    val col = if (settingsHitX < width * .50f) 0 else 1
+                                    val selected = row * 2 + col
+                                    settingsFocus = listOf(9, 10, 15, 16)[selected]
                                     when (selected) {
                                         0 -> toggleHomeComponent(9)
                                         1 -> toggleHomeComponent(10)
                                         2 -> { use24HourClock = !use24HourClock; prefs.edit().putBoolean("clock_24_hour", use24HourClock).apply() }
                                         3 -> { showClockSeconds = !showClockSeconds; prefs.edit().putBoolean("clock_seconds", showClockSeconds).apply(); updateClockTick() }
                                     }
-                                } else if (event.y in (height * .60f)..(height * .75f) &&
+                                } else if (event.y in (height * .70f)..(height * .83f) &&
                                     settingsHitX in (width * .13f)..(width * .87f)) {
                                     settingsFocus = 22
                                     isSettingsOpen = false
@@ -3800,8 +3801,8 @@ class LauncherView(context: Context) : View(context) {
                                 settingsFocus = 6
                                 context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
                             }
-                            6 -> if (event.y in (height * .39f)..(height * .64f) &&
-                                settingsHitX in (width * .13f)..(width * .87f)) {
+                            6 -> if ((event.y in (height * .385f)..(height * .715f) &&
+                                settingsHitX in (width * .13f)..(width * .87f))) {
                                 settingsFocus = 7
                                 runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                             }
