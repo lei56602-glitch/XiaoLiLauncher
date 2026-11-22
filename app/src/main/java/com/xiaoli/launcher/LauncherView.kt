@@ -303,7 +303,6 @@ class LauncherView(context: Context) : View(context) {
             rect.centerX() + halfWidth, rect.centerY() + halfHeight)
     }
 
-    // One shared remote-focus renderer: a subtle chasing light with a short cyan tail.
     // One shared remote-focus renderer: three subtle chasing light streaks with cyan tails.
     private fun drawFocusChase(c: Canvas, source: RectF, cornerRadius: Float) {
         if (source.width() <= 0f || source.height() <= 0f) return
