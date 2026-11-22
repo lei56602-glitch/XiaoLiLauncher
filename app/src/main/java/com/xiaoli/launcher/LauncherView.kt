@@ -3085,18 +3085,15 @@ class LauncherView(context: Context) : View(context) {
                     "打开小李全联", "进入独立文件传输应用", settingsFocus == 6)
             }
             6 -> {
-                drawSettingsSectionLabel(c, "Android TV 系统管理", w * .13f, h * .335f, w * .74f)
-                drawSettingCard(c, RectF(w * .13f, h * .36f, w * .87f, h * .59f),
-                    "打开 Android 系统设置", "网络、显示、设备偏好和系统管理",
-                    settingsFocus == 7)
-                drawSettingsMetaTile(c, RectF(w * .13f, h * .65f, w * .36f, h * .78f),
-                    "网络", "由 Android 管理")
-                drawSettingsMetaTile(c, RectF(w * .39f, h * .65f, w * .62f, h * .78f),
-                    "显示", "由设备管理")
-                drawSettingsMetaTile(c, RectF(w * .65f, h * .65f, w * .87f, h * .78f),
-                    "设备偏好", "系统级选项")
-                text(c, "系统设置页面由电视设备及 Android 版本提供，具体选项可能有所不同。",
-                    w * .13f, h * .835f, h * .014f, 0xFF9FBBD3.toInt())
+                drawSettingsSectionLabel(c, "Android TV 系统入口", w * .13f, h * .335f, w * .74f)
+                drawSymbolTile(c, RectF(w * .13f, h * .39f, w * .35f, h * .76f),
+                    "网络", "Wi-Fi 与连接", "⌁")
+                drawSymbolTile(c, RectF(w * .385f, h * .39f, w * .605f, h * .76f),
+                    "显示", "画面与亮度", "☼")
+                drawSymbolTile(c, RectF(w * .64f, h * .39f, w * .87f, h * .76f),
+                    "设备偏好", "系统与设备", "⚙")
+                drawSettingCard(c, RectF(w * .13f, h * .81f, w * .60f, h * .92f),
+                    "打开 Android 系统设置", "进入电视系统设置", settingsFocus == 7)
             }
         }
 
