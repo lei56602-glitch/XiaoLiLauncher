@@ -24,12 +24,12 @@ class SettingsFocusNavigatorTest {
 
     @Test
     fun verticalMovementStaysInsideVisibleCategoryControls() {
-        assertEquals(2, SettingsFocusNavigator.next(8, 2))
-        assertEquals(19, SettingsFocusNavigator.next(2, 2))
+        assertEquals(0, SettingsFocusNavigator.next(8, 2))
+        assertEquals(17, SettingsFocusNavigator.next(2, 2))
         assertEquals(23, SettingsFocusNavigator.next(19, 2))
         assertEquals(19, SettingsFocusNavigator.next(23, -2))
         assertEquals(22, SettingsFocusNavigator.next(16, 2))
-        assertEquals(16, SettingsFocusNavigator.next(22, -2))
+        assertEquals(15, SettingsFocusNavigator.next(22, -2))
     }
 
     @Test
@@ -38,7 +38,7 @@ class SettingsFocusNavigatorTest {
         assertEquals(21, SettingsFocusNavigator.next(21, -2))
         assertEquals(6, SettingsFocusNavigator.next(6, 2))
         assertEquals(7, SettingsFocusNavigator.next(7, -2))
-        assertEquals(24, SettingsFocusNavigator.next(3, 2))
+        assertEquals(5, SettingsFocusNavigator.next(3, 2))
         assertEquals(24, SettingsFocusNavigator.next(4, 2))
         assertEquals(4, SettingsFocusNavigator.next(24, -2))
     }

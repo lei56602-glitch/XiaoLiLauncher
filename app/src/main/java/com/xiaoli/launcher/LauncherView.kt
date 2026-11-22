@@ -12,9 +12,12 @@ import android.content.pm.PackageManager
 import android.graphics.Canvas
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PathMeasure
 import android.graphics.RectF
 import android.graphics.RadialGradient
 import android.graphics.Shader
@@ -40,7 +43,10 @@ import java.net.URLEncoder
 import android.provider.Settings
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.VelocityTracker
+import android.widget.OverScroller
 import android.view.View
+import android.view.ViewConfiguration
 import android.animation.ValueAnimator
 import android.view.animation.DecelerateInterpolator
 import java.text.SimpleDateFormat
@@ -71,6 +77,20 @@ class LauncherView(context: Context) : View(context) {
         }
     }
     private var wallpaperBitmap: Bitmap? = null
+    // QR for the user's Baidu Netdisk share; the extraction code is prefilled.
+    private val quanLianDownloadQrBitmap: Bitmap? by lazy {
+        runCatching {
+            val matrix = QRCodeWriter().encode(
+                "https://pan.baidu.com/s/1XEKJzSC9qvFMumkhwbhYIw?pwd=1234",
+                BarcodeFormat.QR_CODE, 512, 512
+            )
+            Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888).also { bitmap ->
+                for (y in 0 until 512) for (x in 0 until 512) {
+                    bitmap.setPixel(x, y, if (matrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+                }
+            }
+        }.getOrNull()
+    }
     private var dynamicWallpaperEnabled = prefs.getBoolean("dynamic_wallpaper", false)
     private var animationStarted = false
     private var weatherCity = prefs.getString("weather_city", "") ?: ""
@@ -125,6 +145,14 @@ class LauncherView(context: Context) : View(context) {
     private var drawerScrollRow = 0
     private var drawerScrollVisualRow = 0f
     private var drawerScrollAnimator: ValueAnimator? = null
+    // Touch scrolling follows the finger continuously; fling uses Android's spline physics.
+    private val drawerFlingScroller = OverScroller(context)
+    private var drawerTouchTracker: VelocityTracker? = null
+    private var drawerTouchEligible = false
+    private var drawerTouchScrolling = false
+    private var drawerTouchDownY = 0f
+    private var drawerTouchStartVisualRow = 0f
+    private val drawerTouchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private var spatialFocusAnimator: ValueAnimator? = null
     private var spatialFocusScale = 1f
     // Header action is a first-class D-pad target, separate from the app grid.
@@ -163,6 +191,12 @@ class LauncherView(context: Context) : View(context) {
     private var controlCenterPage = 0
     private var controlCenterFocus = 0
     private var controlCenterInputOffset = 0
+    private var controlSliderTouchActive = false
+    private var controlListTouchActive = false
+    private var controlListTouchDragging = false
+    private var controlListTouchDownY = 0f
+    private var controlListTouchLastY = 0f
+    private var controlListTouchTravel = 0f
     private var controlCecEnabled = prefs.getBoolean("control_cec_switch", false)
     private var controlBootInputId = prefs.getString("control_boot_input_id", "").orEmpty()
     private var bootInputLaunchChecked = false
@@ -181,6 +215,11 @@ class LauncherView(context: Context) : View(context) {
     private data class ControlInput(val id: String, val label: String, val kind: String, val switchIntent: Intent?, val setupIntent: Intent?, val connected: Boolean = false, val deviceName: String? = null)
     private var controlInputs: List<ControlInput> = emptyList()
     private val audioManager by lazy { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+    private val packageChangeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(receiverContext: Context, intent: Intent) {
+            refreshInstalledApps()
+        }
+    }
     private val controlCecReceiver = object : BroadcastReceiver() {
         override fun onReceive(receiverContext: Context, intent: Intent) {
             if (!controlCecEnabled) return
@@ -264,8 +303,8 @@ class LauncherView(context: Context) : View(context) {
     private fun animateSpatialFocus() {
         spatialFocusAnimator?.cancel()
         spatialFocusScale = 1f
-        spatialFocusAnimator = ValueAnimator.ofFloat(1f, 1.08f).apply {
-            duration = 150L
+        spatialFocusAnimator = ValueAnimator.ofFloat(1f, 1.05f).apply {
+            duration = 200L
             interpolator = DecelerateInterpolator(1.2f)
             addUpdateListener { animator ->
                 spatialFocusScale = animator.animatedValue as Float
@@ -283,7 +322,41 @@ class LauncherView(context: Context) : View(context) {
             rect.centerX() + halfWidth, rect.centerY() + halfHeight)
     }
 
+    // Shared static remote-focus light: it follows the focused control without a running animation.
+    private fun drawFocusChase(c: Canvas, source: RectF, cornerRadius: Float) {
+        if (source.width() <= 0f || source.height() <= 0f) return
+        val stroke = (minOf(source.width(), source.height()) * .018f).coerceAtLeast(2f)
+        val bounds = RectF(source).apply { inset(stroke * .45f, stroke * .45f) }
+        val radius = (cornerRadius - stroke * .45f).coerceAtLeast(stroke)
+        val oldStyle = paint.style
+        val oldCap = paint.strokeCap
+        val oldJoin = paint.strokeJoin
+        val oldWidth = paint.strokeWidth
+        paint.style = Paint.Style.STROKE
+        paint.strokeCap = Paint.Cap.ROUND
+        paint.strokeJoin = Paint.Join.ROUND
+
+        // Draw a restrained cyan halo and crisp inner edge only when the view invalidates.
+        paint.color = android.graphics.Color.argb(150, 91, 224, 255)
+        paint.strokeWidth = stroke * 1.15f
+        paint.setShadowLayer(stroke * 2f, 0f, 0f,
+            android.graphics.Color.argb(95, 39, 191, 255))
+        c.drawRoundRect(bounds, radius, radius, paint)
+
+        paint.clearShadowLayer()
+        paint.color = android.graphics.Color.argb(225, 145, 238, 255)
+        paint.strokeWidth = stroke * .48f
+        c.drawRoundRect(bounds, radius, radius, paint)
+
+        paint.clearShadowLayer()
+        paint.style = oldStyle
+        paint.strokeCap = oldCap
+        paint.strokeJoin = oldJoin
+        paint.strokeWidth = oldWidth
+    }
+
     private fun animateDrawerScrollTo(targetRow: Int) {
+        drawerFlingScroller.abortAnimation()
         drawerScrollAnimator?.cancel()
         val target = targetRow.toFloat().coerceAtLeast(0f)
         if (kotlin.math.abs(drawerScrollVisualRow - target) < .01f) {
@@ -303,6 +376,7 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun resetDrawerScroll() {
+        drawerFlingScroller.abortAnimation()
         drawerScrollAnimator?.cancel()
         drawerScrollRow = 0
         drawerScrollVisualRow = 0f
@@ -383,8 +457,8 @@ class LauncherView(context: Context) : View(context) {
         }
         isFocusable = true
         isFocusableInTouchMode = true
-        loadApps()
-        loadSavedWallpaper()
+        refreshInstalledApps()
+        reloadSavedWallpaper()
         handler.post(clockTick)
         updateAnimationLoop()
     }
@@ -396,6 +470,16 @@ class LauncherView(context: Context) : View(context) {
             val filter = IntentFilter("droidlogic.tv.action.OTP_INPUT_SOURCE_CHANGED")
             if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(controlCecReceiver, filter, Context.RECEIVER_EXPORTED)
             else context.registerReceiver(controlCecReceiver, filter)
+        }
+        runCatching {
+            val packageFilter = IntentFilter().apply {
+                addAction(Intent.ACTION_PACKAGE_ADDED)
+                addAction(Intent.ACTION_PACKAGE_REMOVED)
+                addAction(Intent.ACTION_PACKAGE_CHANGED)
+                addDataScheme("package")
+            }
+            if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(packageChangeReceiver, packageFilter, Context.RECEIVER_EXPORTED)
+            else context.registerReceiver(packageChangeReceiver, packageFilter)
         }
         maybeOpenBootInput()
         // The launcher is a single custom-drawn surface; keep it as the TV remote key target.
@@ -412,50 +496,59 @@ class LauncherView(context: Context) : View(context) {
         handler.removeCallbacks(animationTick)
         animationStarted = false
         runCatching { context.unregisterReceiver(controlCecReceiver) }
+        runCatching { context.unregisterReceiver(packageChangeReceiver) }
         super.onDetachedFromWindow()
     }
 
-    fun refreshInstalledApps() {
-        appIconCache.clear()
-        loadApps()
-        invalidate()
-    }
+    private var appLoadGeneration = 0
 
-    private fun loadApps() {
-        val pm = context.packageManager
-        val query = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        val resolved = pm.queryIntentActivities(query, PackageManager.MATCH_ALL)
-            .mapNotNull { info ->
-                val pkg = info.activityInfo.packageName
-                if (pkg == context.packageName) null else AppEntry(
-                    info.loadLabel(pm).toString(), pkg,
-                    Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-                        .setClassName(pkg, info.activityInfo.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                )
-            }.sortedBy { it.label.lowercase(Locale.getDefault()) }
-        apps.clear(); apps.addAll(resolved)
-        homeIconPositions.clear()
-        runCatching {
-            val stored = JSONObject(prefs.getString("home_icon_positions", "{}") ?: "{}")
-            resolved.forEach { app ->
-                val position = stored.optJSONObject(app.packageName) ?: return@forEach
-                if (position.has("x") && position.has("y")) {
-                    homeIconPositions[app.packageName] = Pair(
-                        position.optDouble("x", 0.5).toFloat().coerceIn(0f, 1f),
-                        position.optDouble("y", 0.6).toFloat().coerceIn(0f, 1f)
-                    )
+    fun refreshInstalledApps() {
+        val generation = ++appLoadGeneration
+        thread(name = "launcher-app-scan") {
+            val pm = context.packageManager
+            val query = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+            val resolved = runCatching {
+                pm.queryIntentActivities(query, PackageManager.MATCH_ALL)
+                    .mapNotNull { info ->
+                        val pkg = info.activityInfo.packageName
+                        if (pkg == context.packageName) null else AppEntry(
+                            info.loadLabel(pm).toString(), pkg,
+                            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                                .setClassName(pkg, info.activityInfo.name)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    }.sortedBy { it.label.lowercase(Locale.getDefault()) }
+            }.getOrDefault(emptyList())
+            handler.post {
+                if (generation != appLoadGeneration) return@post
+                apps.clear()
+                apps.addAll(resolved)
+                homeIconPositions.clear()
+                runCatching {
+                    val stored = JSONObject(prefs.getString("home_icon_positions", "{}") ?: "{}")
+                    resolved.forEach { app ->
+                        val position = stored.optJSONObject(app.packageName) ?: return@forEach
+                        if (position.has("x") && position.has("y")) {
+                            homeIconPositions[app.packageName] = Pair(
+                                position.optDouble("x", 0.5).toFloat().coerceIn(0f, 1f),
+                                position.optDouble("y", 0.6).toFloat().coerceIn(0f, 1f)
+                            )
+                        }
+                    }
                 }
+                val saved = prefs.getString("favorites", null)
+                favorites.clear()
+                val byPackage = apps.associateBy { it.packageName }
+                if (saved == null) favorites.addAll(apps.take(5))
+                else saved.split("|").take(5).forEach { pkg ->
+                    favorites.add(if (pkg.isBlank()) emptySlot else byPackage[pkg] ?: emptySlot)
+                }
+                while (favorites.size < 5) favorites.add(emptySlot)
+                homeIndex = homeIndex.coerceIn(0, 4)
+                appIconCache.keys.retainAll(resolved.mapTo(HashSet()) { it.packageName })
+                invalidate()
             }
         }
-        val saved = prefs.getString("favorites", null)
-        favorites.clear()
-        val byPackage = apps.associateBy { it.packageName }
-        if (saved == null) favorites.addAll(apps.take(5))
-        else saved.split("|").take(5).forEach { pkg ->
-            favorites.add(if (pkg.isBlank()) emptySlot else byPackage[pkg] ?: emptySlot)
-        }
-        while (favorites.size < 5) favorites.add(emptySlot)
-        homeIndex = homeIndex.coerceIn(0, 4)
     }
 
     private var editingFavorites = false
@@ -594,31 +687,58 @@ class LauncherView(context: Context) : View(context) {
                 }
                 1 -> { hideDesktopApp(actionMenuIndex); actionMenuOpen = false }
                 2 -> { actionMenuOpen = false; beginHomePositionEdit(actionMenuIndex) }
-                else -> {
+                3 -> {
                     actionMenuOpen = false
                     isDrawerOpen = true
                     editingFavorites = false
                     drawerIndex = 0
                     resetDrawerScroll()
                 }
+                4 -> launchActionMenuApp(app)
+                5 -> uninstallActionMenuApp(app)
             }
         } else {
-            if (actionMenuChoice == 0 && app != null) {
-                val existing = favorites.indexOfFirst { it.packageName == app.packageName }
-                if (existing >= 0) {
-                    favorites[existing] = emptySlot
-                    saveFavorites()
-                    android.widget.Toast.makeText(context, "已从主屏幕移除", android.widget.Toast.LENGTH_SHORT).show()
-                } else {
-                    val slot = favorites.indexOfFirst { it.packageName == emptySlot.packageName }
-                    if (slot >= 0) {
-                        favorites[slot] = app
+            when (actionMenuChoice) {
+                0 -> if (app != null) {
+                    val existing = favorites.indexOfFirst { it.packageName == app.packageName }
+                    if (existing >= 0) {
+                        favorites[existing] = emptySlot
                         saveFavorites()
-                        android.widget.Toast.makeText(context, "已加入桌面第 ${slot + 1} 个位置", android.widget.Toast.LENGTH_SHORT).show()
-                    } else android.widget.Toast.makeText(context, "桌面已满，请先移除一个应用", android.widget.Toast.LENGTH_SHORT).show()
+                        android.widget.Toast.makeText(context, "已从主屏幕移除", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        val slot = favorites.indexOfFirst { it.packageName == emptySlot.packageName }
+                        if (slot >= 0) {
+                            favorites[slot] = app
+                            saveFavorites()
+                            android.widget.Toast.makeText(context, "已加入桌面第 ${slot + 1} 个位置", android.widget.Toast.LENGTH_SHORT).show()
+                        } else android.widget.Toast.makeText(context, "桌面已满，请先移除一个应用", android.widget.Toast.LENGTH_SHORT).show()
+                    }
                 }
+                1 -> launchActionMenuApp(app)
+                2 -> uninstallActionMenuApp(app)
             }
             actionMenuOpen = false
+        }
+        invalidate()
+    }
+
+    private fun launchActionMenuApp(app: AppEntry?) {
+        actionMenuOpen = false
+        if (app == null) return
+        runCatching { context.startActivity(app.intent) }
+            .onFailure { android.widget.Toast.makeText(context, "无法打开此应用", android.widget.Toast.LENGTH_SHORT).show() }
+        invalidate()
+    }
+
+    private fun uninstallActionMenuApp(app: AppEntry?) {
+        actionMenuOpen = false
+        if (app == null) return
+        runCatching {
+            val uninstall = Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:${app.packageName}"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(uninstall)
+        }.onFailure {
+            android.widget.Toast.makeText(context, "系统不允许卸载此应用", android.widget.Toast.LENGTH_LONG).show()
         }
         invalidate()
     }
@@ -628,17 +748,19 @@ class LauncherView(context: Context) : View(context) {
         val h = height.toFloat()
         paint.color = 0xB9001028.toInt()
         c.drawRect(0f, 0f, w, h, paint)
-        val panel = if (actionMenuSource == "home") RectF(w * .34f, h * .20f, w * .66f, h * .80f)
-            else RectF(w * .34f, h * .31f, w * .66f, h * .70f)
+        val isHomeMenu = actionMenuSource == "home"
+        val panel = if (isHomeMenu) RectF(w * .34f, h * .12f, w * .66f, h * .88f)
+            else RectF(w * .34f, h * .22f, w * .66f, h * .78f)
         paint.color = 0xF20A3470.toInt()
         c.drawRoundRect(panel, h * .025f, h * .025f, paint)
         val drawerAppAlreadyPinned = actionMenuSource == "drawer" && favorites.any { it.packageName == actionMenuPackage }
-        val options = if (actionMenuSource == "home") listOf("移动 APP", "隐藏 APP", "调整位置", "返回抽屉") else listOf(if (drawerAppAlreadyPinned) "从主屏幕移除" else "加入主屏幕", "返回")
-        text(c, if (actionMenuSource == "home") "桌面应用管理" else "添加到主屏幕",
-            panel.left + panel.width() * .09f, panel.top + panel.height() * (if (actionMenuSource == "home") .16f else .20f), h * .031f, -1, true)
+        val options = if (isHomeMenu) listOf("移动 APP", "隐藏 APP", "调整位置", "返回抽屉", "打开应用", "卸载应用")
+            else listOf(if (drawerAppAlreadyPinned) "从主屏幕移除" else "加入主屏幕", "打开应用", "卸载应用", "返回")
+        text(c, if (isHomeMenu) "桌面应用管理" else "应用管理",
+            panel.left + panel.width() * .09f, panel.top + panel.height() * (if (isHomeMenu) .105f else .13f), h * .031f, -1, true)
         options.forEachIndexed { i, label ->
-            val top = panel.top + panel.height() * (if (actionMenuSource == "home") .25f + i * .17f else .29f + i * .22f)
-            val rowHeight = panel.height() * (if (actionMenuSource == "home") .14f else .18f)
+            val top = panel.top + panel.height() * (if (isHomeMenu) .20f + i * .125f else .25f + i * .17f)
+            val rowHeight = panel.height() * (if (isHomeMenu) .105f else .135f)
             val baseRow = RectF(panel.left + panel.width() * .07f, top,
                 panel.right - panel.width() * .07f, top + rowHeight)
             val row = if (i == actionMenuChoice) scaledFocusRect(baseRow) else baseRow
@@ -646,6 +768,7 @@ class LauncherView(context: Context) : View(context) {
             c.drawRoundRect(row, h * .012f, h * .012f, paint)
             paint.textAlign = Paint.Align.CENTER
             text(c, label, row.centerX(), row.centerY() + h * .009f, h * .026f, -1, i == actionMenuChoice)
+            if (i == actionMenuChoice) drawFocusChase(c, row, h * .012f)
             paint.textAlign = Paint.Align.LEFT
         }
     }
@@ -745,33 +868,39 @@ class LauncherView(context: Context) : View(context) {
         }.getOrNull()
     }
 
+    private var wallpaperLoadGeneration = 0
+
     fun setWallpaper(uri: Uri) {
         runCatching {
             context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        val bitmap = decodeWallpaper(uri) ?: return
-        wallpaperBitmap?.recycle()
-        wallpaperBitmap = bitmap
         prefs.edit().putString("wallpaper_uri", uri.toString()).apply()
-        invalidate()
+        loadWallpaperAsync(uri)
     }
 
     fun reloadSavedWallpaper() {
-        wallpaperBitmap?.recycle()
-        loadSavedWallpaper()
-        invalidate()
+        val value = prefs.getString("wallpaper_uri", null)
+        val uri = value?.takeIf { it.isNotBlank() }?.let { runCatching { Uri.parse(it) }.getOrNull() }
+        loadWallpaperAsync(uri)
     }
 
-    private fun loadSavedWallpaper() {
-        val defaultWallpaper = {
-            BitmapFactory.decodeResource(context.resources, R.drawable.default_wallpaper)
-        }
-        val value = prefs.getString("wallpaper_uri", null)
-        wallpaperBitmap = if (value.isNullOrBlank()) {
-            defaultWallpaper()
-        } else {
-            val uri = runCatching { Uri.parse(value) }.getOrNull()
-            uri?.let(::decodeWallpaper) ?: defaultWallpaper()
+    private fun loadWallpaperAsync(uri: Uri?) {
+        val generation = ++wallpaperLoadGeneration
+        thread(name = "launcher-wallpaper-load") {
+            val bitmap = uri?.let(::decodeWallpaper)
+                ?: runCatching {
+                    BitmapFactory.decodeResource(context.resources, R.drawable.default_wallpaper)
+                }.getOrNull()
+            handler.post {
+                if (generation != wallpaperLoadGeneration) {
+                    bitmap?.recycle()
+                    return@post
+                }
+                val previous = wallpaperBitmap
+                wallpaperBitmap = bitmap
+                if (previous !== bitmap) previous?.recycle()
+                invalidate()
+            }
         }
     }
 
@@ -904,6 +1033,7 @@ class LauncherView(context: Context) : View(context) {
                 c.drawRoundRect(row, h * .014f, h * .014f, paint)
                 paint.textAlign = Paint.Align.CENTER
                 text(c, label, row.centerX(), row.centerY() + h * .010f, h * .028f, -1, clockEditChoice == i)
+                if (clockEditChoice == i) drawFocusChase(c, row, h * .014f)
                 paint.textAlign = Paint.Align.LEFT
             }
             text(c, "方向键选择  ·  OK 确认  ·  返回取消", panel.left + panel.width() * .08f,
@@ -962,6 +1092,7 @@ class LauncherView(context: Context) : View(context) {
         paint.color = 0xFF55D9FF.toInt()
         c.drawRoundRect(rect, 12f, 12f, paint)
         paint.style = Paint.Style.FILL
+        drawFocusChase(c, rect, 12f)
         paint.color = 0xFF55D9FF.toInt()
         val handle = (height * .009f).coerceAtLeast(6f)
         listOf(
@@ -1190,6 +1321,7 @@ class LauncherView(context: Context) : View(context) {
                 paint.color = if (focused) 0xFF8BE7FF.toInt() else 0x88FFFFFF.toInt()
                 c.drawRoundRect(icon, icon.width() * .20f, icon.width() * .20f, paint)
                 paint.style = Paint.Style.FILL
+                if (focused) drawFocusChase(c, scaledFocusRect(icon), icon.width() * .20f)
                 paint.textAlign = Paint.Align.CENTER
                 text(c, "+", icon.centerX(), icon.centerY() + icon.height() * .15f, icon.height() * .62f, -1, true)
                 text(c, "添加应用", icon.centerX(), icon.bottom + h * .038f, h * .022f, -1, true)
@@ -1222,9 +1354,11 @@ class LauncherView(context: Context) : View(context) {
                 paint.style = Paint.Style.STROKE
                 paint.strokeWidth = (h * .006f).coerceAtLeast(3f)
                 paint.color = 0xFFFFD166.toInt()
-                c.drawRoundRect(scaledFocusRect(RectF(selected.left - 8f, selected.top - 8f,
-                    selected.right + 8f, selected.bottom + 8f)), 18f, 18f, paint)
+                val manageFocusRect = scaledFocusRect(RectF(selected.left - 8f, selected.top - 8f,
+                    selected.right + 8f, selected.bottom + 8f))
+                c.drawRoundRect(manageFocusRect, 18f, 18f, paint)
                 paint.style = Paint.Style.FILL
+                drawFocusChase(c, manageFocusRect, 18f)
             }
             paint.textAlign = Paint.Align.LEFT
         }
@@ -1272,14 +1406,8 @@ class LauncherView(context: Context) : View(context) {
                 w * (clockX + .245f), h * (clockY + .065f * clockScale))
             else -> controlCenterShortcutRect(w, h)
         }
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = (h * .004f).coerceAtLeast(2.5f)
-        paint.color = 0xFF8BE7FF.toInt()
-        paint.setShadowLayer((h * .012f).coerceAtLeast(5f), 0f, 0f, 0xAA27BFFF.toInt())
         val focusRect = scaledFocusRect(rect)
-        c.drawRoundRect(focusRect, (h * .018f).coerceAtLeast(10f), (h * .018f).coerceAtLeast(10f), paint)
-        paint.clearShadowLayer()
-        paint.style = Paint.Style.FILL
+        drawFocusChase(c, focusRect, (h * .018f).coerceAtLeast(10f))
     }
 
     private fun homeTopFocusCenterX(target: Int, w: Float): Float = when (target) {
@@ -2104,6 +2232,7 @@ class LauncherView(context: Context) : View(context) {
                     paint.color = 0xFFD8F4FF.toInt()
                     canvas.drawRoundRect(rect, h * .018f, h * .018f, paint)
                     paint.style = Paint.Style.FILL
+                    drawFocusChase(canvas, rect, h * .018f)
                 }
                 text(canvas, icons[index], rect.left + rect.width() * .075f, rect.centerY() + h * .012f,
                     h * .030f, 0xFFEAF8FF.toInt(), true)
@@ -2129,6 +2258,7 @@ class LauncherView(context: Context) : View(context) {
                     paint.color = 0xFFD8F4FF.toInt()
                     canvas.drawRoundRect(cecRect, h * .016f, h * .016f, paint)
                     paint.style = Paint.Style.FILL
+                    drawFocusChase(canvas, cecRect, h * .016f)
                 }
                 text(canvas, "HDMI-CEC 自动切源", cecRect.left + cecRect.width() * .07f,
                     cecRect.top + cecRect.height() * .44f, h * .019f, 0xFFF4FAFF.toInt(), true)
@@ -2157,6 +2287,7 @@ class LauncherView(context: Context) : View(context) {
                         paint.color = 0xFFD8F4FF.toInt()
                         canvas.drawRoundRect(rect, h * .016f, h * .016f, paint)
                         paint.style = Paint.Style.FILL
+                        drawFocusChase(canvas, rect, h * .016f)
                     }
                     text(canvas, input.label, rect.left + rect.width() * .07f,
                         rect.top + rect.height() * .44f, h * .020f, 0xFFF4FAFF.toInt(), true)
@@ -2208,6 +2339,7 @@ class LauncherView(context: Context) : View(context) {
                 val filled = RectF(slider.left, slider.top,
                     slider.left + slider.width() * current.coerceIn(0f, 1f), slider.bottom)
                 canvas.drawRoundRect(filled, slider.height() / 2f, slider.height() / 2f, paint)
+                drawFocusChase(canvas, slider, slider.height() / 2f)
                 paint.textAlign = Paint.Align.CENTER
                 text(canvas, valueLabel, panel.centerX(), panel.top + panel.height() * .37f,
                     h * .027f, 0xFFF4FAFF.toInt(), true)
@@ -2241,18 +2373,15 @@ class LauncherView(context: Context) : View(context) {
         c.clipPath(clip)
         drawable.setBounds(target.left.toInt(), target.top.toInt(), target.right.toInt(), target.bottom.toInt())
         drawable.draw(c)
+        // A restrained glass sheen unifies third-party icons without replacing their artwork.
+        paint.style = Paint.Style.FILL
+        paint.shader = LinearGradient(target.left, target.top, target.left, target.bottom,
+            intArrayOf(0x26FFFFFF, 0x08FFFFFF, 0x00FFFFFF), null, Shader.TileMode.CLAMP)
+        paint.color = -1
+        c.drawRoundRect(target, radius, radius, paint)
+        paint.shader = null
         c.restoreToCount(save)
-
-        // Draw focus treatment after the artwork so it remains visible and does not shrink it.
-        if (focused) {
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = (rect.width() * .018f).coerceAtLeast(2f)
-            paint.color = 0xCC7DE5FF.toInt()
-            paint.setShadowLayer(rect.width() * .12f, 0f, 0f, 0xAA27BFFF.toInt())
-            c.drawRoundRect(target, radius, radius, paint)
-            paint.clearShadowLayer()
-            paint.style = Paint.Style.FILL
-        }
+        if (focused) drawFocusChase(c, target, radius)
     }
 
     private fun drawDrawer(c: Canvas, w: Float, h: Float) {
@@ -2273,9 +2402,10 @@ class LauncherView(context: Context) : View(context) {
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = (h * .0035f).coerceAtLeast(2f)
             paint.color = 0xFF8BE7FF.toInt()
-            c.drawRoundRect(scaledFocusRect(RectF(w * .835f, h * .175f, w * .94f, h * .245f)),
-                h * .012f, h * .012f, paint)
+            val headerFocusRect = scaledFocusRect(RectF(w * .835f, h * .175f, w * .94f, h * .245f))
+            c.drawRoundRect(headerFocusRect, h * .012f, h * .012f, paint)
             paint.style = Paint.Style.FILL
+            drawFocusChase(c, headerFocusRect, h * .012f)
         }
         paint.textAlign = Paint.Align.LEFT
         if (replacingDesktopSlot) {
@@ -2298,7 +2428,14 @@ class LauncherView(context: Context) : View(context) {
         drawerScrollVisualRow = drawerScrollVisualRow.coerceIn(0f, maxScroll.toFloat())
         val clipSave = c.save()
         c.clipRect(gridLeft, contentTop, gridRight, contentBottom)
-        apps.forEachIndexed { i, app ->
+        val firstVisibleRow = (kotlin.math.floor(drawerScrollVisualRow).toInt() - 1).coerceAtLeast(0)
+        val lastVisibleRow = (kotlin.math.ceil(drawerScrollVisualRow + visibleRows).toInt() + 1)
+            .coerceAtMost(totalRows - 1)
+        val pinnedPackages = favorites.asSequence().map { it.packageName }.toHashSet()
+        val firstVisibleIndex = (firstVisibleRow * cols).coerceAtMost(apps.size)
+        val lastVisibleIndex = ((lastVisibleRow + 1) * cols).coerceAtMost(apps.size)
+        for (i in firstVisibleIndex until lastVisibleIndex) {
+            val app = apps[i]
             val row = i / cols
             val col = i % cols
             val left = gridLeft + col * cellW
@@ -2375,10 +2512,10 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun moveActionMenuFocus(direction: Int) {
-        val count = if (actionMenuSource == "home") 4 else 2
+        val count = if (actionMenuSource == "home") 6 else 4
         val targets = (0 until count).map { index ->
-            val y = if (actionMenuSource == "home") .25f + index * .17f
-                else .29f + index * .22f
+            val y = if (actionMenuSource == "home") .20f + index * .125f
+                else .25f + index * .17f
             FocusTarget(index, .5f, y)
         }
         val next = SpatialFocusNavigator.next(actionMenuChoice, direction, targets)
@@ -2535,182 +2672,422 @@ class LauncherView(context: Context) : View(context) {
 
     private fun drawSettingsNavigation(c: Canvas, w: Float, h: Float) {
         val rail = RectF(w * .045f, h * .105f, w * .225f, h * .965f)
+        val railRadius = h * .025f
         paint.style = Paint.Style.FILL
-        paint.color = 0xE8091932.toInt()
-        c.drawRoundRect(rail, h * .025f, h * .025f, paint)
-        paint.color = 0xFF35B9F2.toInt()
-        c.drawRoundRect(RectF(rail.left + w * .018f, rail.top + h * .055f,
-            rail.left + w * .022f, rail.top + h * .145f), h * .003f, h * .003f, paint)
-        text(c, "设置中心", rail.left + w * .035f, rail.top + h * .105f,
-            h * .031f, -1, true)
-        text(c, "DEVICE SETTINGS", rail.left + w * .035f, rail.top + h * .145f,
-            h * .011f, 0xFF8FAFCB.toInt(), true)
-        val labels = listOf("桌面布局", "外观与壁纸", "应用管理", "桌面组件", "遥控器与操作", "小李全联", "电视系统设置")
+        paint.shader = LinearGradient(rail.left, rail.top, rail.right, rail.bottom,
+            intArrayOf(0xF0142B49.toInt(), 0xF00A1A31.toInt(), 0xF00A1528.toInt()),
+            null, Shader.TileMode.CLAMP)
+        c.drawRoundRect(rail, railRadius, railRadius, paint)
+        paint.shader = null
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = (h * .0011f).coerceAtLeast(1f)
+        paint.color = 0x334D91C7
+        c.drawRoundRect(rail, railRadius, railRadius, paint)
+        paint.style = Paint.Style.FILL
+
+        val mark = RectF(rail.left + w * .025f, rail.top + h * .045f,
+            rail.left + w * .075f, rail.top + h * .095f)
+        paint.shader = LinearGradient(mark.left, mark.top, mark.right, mark.bottom,
+            intArrayOf(0xFF54D8FF.toInt(), 0xFF2479D8.toInt()), null, Shader.TileMode.CLAMP)
+        c.drawRoundRect(mark, h * .009f, h * .009f, paint)
+        paint.shader = null
+        text(c, "X", mark.centerX() - h * .008f, mark.centerY() + h * .010f,
+            h * .026f, -1, true)
+        text(c, "小李桌面", rail.left + w * .088f, rail.top + h * .071f,
+            h * .025f, -1, true)
+        text(c, "SYSTEM CONTROL", rail.left + w * .025f, rail.top + h * .135f,
+            h * .010f, 0xFF82A8CB.toInt(), true)
+        paint.color = 0x334D7195
+        c.drawRect(rail.left + w * .025f, rail.top + h * .165f,
+            rail.right - w * .025f, rail.top + h * .1665f, paint)
+
+        val labels = listOf("桌面布局", "外观与壁纸", "应用管理", "桌面组件",
+            "遥控器与操作", "小李全联", "电视系统设置")
         labels.forEachIndexed { index, label ->
-            val top = h * (.285f + index * .087f)
-            val rect = RectF(rail.left + w * .014f, top, rail.right - w * .014f, top + h * .066f)
+            val rect = SettingsLayout.categoryBounds(index, w, h, rail)
             val selected = settingsFocus == 30 + index || settingsCategoryForControl(settingsFocus) == index
             if (selected) {
                 val selectedRect = if (settingsFocus == 30 + index) scaledFocusRect(rect) else rect
-                paint.color = 0xFF164D78.toInt()
+                paint.shader = LinearGradient(selectedRect.left, selectedRect.top,
+                    selectedRect.right, selectedRect.bottom,
+                    intArrayOf(0xE82B78B5.toInt(), 0xD915426D.toInt()),
+                    null, Shader.TileMode.CLAMP)
                 c.drawRoundRect(selectedRect, h * .012f, h * .012f, paint)
-                paint.color = 0xFF68D9FF.toInt()
-                c.drawRoundRect(RectF(selectedRect.left, selectedRect.top + h * .012f,
-                    selectedRect.left + w * .004f, selectedRect.bottom - h * .012f),
-                    h * .002f, h * .002f, paint)
+                paint.shader = null
+                if (settingsFocus == 30 + index) drawFocusChase(c, selectedRect, h * .012f)
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = (h * .0012f).coerceAtLeast(1f)
+                paint.color = 0x6678DFFF
+                c.drawRoundRect(selectedRect, h * .012f, h * .012f, paint)
+                paint.style = Paint.Style.FILL
+                paint.color = 0xFF67DFFF.toInt()
+                c.drawRoundRect(RectF(selectedRect.left + w * .006f,
+                    selectedRect.top + h * .014f, selectedRect.left + w * .009f,
+                    selectedRect.bottom - h * .014f), h * .002f, h * .002f, paint)
             }
-            paint.color = if (selected) 0xFF8BE7FF.toInt() else 0xFF7693B2.toInt()
-            c.drawCircle(rect.left + w * .025f, rect.centerY(), h * .0045f, paint)
+            paint.color = if (selected) 0xFF8BE7FF.toInt() else 0xFF58799A.toInt()
+            c.drawCircle(rect.left + w * .025f, rect.centerY(), h * .0042f, paint)
             text(c, label, rect.left + w * .045f, rect.centerY() + h * .007f,
-                h * .017f, if (selected) -1 else 0xFFD0DCEC.toInt(), selected)
+                h * .017f, if (selected) -1 else 0xFFC0D0E2.toInt(), selected)
+            if (selected) {
+                text(c, "›", rect.right - w * .020f, rect.centerY() + h * .008f,
+                    h * .022f, 0xFF9BEAFF.toInt(), true)
+            }
         }
-        text(c, "方向键选择  ·  OK 确认", rail.left + w * .025f, rail.bottom - h * .035f,
-            h * .011f, 0xFF829BB7.toInt())
+
+        paint.color = 0x334D7195
+        c.drawRect(rail.left + w * .025f, rail.bottom - h * .075f,
+            rail.right - w * .025f, rail.bottom - h * .0735f, paint)
+        text(c, "方向键选择  ·  OK 确认", rail.left + w * .025f,
+            rail.bottom - h * .043f, h * .0105f, 0xFF829BB7.toInt())
+        text(c, "XIAOLI  /  TV", rail.left + w * .025f,
+            rail.bottom - h * .020f, h * .009f, 0xFF58799A.toInt(), true)
     }
 
     private fun drawSettingCard(c: Canvas, bounds: RectF, heading: String, detail: String, focused: Boolean) {
+        // Aerial TV-inspired glass setting row with restrained focus treatment.
         val rect = if (focused) scaledFocusRect(bounds) else RectF(bounds)
-        val radius = rect.height() * .16f
+        val radius = (height * .018f).coerceAtLeast(10f)
         paint.style = Paint.Style.FILL
-        paint.color = if (focused) 0xFF153F68.toInt() else 0xC9122945.toInt()
+        paint.color = if (focused) 0xE52A78B5.toInt() else 0x14FFFFFF
         c.drawRoundRect(rect, radius, radius, paint)
         paint.style = Paint.Style.STROKE
-        paint.strokeWidth = if (focused) (height * .0032f).coerceAtLeast(2.5f) else (height * .0011f).coerceAtLeast(1f)
-        paint.color = if (focused) 0xFF72DFFF.toInt() else 0x554E83B5
+        paint.strokeWidth = if (focused) (height * .002f).coerceAtLeast(2f) else (height * .0008f).coerceAtLeast(1f)
+        paint.color = if (focused) 0xFF83DFFF.toInt() else 0x26FFFFFF
         c.drawRoundRect(rect, radius, radius, paint)
         paint.style = Paint.Style.FILL
-        val accent = RectF(rect.left + rect.width() * .025f, rect.top + rect.height() * .22f,
-            rect.left + rect.width() * .032f, rect.bottom - rect.height() * .22f)
-        paint.color = if (focused) 0xFF65D9FF.toInt() else 0x665E9ACB
-        c.drawRoundRect(accent, accent.width(), accent.width(), paint)
-        val left = rect.left + rect.width() * .075f
-        val maxWidth = rect.width() * .79f
-        val titleSize = (rect.height() * .235f).coerceAtLeast(height * .017f)
-        val detailSize = (rect.height() * .145f).coerceAtLeast(height * .011f)
-        text(c, heading, left, rect.top + rect.height() * .40f, titleSize,
-            if (focused) -1 else 0xFFF0F6FF.toInt(), true)
+        if (focused) drawFocusChase(c, rect, radius)
+        val left = rect.left + rect.width() * .055f
+        val maxWidth = rect.width() * .82f
+        val titleSize = (rect.height() * .22f).coerceAtLeast(height * .016f)
+        val detailSize = (rect.height() * .135f).coerceAtLeast(height * .0105f)
+        text(c, heading, left, rect.top + rect.height() * .43f, titleSize, if (focused) -1 else 0xFFF0F6FF.toInt(), true)
         paint.textSize = detailSize
         paint.typeface = Typeface.create("sans-serif", Typeface.NORMAL)
         val lines = mutableListOf<String>()
         var remaining = detail.replace("\\n", " ")
-        val maxLines = if (rect.height() > height * .18f) 3 else 1
+        val maxLines = if (rect.height() > height * .18f) 2 else 1
         while (remaining.isNotEmpty() && lines.size < maxLines) {
             val count = paint.breakText(remaining, true, maxWidth, null).coerceAtLeast(1)
             lines.add(remaining.substring(0, count))
             remaining = remaining.substring(count).trimStart()
         }
-        val lineHeight = detailSize * 1.38f
-        val firstBaseline = if (lines.size > 1) rect.top + rect.height() * .65f
-            else rect.top + rect.height() * .75f
-        lines.forEachIndexed { index, line ->
-            text(c, line, left, firstBaseline + index * lineHeight, detailSize,
-                if (focused) 0xFFDDF5FF.toInt() else 0xFFAFC4DA.toInt())
-        }
+        val lineHeight = detailSize * 1.35f
+        val firstBaseline = if (lines.size > 1) rect.top + rect.height() * .66f else rect.top + rect.height() * .76f
+        lines.forEachIndexed { index, line -> text(c, line, left, firstBaseline + index * lineHeight, detailSize, if (focused) 0xFFDDF5FF.toInt() else 0xFF9FB6CC.toInt()) }
         if (rect.width() > width * .18f) {
-            text(c, "›", rect.right - rect.width() * .065f, rect.centerY() + rect.height() * .12f,
-                rect.height() * .34f, if (focused) 0xFF8BE7FF.toInt() else 0xFF6F94B7.toInt(), true)
+            val cx = rect.right - rect.width() * .055f
+            text(c, "›", cx, rect.centerY() + rect.height() * .10f, rect.height() * .28f, if (focused) 0xFFB5EDFF.toInt() else 0x668AA9C5, true)
         }
     }
+    private fun drawIconScaleSlider(c: Canvas, bounds: RectF, focused: Boolean) {
+        val rect = if (focused) scaledFocusRect(bounds) else RectF(bounds); val radius = (height * .018f).coerceAtLeast(10f)
+        paint.style = Paint.Style.FILL; paint.color = if (focused) 0xE52A78B5.toInt() else 0x12FFFFFF; c.drawRoundRect(rect, radius, radius, paint)
+        paint.style = Paint.Style.STROKE; paint.strokeWidth = if (focused) (height * .002f).coerceAtLeast(2f) else 1f; paint.color = if (focused) 0xFF83DFFF.toInt() else 0x26FFFFFF; c.drawRoundRect(rect, radius, radius, paint)
+        paint.style = Paint.Style.FILL; if (focused) drawFocusChase(c, rect, radius)
+        val cy = rect.centerY(); text(c, "A−", rect.left + rect.width() * .09f, cy + rect.height() * .10f, rect.height() * .28f, 0xFFBFEFFF.toInt(), true)
+        text(c, "A+", rect.right - rect.width() * .09f, cy + rect.height() * .10f, rect.height() * .28f, 0xFFBFEFFF.toInt(), true)
+        val left = rect.left + rect.width() * .22f; val right = rect.right - rect.width() * .22f; val track = RectF(left, cy - rect.height() * .025f, right, cy + rect.height() * .025f)
+        paint.color = 0x665B7892; c.drawRoundRect(track, track.height(), track.height(), paint)
+        val fraction = ((homeIconScale - .65f) / .95f).coerceIn(0f, 1f); paint.color = 0xFF31B9F2.toInt()
+        c.drawRoundRect(RectF(track.left, track.top, track.left + track.width() * fraction, track.bottom), track.height(), track.height(), paint)
+        paint.color = -1; c.drawCircle(track.left + track.width() * fraction, cy, rect.height() * .105f, paint)
+        text(c, "${(homeIconScale * 100).toInt()}%", rect.centerX(), rect.bottom - rect.height() * .08f, rect.height() * .13f, 0xFF8CEBFF.toInt(), true)
+    }
+    private fun drawGridChoice(c: Canvas, bounds: RectF, count: Int, selected: Boolean, focused: Boolean, label: String) {
+        val rect = if (focused) scaledFocusRect(bounds) else RectF(bounds); val radius = (height * .018f).coerceAtLeast(10f)
+        paint.style = Paint.Style.FILL; paint.color = if (focused) 0xE52A78B5.toInt() else if (selected) 0x3358A4D4 else 0x12FFFFFF; c.drawRoundRect(rect, radius, radius, paint)
+        paint.style = Paint.Style.STROKE; paint.strokeWidth = if (focused) (height * .002f).coerceAtLeast(2f) else 1f; paint.color = if (focused || selected) 0xFF83DFFF.toInt() else 0x26FFFFFF; c.drawRoundRect(rect, radius, radius, paint)
+        paint.style = Paint.Style.FILL; if (focused) drawFocusChase(c, rect, radius)
+        val cols = if (label.contains("列")) count else minOf(count, 4); val rows = if (label.contains("行")) count else 2
+        val gap = rect.width() * .035f; val cellW = (rect.width() * .56f - gap * (cols - 1)) / cols; val cellH = (rect.height() * .36f - gap * (rows - 1)) / rows
+        val totalW = cols * cellW + (cols - 1) * gap; val startX = rect.centerX() - totalW / 2f; val startY = rect.top + rect.height() * .12f
+        paint.style = Paint.Style.STROKE; paint.strokeWidth = (height * .0012f).coerceAtLeast(1f); paint.color = if (selected) 0xFF8CEBFF.toInt() else 0xFF91AFC8.toInt()
+        for (row in 0 until rows) for (col in 0 until cols) { val cell = RectF(startX + col * (cellW + gap), startY + row * (cellH + gap), startX + col * (cellW + gap) + cellW, startY + row * (cellH + gap) + cellH); if (selected) { paint.style = Paint.Style.FILL; paint.color = 0xFF64BDE9.toInt(); c.drawRoundRect(cell, 3f, 3f, paint); paint.style = Paint.Style.STROKE; paint.color = 0xFF8CEBFF.toInt() }; c.drawRoundRect(cell, 3f, 3f, paint) }
+        paint.style = Paint.Style.FILL; text(c, label, rect.centerX(), rect.bottom - rect.height() * .12f, rect.height() * .19f, if (selected) 0xFF8CEBFF.toInt() else 0xFFE2EDF7.toInt(), true)
+    }
+    private fun drawSwitchCard(c: Canvas, bounds: RectF, label: String, enabled: Boolean, focused: Boolean) {
+        val rect = if (focused) scaledFocusRect(bounds) else RectF(bounds); val radius = (height * .018f).coerceAtLeast(10f)
+        paint.style = Paint.Style.FILL; paint.color = if (focused) 0xE52A78B5.toInt() else 0x12FFFFFF; c.drawRoundRect(rect, radius, radius, paint)
+        paint.style = Paint.Style.STROKE; paint.strokeWidth = if (focused) (height * .002f).coerceAtLeast(2f) else 1f; paint.color = if (focused) 0xFF83DFFF.toInt() else 0x26FFFFFF; c.drawRoundRect(rect, radius, radius, paint)
+        paint.style = Paint.Style.FILL; if (focused) drawFocusChase(c, rect, radius)
+        text(c, label, rect.left + rect.width() * .07f, rect.centerY() + rect.height() * .07f, rect.height() * .22f, if (focused) -1 else 0xFFE5EEF8.toInt(), true)
+        val sw = RectF(rect.right - rect.width() * .27f, rect.centerY() - rect.height() * .17f, rect.right - rect.width() * .07f, rect.centerY() + rect.height() * .17f)
+        paint.color = if (enabled) 0xFF218CCB.toInt() else 0xFF53677B.toInt(); c.drawRoundRect(sw, sw.height(), sw.height(), paint); paint.color = -1
+        c.drawCircle(if (enabled) sw.right - sw.height() * .5f else sw.left + sw.height() * .5f, sw.centerY(), sw.height() * .39f, paint)
+    }
+    private fun drawSymbolTile(c: Canvas, bounds: RectF, title: String, detail: String, symbol: String) {
+        val rect = RectF(bounds)
+        paint.style = Paint.Style.FILL
+        paint.color = 0xC21A3554.toInt()
+        c.drawRoundRect(rect, rect.height() * .14f, rect.height() * .14f, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 1f
+        paint.color = 0x44FFFFFF
+        c.drawRoundRect(rect, rect.height() * .14f, rect.height() * .14f, paint)
+        paint.style = Paint.Style.FILL
+        text(c, symbol, rect.centerX(), rect.top + rect.height() * .48f,
+            rect.height() * .38f, 0xFF8CEBFF.toInt(), true)
+        text(c, title, rect.centerX(), rect.top + rect.height() * .76f,
+            rect.height() * .16f, -1, true)
+        if (detail.isNotBlank()) text(c, detail, rect.centerX(), rect.top + rect.height() * .90f,
+            rect.height() * .105f, 0xFFB5C7D8.toInt())
+    }
 
+    /**
+     * Informational TV tile: icon, title and supporting text share a left edge.
+     * The compact centered-poster treatment was too small at sofa distance.
+     */
+    private fun drawCompactFeatureTile(c: Canvas, bounds: RectF, title: String, detail: String, symbol: String) {
+        val rect = RectF(bounds); val radius = (height * .018f).coerceAtLeast(10f)
+        paint.style = Paint.Style.FILL; paint.color = 0x12FFFFFF; c.drawRoundRect(rect, radius, radius, paint)
+        paint.style = Paint.Style.STROKE; paint.strokeWidth = (height * .0008f).coerceAtLeast(1f); paint.color = 0x26FFFFFF; c.drawRoundRect(rect, radius, radius, paint)
+        paint.style = Paint.Style.FILL; paint.textAlign = Paint.Align.LEFT
+        val compact = rect.height() < height * .17f; val iconSize = minOf(rect.height() * if (compact) .24f else .21f, rect.width() * .16f)
+        val iconX = rect.left + rect.width() * .075f; val textX = rect.left + rect.width() * .25f
+        val titleSize = minOf(rect.height() * if (compact) .18f else .15f, rect.width() * .08f).coerceAtLeast(height * .017f)
+        val detailSize = minOf(rect.height() * if (compact) .12f else .105f, rect.width() * .06f).coerceAtLeast(height * .011f)
+        text(c, symbol, iconX, rect.centerY() + iconSize * .34f, iconSize, 0xFF8CEBFF.toInt(), true)
+        text(c, title, textX, rect.centerY() - rect.height() * .015f, titleSize, 0xFFF2F7FF.toInt(), true)
+        text(c, detail, textX, rect.centerY() + rect.height() * .24f, detailSize, 0xFF9FB6CC.toInt())
+    }
+    private fun drawSettingsSectionLabel(c: Canvas, label: String, x: Float, y: Float, w: Float) {
+        text(c, label, x, y, height * .013f, 0xFF9ABBD7.toInt(), true); paint.style = Paint.Style.FILL; paint.color = 0x267DAED2
+        c.drawRect(x, y + height * .012f, x + w, y + height * .0130f, paint)
+    }
+    private fun drawSettingsMetaTile(c: Canvas, bounds: RectF, title: String, detail: String) {
+        val radius = (height * .018f).coerceAtLeast(10f)
+        paint.style = Paint.Style.FILL
+        paint.color = 0x0DFFFFFF
+        c.drawRoundRect(bounds, radius, radius, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = (height * .0008f).coerceAtLeast(1f)
+        paint.color = 0x26FFFFFF
+        c.drawRoundRect(bounds, radius, radius, paint)
+        paint.style = Paint.Style.FILL
+        text(c, title, bounds.left + bounds.width() * .07f, bounds.top + bounds.height() * .40f, bounds.height() * .21f, 0xFFEAF5FF.toInt(), true)
+        text(c, detail, bounds.left + bounds.width() * .07f, bounds.top + bounds.height() * .73f, bounds.height() * .13f, 0xFF9FBBD3.toInt())
+    }
     private fun drawLauncherSettings(c: Canvas, w: Float, h: Float) {
         val category = if (settingsFocus in 30..36) settingsFocus - 30
             else settingsCategoryForControl(settingsFocus) ?: 0
         val contentSave = c.save()
         c.translate(w * .18f, 0f)
         c.scale(.80f, 1f)
-        paint.color = 0xE9081A31.toInt()
-        c.drawRoundRect(RectF(w * .08f, h * .14f, w * .92f, h * .97f), h * .025f, h * .025f, paint)
+        val panel = RectF(w * .08f, h * .14f, w * .92f, h * .97f)
+        paint.style = Paint.Style.FILL
+        paint.shader = LinearGradient(panel.left, panel.top, panel.right, panel.bottom,
+            intArrayOf(0xF0142B48.toInt(), 0xF00B1D34.toInt(), 0xF009172A.toInt()),
+            null, Shader.TileMode.CLAMP)
+        c.drawRoundRect(panel, h * .025f, h * .025f, paint)
+        paint.shader = null
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = (h * .0012f).coerceAtLeast(1f)
-        paint.color = 0x334E91C7
-        c.drawRoundRect(RectF(w * .08f, h * .14f, w * .92f, h * .97f), h * .025f, h * .025f, paint)
+        paint.color = 0x445E9BCB
+        c.drawRoundRect(panel, h * .025f, h * .025f, paint)
         paint.style = Paint.Style.FILL
+        paint.color = 0x5548B8EA
+        c.drawRect(panel.left + w * .035f, panel.top + h * .018f,
+            panel.right - w * .035f, panel.top + h * .020f, paint)
 
         val headings = listOf("桌面布局", "外观与壁纸", "应用管理", "桌面组件",
             "遥控器与操作", "小李全联", "电视系统设置")
         val descriptions = listOf(
-            "调整首页图标尺寸与应用抽屉网格",
-            "选择壁纸、动态背景或恢复默认背景",
-            "管理首页最多五个常用应用",
-            "设置时间日期显示，并编辑组件位置与大小",
-            "查看遥控器操作方式并设置默认主屏幕",
-            "打开内置局域网文件传输中心",
-            "打开 Android 电视系统设置"
+            "控制首页图标比例与应用抽屉网格密度",
+            "管理静态壁纸、动态背景与壁纸来源",
+            "整理首页常用应用，控制桌面入口",
+            "调整时间、日期显示与组件布局",
+            "设置默认主屏幕，查看遥控器操作方式",
+            "进入独立的局域网文件传输应用",
+            "打开 Android TV 系统级配置"
         )
-        text(c, headings[category], w * .13f, h * .225f, h * .04f, -1, true)
-        text(c, descriptions[category], w * .13f, h * .258f, h * .019f, 0xFFDDEEFF.toInt())
+        val categoryEyebrows = listOf("LAYOUT & GRID", "LOOK & FEEL", "APP SHORTCUTS",
+            "HOME WIDGETS", "REMOTE CONTROL", "FILE TRANSFER", "ANDROID TV")
+        text(c, categoryEyebrows[category], w * .13f, h * .190f,
+            h * .012f, 0xFF79B7DE.toInt(), true)
+        text(c, "%02d  /  07".format(category + 1), w * .82f, h * .190f,
+            h * .012f, 0xFF78A7CA.toInt(), true)
+        text(c, headings[category], w * .13f, h * .235f, h * .041f, -1, true)
+        text(c, descriptions[category], w * .13f, h * .267f, h * .018f, 0xFFB4CBE0.toInt())
 
         when (category) {
             0 -> {
-                drawSettingCard(c, RectF(w * .13f, h * .32f, w * .87f, h * .45f),
-                    "应用图标大小：${(homeIconScale * 100).toInt()}%",
-                    "桌面与应用抽屉使用同一缩放比例 · 点击调整", settingsFocus == 8)
-                text(c, "应用抽屉列数", w * .13f, h * .515f, h * .022f, 0xFFDDEEFF.toInt(), true)
+                drawSettingsSectionLabel(c, "桌面图标", w * .13f, h * .310f, w * .74f)
+                drawIconScaleSlider(c, RectF(w * .13f, h * .32f, w * .87f, h * .45f),
+                    settingsFocus == 8)
+                drawSettingsSectionLabel(c, "应用抽屉列数", w * .13f, h * .475f, w * .74f)
                 for (i in 0..2) {
-                    val rect = RectF(w * (.13f + i * .105f), h * .54f,
-                        w * (.13f + i * .105f) + w * .095f, h * .63f)
-                    drawSettingCard(c, rect, "${i + 4}列",
-                        if (drawerColumns() == i + 4) "当前" else "选择", settingsFocus == i)
+                    val rect = SettingsLayout.drawerGridOptionBounds(i, 0, w, h)
+                    drawGridChoice(c, rect, i + 4, drawerColumns() == i + 4,
+                        settingsFocus == i, "${i + 4} 列")
                 }
-                text(c, "应用抽屉行数", w * .13f, h * .685f, h * .022f, 0xFFDDEEFF.toInt(), true)
+                drawSettingsSectionLabel(c, "应用抽屉行数", w * .13f, h * .68f, w * .74f)
                 for (i in 0..2) {
-                    val rect = RectF(w * (.13f + i * .105f), h * .71f,
-                        w * (.13f + i * .105f) + w * .095f, h * .80f)
-                    drawSettingCard(c, rect, "${i + 2}行",
-                        if (drawerRows() == i + 2) "当前" else "选择", settingsFocus == i + 17)
+                    val rect = SettingsLayout.drawerGridOptionBounds(i, 1, w, h)
+                    drawGridChoice(c, rect, i + 2, drawerRows() == i + 2,
+                        settingsFocus == i + 17, "${i + 2} 行")
                 }
-                drawSettingCard(c, RectF(w * .13f, h * .82f, w * .62f, h * .92f),
-                    "恢复五个桌面图标默认位置", "保留当前应用和顺序，只恢复预设位置", settingsFocus == 23)
+                drawSettingCard(c, RectF(w * .13f, h * .88f, w * .60f, h * .945f),
+                    "恢复桌面图标位置", "只恢复五个常用应用的位置，不改变应用顺序",
+                    settingsFocus == 23)
             }
             1 -> {
-                drawSettingCard(c, RectF(w * .13f, h * .36f, w * .35f, h * .51f),
-                    "选择壁纸", "从图片中选择", settingsFocus == 3)
-                drawSettingCard(c, RectF(w * .38f, h * .36f, w * .62f, h * .51f),
-                    if (dynamicWallpaperEnabled) "动态壁纸：开" else "动态壁纸：关",
-                    "切换动态光效背景", settingsFocus == 4)
-                drawSettingCard(c, RectF(w * .65f, h * .36f, w * .87f, h * .51f),
-                    "恢复默认", "移除自定义图片", settingsFocus == 5)
-                drawWallpaperPreview(c, RectF(w * .13f, h * .57f, w * .87f, h * .84f))
-                drawSettingCard(c, RectF(w * .13f, h * .865f, w * .62f, h * .945f),
-                    "从手机接收壁纸", "通过小李全联局域网传输，无需扫码", settingsFocus == 24)
+                drawSettingsSectionLabel(c, "壁纸与背景效果", w * .13f, h * .335f, w * .74f)
+                drawWallpaperPreview(c, RectF(w * .13f, h * .37f, w * .485f, h * .59f))
+                drawSettingCard(c, RectF(w * .515f, h * .37f, w * .87f, h * .59f),
+                    "选择壁纸", "从设备图片中选择", settingsFocus == 3)
+                drawSettingCard(c, RectF(w * .13f, h * .62f, w * .485f, h * .80f),
+                    if (dynamicWallpaperEnabled) "动态背景 · 开启" else "动态背景 · 关闭",
+                    "切换动态光效", settingsFocus == 4)
+                drawSettingCard(c, RectF(w * .515f, h * .62f, w * .87f, h * .80f),
+                    "恢复默认壁纸", "移除自定义图片", settingsFocus == 5)
+                drawSettingCard(c, RectF(w * .13f, h * .835f, w * .485f, h * .945f),
+                    "从手机接收壁纸", "通过小李全联接收图片", settingsFocus == 24)
             }
             2 -> {
-                drawSettingCard(c, RectF(w * .13f, h * .39f, w * .87f, h * .64f),
-                    "管理桌面应用", "从应用抽屉选择、固定或移除首页常用应用（最多五个）",
-                    settingsFocus == 21)
+                drawSettingsSectionLabel(c, "首页常用应用", w * .13f, h * .335f, w * .74f)
+                val slots = favorites.take(5)
+                val gapX = w * .03f
+                val gapY = h * .012f
+                val tileW = (w * .74f - gapX) / 2f
+                val tileH = h * .125f
+                for (i in 0..4) {
+                    val col = i % 2
+                    val row = i / 2
+                    val left = w * .13f + col * (tileW + gapX)
+                    val top = h * .365f + row * (tileH + gapY)
+                    val rect = RectF(left, top, left + tileW, top + tileH)
+                    paint.style = Paint.Style.FILL
+                    paint.shader = LinearGradient(rect.left, rect.top, rect.left, rect.bottom,
+                        intArrayOf(0xD3224565.toInt(), 0xC6112B46.toInt()), null, Shader.TileMode.CLAMP)
+                    c.drawRoundRect(rect, h * .014f, h * .014f, paint)
+                    paint.shader = null
+                    paint.style = Paint.Style.STROKE
+                    paint.strokeWidth = 1f
+                    paint.color = 0x554F86B1
+                    c.drawRoundRect(rect, h * .014f, h * .014f, paint)
+                    paint.style = Paint.Style.FILL
+                    val entry = slots.getOrNull(i)
+                    val app = entry?.let { item -> apps.firstOrNull { it.packageName == item.packageName } }
+                    if (app != null) runCatching {
+                        val drawable = context.packageManager.getApplicationIcon(app.packageName)
+                        val iconSize = h * .064f
+                        drawable.setBounds((rect.left + rect.width() * .12f).toInt(),
+                            (rect.centerY() - iconSize / 2f).toInt(),
+                            (rect.left + rect.width() * .12f + iconSize).toInt(),
+                            (rect.centerY() + iconSize / 2f).toInt())
+                        drawable.draw(c)
+                    }
+                    text(c, app?.label ?: "添加应用", rect.left + rect.width() * .27f,
+                        rect.centerY() + h * .006f, h * .015f, 0xFFE8F2FC.toInt(), true)
+                }
+                drawSettingsMetaTile(c, RectF(w * .13f, h * .785f, w * .485f, h * .86f),
+                    "最多五个", "首页快捷入口")
+                drawSettingsMetaTile(c, RectF(w * .515f, h * .785f, w * .87f, h * .86f),
+                    "应用抽屉", "选择已安装应用")
+                drawSettingCard(c, RectF(w * .13f, h * .875f, w * .60f, h * .945f),
+                    "管理桌面应用", "编辑首页入口", settingsFocus == 21)
             }
             3 -> {
-                val labels = listOf(if (showClock) "时间：开" else "时间：关",
-                    if (showDate) "日期：开" else "日期：关",
-                    if (use24HourClock) "24小时制" else "12小时制",
+                drawSettingsSectionLabel(c, "时间与日期显示", w * .13f, h * .315f, w * .74f)
+                val labels = listOf(if (showClock) "时间" else "时间",
+                    if (showDate) "日期" else "日期",
+                    if (use24HourClock) "24 小时制" else "12 小时制",
                     if (showClockSeconds) "显示秒数" else "隐藏秒数")
+                val states = listOf(showClock, showDate, use24HourClock, showClockSeconds)
                 val ids = listOf(9, 10, 15, 16)
-                val gap = w * .012f
-                val cardW = (w * .74f - gap * 3f) / 4f
-                for (i in 0..3) {
-                    val left = w * .13f + i * (cardW + gap)
-                    drawSettingCard(c, RectF(left, h * .34f, left + cardW, h * .49f),
-                        labels[i], "点击切换", settingsFocus == ids[i])
-                }
-                drawSettingCard(c, RectF(w * .13f, h * .60f, w * .87f, h * .75f),
-                    "组件布局编辑", "拖动时间日期整体位置 · 调整组件大小 · 遥控器方向键微调",
+                val switchRects = listOf(
+                    RectF(w * .13f, h * .35f, w * .485f, h * .475f),
+                    RectF(w * .515f, h * .35f, w * .87f, h * .475f),
+                    RectF(w * .13f, h * .495f, w * .485f, h * .62f),
+                    RectF(w * .515f, h * .495f, w * .87f, h * .62f)
+                )
+                for (i in 0..3) drawSwitchCard(c, switchRects[i],
+                    labels[i], states[i], settingsFocus == ids[i])
+                drawSettingsSectionLabel(c, "组件位置与尺寸", w * .13f, h * .675f, w * .74f)
+                drawSettingCard(c, RectF(w * .13f, h * .705f, w * .87f, h * .825f),
+                    "编辑桌面组件", "拖动调整时间日期整体位置 · 方向键微调 · 音量键调整大小",
                     settingsFocus == 22)
+                drawSettingsMetaTile(c, RectF(w * .13f, h * .84f, w * .60f, h * .925f),
+                    "时间 / 日期 · 位置与尺寸", "可独立控制显示，并调整桌面组件位置和大小")
             }
             4 -> {
-                drawSettingCard(c, RectF(w * .13f, h * .39f, w * .87f, h * .64f),
-                    if (isDefaultHomeLauncher()) "小李桌面已设为电视默认主屏幕" else "设为电视默认主屏幕",
-                    "设为默认后，按遥控器 Home 键直接进入小李桌面；除非更改默认桌面，否则持续生效。\n遥控器：上键进入顶部快捷区，再按上键打开应用抽屉 · 长按菜单进入应用管理 · 长按 OK 打开应用操作菜单",
+                drawSettingsSectionLabel(c, "默认主屏幕", w * .13f, h * .335f, w * .74f)
+                drawSettingCard(c, RectF(w * .13f, h * .36f, w * .87f, h * .59f),
+                    if (isDefaultHomeLauncher()) "小李桌面 · 当前默认主屏幕" else "设为默认主屏幕",
+                    "按遥控器 Home 键时进入小李桌面；默认应用由 Android 系统管理。",
                     settingsFocus == 14)
+                drawSettingsSectionLabel(c, "遥控器快捷操作", w * .13f, h * .655f, w * .74f)
+                val remoteTileW = (w * .74f - w * .025f) / 2f
+                drawCompactFeatureTile(c, RectF(w * .13f, h * .68f,
+                    w * .13f + remoteTileW, h * .805f), "打开应用抽屉", "按遥控器下键", "↓")
+                drawCompactFeatureTile(c, RectF(w * .13f + remoteTileW + w * .025f, h * .68f,
+                    w * .87f, h * .805f), "应用操作菜单", "长按 OK 键", "OK")
+                drawCompactFeatureTile(c, RectF(w * .13f, h * .825f,
+                    w * .13f + remoteTileW, h * .95f), "打开控制中心", "按遥控器菜单键", "☰")
+                drawCompactFeatureTile(c, RectF(w * .13f + remoteTileW + w * .025f, h * .825f,
+                    w * .87f, h * .95f), "退出设置", "按返回键关闭当前页面", "↩")
             }
             5 -> {
-                drawSettingCard(c, RectF(w * .13f, h * .39f, w * .87f, h * .64f),
-                    "打开小李全联", "发送 · 接收 · 附近设备 · 传输历史", settingsFocus == 6)
+                drawSettingsSectionLabel(c, "小李全联 · 应用下载与功能", w * .13f, h * .335f, w * .74f)
+                val qrPanel = RectF(w * .13f, h * .36f, w * .37f, h * .84f)
+                paint.color = 0xD91A3554.toInt()
+                c.drawRoundRect(qrPanel, h * .018f, h * .018f, paint)
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 1f
+                paint.color = 0x55FFFFFF
+                c.drawRoundRect(qrPanel, h * .018f, h * .018f, paint)
+                paint.style = Paint.Style.FILL
+                paint.textAlign = Paint.Align.CENTER
+                text(c, "小李全联 · 手机安装", qrPanel.centerX(), qrPanel.top + h * .055f,
+                    h * .024f, 0xFFF7FAFF.toInt(), true)
+                text(c, "使用微信长按识别二维码，进入百度网盘获取安装包",
+                    qrPanel.centerX(), qrPanel.top + h * .092f,
+                    h * .0115f, 0xFFB9C7D8.toInt())
+                val qrSize = minOf(h * .285f, w * .19f)
+                val qrRect = RectF(qrPanel.centerX() - qrSize / 2f, qrPanel.top + h * .125f,
+                    qrPanel.centerX() + qrSize / 2f, qrPanel.top + h * .125f + qrSize)
+                paint.color = android.graphics.Color.WHITE
+                c.drawRoundRect(qrRect, h * .012f, h * .012f, paint)
+                quanLianDownloadQrBitmap?.let { bitmap ->
+                    // Keep the source QR perfectly square and preserve its built-in quiet zone.
+                    paint.isFilterBitmap = false
+                    c.drawBitmap(bitmap, null, qrRect, paint)
+                    paint.isFilterBitmap = true
+                }
+                text(c, "链接下载密码：1234", qrPanel.centerX(), qrRect.bottom + h * .052f,
+                    h * .018f, 0xFFF7FAFF.toInt(), true)
+                text(c, "百度网盘分享 · 无需跳转 GitHub", qrPanel.centerX(),
+                    qrRect.bottom + h * .086f, h * .0125f, 0xFF9AA9BC.toInt())
+                paint.textAlign = Paint.Align.LEFT
+                val left = w * .40f
+                val gap = w * .014f
+                val tileW = (w * .47f - gap) / 2f
+                drawCompactFeatureTile(c, RectF(left, h * .405f, left + tileW, h * .535f),
+                    "文件发送", "进入应用后使用", "↑")
+                drawCompactFeatureTile(c, RectF(left + tileW + gap, h * .405f,
+                    w * .87f, h * .535f), "文件接收", "进入应用后使用", "↓")
+                drawCompactFeatureTile(c, RectF(left, h * .555f, left + tileW, h * .685f),
+                    "传输记录", "在应用内查看", "◷")
+                drawSettingCard(c, RectF(left + tileW + gap, h * .555f, w * .87f, h * .685f),
+                    "打开小李全联", "进入文件传输应用", settingsFocus == 6)
             }
             6 -> {
-                drawSettingCard(c, RectF(w * .13f, h * .39f, w * .87f, h * .64f),
-                    "打开 Android 系统设置", "网络、显示、设备偏好和系统管理", settingsFocus == 7)
+                drawSettingsSectionLabel(c, "电视系统入口说明", w * .13f, h * .335f, w * .74f)
+                drawCompactFeatureTile(c, RectF(w * .13f, h * .385f, w * .485f, h * .565f),
+                    "网络连接", "在电视系统中管理", "⌁")
+                drawCompactFeatureTile(c, RectF(w * .515f, h * .385f, w * .87f, h * .565f),
+                    "显示设置", "在电视系统中调整", "☼")
+                drawCompactFeatureTile(c, RectF(w * .13f, h * .59f, w * .485f, h * .77f),
+                    "设备偏好", "查看系统设备选项", "⚙")
+                drawSettingCard(c, RectF(w * .515f, h * .59f, w * .87f, h * .77f),
+                    "打开系统设置", "进入 Android TV 完整设置", settingsFocus == 7)
+                drawSettingsSectionLabel(c, "系统设置说明", w * .13f, h * .845f, w * .74f)
+                text(c, "网络、显示与设备选项由电视系统提供，具体项目以当前电视型号为准。",
+                    w * .13f, h * .895f, h * .017f, 0xFFB4CBE0.toInt())
             }
         }
+
         drawSettingCard(c, RectF(w * .665f, h * .865f, w * .87f, h * .945f),
             "返回", "关闭设置中心", settingsFocus == 13)
         c.restoreToCount(contentSave)
@@ -2851,10 +3228,180 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun drawerItemIndexAt(x: Float, y: Float): Int =
-        drawerMetrics().indexAt(x, y, drawerScrollRow, apps.size)
+        drawerMetrics().indexAt(x, y, drawerScrollVisualRow, apps.size)
+
+    /** Aerial-style direct manipulation + native spline fling for the app drawer. */
+    private fun handleDrawerTouchScroll(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                drawerTouchEligible = isDrawerOpen && event.x in drawerMetrics().gridLeft..drawerMetrics().gridRight &&
+                    event.y in drawerMetrics().contentTop..drawerMetrics().contentBottom
+                drawerTouchScrolling = false
+                if (drawerTouchEligible) {
+                    drawerFlingScroller.abortAnimation()
+                    drawerScrollAnimator?.cancel()
+                    drawerTouchDownY = event.y
+                    drawerTouchStartVisualRow = drawerScrollVisualRow
+                    drawerTouchTracker?.recycle()
+                    drawerTouchTracker = VelocityTracker.obtain().also { it.addMovement(event) }
+                }
+            }
+            MotionEvent.ACTION_MOVE -> if (drawerTouchEligible) {
+                drawerTouchTracker?.addMovement(event)
+                val dy = event.y - drawerTouchDownY
+                if (!drawerTouchScrolling && kotlin.math.abs(dy) > drawerTouchSlop) {
+                    drawerTouchScrolling = true
+                }
+                if (drawerTouchScrolling) {
+                    val metrics = drawerMetrics()
+                    val maxRow = metrics.maxScroll(apps.size).toFloat()
+                    drawerScrollVisualRow = (drawerTouchStartVisualRow - dy / metrics.cellHeight)
+                        .coerceIn(0f, maxRow)
+                    drawerScrollRow = drawerScrollVisualRow.toInt().coerceIn(0, metrics.maxScroll(apps.size))
+                    invalidate()
+                    return true
+                }
+            }
+            MotionEvent.ACTION_UP -> if (drawerTouchEligible) {
+                drawerTouchTracker?.addMovement(event)
+                if (drawerTouchScrolling) {
+                    val metrics = drawerMetrics()
+                    drawerTouchTracker?.computeCurrentVelocity(1000)
+                    val velocityY = drawerTouchTracker?.yVelocity ?: 0f
+                    val maxY = (metrics.maxScroll(apps.size) * metrics.cellHeight).toInt().coerceAtLeast(0)
+                    drawerFlingScroller.fling(0, (drawerScrollVisualRow * metrics.cellHeight).toInt(),
+                        0, -velocityY.toInt(), 0, 0, 0, maxY)
+                    postInvalidateOnAnimation()
+                    finishDrawerTouchTracking()
+                    return true
+                }
+                finishDrawerTouchTracking()
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                val wasScrolling = drawerTouchScrolling
+                finishDrawerTouchTracking()
+                return wasScrolling
+            }
+        }
+        return false
+    }
+
+    private fun finishDrawerTouchTracking() {
+        drawerTouchTracker?.recycle()
+        drawerTouchTracker = null
+        drawerTouchEligible = false
+        drawerTouchScrolling = false
+    }
+
+    override fun computeScroll() {
+        super.computeScroll()
+        if (drawerFlingScroller.computeScrollOffset()) {
+            val metrics = drawerMetrics()
+            drawerScrollVisualRow = (drawerFlingScroller.currY / metrics.cellHeight)
+                .coerceIn(0f, metrics.maxScroll(apps.size).toFloat())
+            drawerScrollRow = drawerScrollVisualRow.toInt()
+            postInvalidateOnAnimation()
+        }
+    }
+
+    private fun updateControlSliderFromTouch(x: Float) {
+        val panelLeft = width * .60f
+        val panelWidth = width * .375f
+        val fraction = ((x - (panelLeft + panelWidth * .10f)) / (panelWidth * .80f)).coerceIn(0f, 1f)
+        if (controlCenterPage == 2) {
+            if (!isControlVolumeFixed()) {
+                val max = volumeLevel().second
+                val target = (fraction * max).toInt().coerceIn(0, max)
+                runCatching { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0) }
+            }
+        } else if (hisenseLaserLevel() != null) {
+            setHisenseLaserLevel((fraction * 10f).toInt().coerceIn(0, 10))
+        } else if (xgimiBrightnessLevel() != null) {
+            setXgimiBrightnessLevel((fraction * 10f).toInt().coerceIn(1, 10))
+        } else if (isPlaybackDevice() || hasVendorBrightnessBackend() ||
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context)) {
+            adjustControlBrightness(0)
+        } else {
+            val target = (fraction * 255f).toInt().coerceIn(1, 255)
+            runCatching { setControlBrightnessLevel(target) }
+        }
+        invalidate()
+    }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (handleDrawerTouchScroll(event)) return true
         if (controlCenterOpen) {
+            if (controlCenterPage == 1 || controlCenterPage == 4) {
+                val panelTop = height * .075f
+                val panelBottom = height * .925f
+                val rowPitch = height * .85f * (if (controlCenterPage == 4) .102f else .10f)
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        controlListTouchActive = event.x >= width * .60f &&
+                            event.y in (panelTop + height * .85f * .20f)..(panelBottom - height * .08f)
+                        controlListTouchDragging = false
+                        controlListTouchDownY = event.y
+                        controlListTouchLastY = event.y
+                        controlListTouchTravel = 0f
+                    }
+                    MotionEvent.ACTION_MOVE -> if (controlListTouchActive) {
+                        val dy = event.y - controlListTouchLastY
+                        controlListTouchLastY = event.y
+                        if (!controlListTouchDragging &&
+                            kotlin.math.abs(event.y - controlListTouchDownY) > ViewConfiguration.get(context).scaledTouchSlop) {
+                            controlListTouchDragging = true
+                        }
+                        if (controlListTouchDragging && rowPitch > 0f) {
+                            controlListTouchTravel -= dy
+                            val total = if (controlCenterPage == 1) visibleControlInputs().size else controlInputs.size
+                            val visible = if (controlCenterPage == 1) 6 else 5
+                            while (controlListTouchTravel >= rowPitch) {
+                                controlCenterInputOffset = (controlCenterInputOffset + 1).coerceAtMost((total - visible).coerceAtLeast(0))
+                                controlListTouchTravel -= rowPitch
+                            }
+                            while (controlListTouchTravel <= -rowPitch) {
+                                controlCenterInputOffset = (controlCenterInputOffset - 1).coerceAtLeast(0)
+                                controlListTouchTravel += rowPitch
+                            }
+                            controlCenterFocus = controlCenterFocus.coerceAtMost(
+                                (minOf(visible, (total - controlCenterInputOffset).coerceAtLeast(1)) - 1).coerceAtLeast(0))
+                            invalidate()
+                            return true
+                        }
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        val wasDragging = controlListTouchDragging
+                        controlListTouchActive = false
+                        controlListTouchDragging = false
+                        if (wasDragging) {
+                            if (event.actionMasked == MotionEvent.ACTION_UP) performClick()
+                            return true
+                        }
+                    }
+                }
+            }
+            val sliderTop = height * (.075f + .85f * .43f)
+            val sliderBottom = height * (.075f + .85f * .49f)
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    controlSliderTouchActive = controlCenterPage in 2..3 &&
+                        event.x >= width * .60f && event.y in sliderTop..sliderBottom
+                    if (controlSliderTouchActive) {
+                        updateControlSliderFromTouch(event.x)
+                        return true
+                    }
+                }
+                MotionEvent.ACTION_MOVE -> if (controlSliderTouchActive) {
+                    updateControlSliderFromTouch(event.x)
+                    return true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> if (controlSliderTouchActive) {
+                    if (event.actionMasked == MotionEvent.ACTION_UP) updateControlSliderFromTouch(event.x)
+                    controlSliderTouchActive = false
+                    if (event.actionMasked == MotionEvent.ACTION_UP) performClick()
+                    return true
+                }
+            }
             if (event.actionMasked == MotionEvent.ACTION_UP) {
                 val panelLeft = width * .60f
                 val panelTop = height * .075f
@@ -3061,20 +3608,20 @@ class LauncherView(context: Context) : View(context) {
                     return true
                 }
                 if (actionMenuOpen) {
-                    val count = if (actionMenuSource == "home") 4 else 2
-                    val top = height * (if (actionMenuSource == "home") .20f else .31f)
-                    val bottom = height * (if (actionMenuSource == "home") .80f else .70f)
-                    val rowStart = if (actionMenuSource == "home") .25f else .29f
-                    val rowStep = if (actionMenuSource == "home") .17f else .22f
+                    val isHomeMenu = actionMenuSource == "home"
+                    val count = if (isHomeMenu) 6 else 4
+                    val top = height * (if (isHomeMenu) .12f else .22f)
+                    val bottom = height * (if (isHomeMenu) .88f else .78f)
+                    val rowStart = if (isHomeMenu) .20f else .25f
+                    val rowStep = if (isHomeMenu) .125f else .17f
                     if (event.x in (width * .34f)..(width * .66f) && event.y in top..bottom) {
                         val row = ((event.y - top - (bottom - top) * rowStart) / ((bottom - top) * rowStep)).toInt()
                         actionMenuChoice = row.coerceIn(0, count - 1)
                         runAppAction()
                     } else actionMenuOpen = false
                 } else if (isSettingsOpen) {
-                    if (event.x in (width * .055f)..(width * .225f) &&
-                        event.y >= height * .275f && event.y <= height * .912f) {
-                        val category = ((event.y - height * .275f) / (height * .091f)).toInt().coerceIn(0, 6)
+                    if ((0..6).any { SettingsLayout.categoryBounds(it, width.toFloat(), height.toFloat()).contains(event.x, event.y) }) {
+                        val category = (0..6).first { SettingsLayout.categoryBounds(it, width.toFloat(), height.toFloat()).contains(event.x, event.y) }
                         settingsFocus = 30 + category
                         animateSpatialFocus()
                         invalidate()
@@ -3095,43 +3642,42 @@ class LauncherView(context: Context) : View(context) {
                                     settingsHitX in (width * .13f)..(width * .87f)) {
                                     settingsFocus = 8
                                     cycleHomeIconScale()
-                                } else if (event.y in (height * .54f)..(height * .63f)) {
-                                    val selected = ((settingsHitX - width * .13f) / (width * .105f)).toInt()
-                                    if (selected in 0..2) setDrawerColumns(selected + 4)
-                                } else if (event.y in (height * .71f)..(height * .80f)) {
-                                    val selected = ((settingsHitX - width * .13f) / (width * .105f)).toInt()
-                                    if (selected in 0..2) setDrawerRows(selected + 2)
-                                } else if (event.y in (height * .82f)..(height * .92f) &&
-                                    settingsHitX in (width * .13f)..(width * .62f)) {
+                                } else if ((0..2).any { SettingsLayout.drawerGridOptionBounds(it, 0, width.toFloat(), height.toFloat()).contains(settingsHitX, event.y) }) {
+                                    val selected = (0..2).first { SettingsLayout.drawerGridOptionBounds(it, 0, width.toFloat(), height.toFloat()).contains(settingsHitX, event.y) }
+                                    setDrawerColumns(selected + 4)
+                                } else if ((0..2).any { SettingsLayout.drawerGridOptionBounds(it, 1, width.toFloat(), height.toFloat()).contains(settingsHitX, event.y) }) {
+                                    val selected = (0..2).first { SettingsLayout.drawerGridOptionBounds(it, 1, width.toFloat(), height.toFloat()).contains(settingsHitX, event.y) }
+                                    setDrawerRows(selected + 2)
+                                } else if (event.y in (height * .88f)..(height * .945f) &&
+                                    settingsHitX in (width * .13f)..(width * .60f)) {
                                     settingsFocus = 23
                                     resetHomeIconPositions()
                                 }
                             }
                             1 -> {
-                                if (event.y in (height * .36f)..(height * .51f)) {
-                                    when {
-                                        settingsHitX in (width * .13f)..(width * .35f) -> {
-                                            settingsFocus = 3
-                                            onChooseWallpaper?.invoke()
-                                        }
-                                        settingsHitX in (width * .38f)..(width * .62f) -> {
-                                            settingsFocus = 4
-                                            toggleDynamicWallpaper()
-                                        }
-                                        settingsHitX in (width * .65f)..(width * .87f) -> {
-                                            settingsFocus = 5
-                                            clearWallpaper()
-                                        }
+                                if (event.y in (height * .37f)..(height * .59f) &&
+                                    settingsHitX in (width * .515f)..(width * .87f)) {
+                                    settingsFocus = 3
+                                    onChooseWallpaper?.invoke()
+                                } else if (event.y in (height * .62f)..(height * .80f)) {
+                                    if (settingsHitX in (width * .13f)..(width * .485f)) {
+                                        settingsFocus = 4
+                                        toggleDynamicWallpaper()
+                                    } else if (settingsHitX in (width * .515f)..(width * .87f)) {
+                                        settingsFocus = 5
+                                        clearWallpaper()
                                     }
-                                } else if (event.y in (height * .865f)..(height * .945f) &&
-                                    settingsHitX in (width * .13f)..(width * .62f)) {
+                                } else if (event.y in (height * .835f)..(height * .945f) &&
+                                    settingsHitX in (width * .13f)..(width * .485f)) {
                                     settingsFocus = 24
                                     context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java)
                                         .putExtra(com.xiaoli.quanlian.QuanLianActivity.EXTRA_WALLPAPER_MODE, true))
                                 }
                             }
-                            2 -> if (event.y in (height * .39f)..(height * .64f) &&
-                                settingsHitX in (width * .13f)..(width * .87f)) {
+                            2 -> if ((event.y in (height * .365f)..(height * .765f) &&
+                                settingsHitX in (width * .13f)..(width * .87f)) ||
+                                (event.y in (height * .875f)..(height * .945f) &&
+                                    settingsHitX in (width * .13f)..(width * .60f))) {
                                 settingsFocus = 21
                                 isSettingsOpen = false
                                 isDrawerOpen = true
@@ -3140,18 +3686,19 @@ class LauncherView(context: Context) : View(context) {
                                 resetDrawerScroll()
                             }
                             3 -> {
-                                if (event.y in (height * .34f)..(height * .49f)) {
-                                    val gap = width * .012f
-                                    val cardW = (width * .74f - gap * 3f) / 4f
-                                    val selected = ((settingsHitX - width * .13f) / (cardW + gap)).toInt()
-                                    settingsFocus = listOf(9, 10, 15, 16).getOrNull(selected) ?: settingsFocus
+                                if (event.y in (height * .35f)..(height * .62f) &&
+                                    settingsHitX in (width * .13f)..(width * .87f)) {
+                                    val row = if (event.y < height * .485f) 0 else 1
+                                    val col = if (settingsHitX < width * .50f) 0 else 1
+                                    val selected = row * 2 + col
+                                    settingsFocus = listOf(9, 10, 15, 16)[selected]
                                     when (selected) {
                                         0 -> toggleHomeComponent(9)
                                         1 -> toggleHomeComponent(10)
                                         2 -> { use24HourClock = !use24HourClock; prefs.edit().putBoolean("clock_24_hour", use24HourClock).apply() }
                                         3 -> { showClockSeconds = !showClockSeconds; prefs.edit().putBoolean("clock_seconds", showClockSeconds).apply(); updateClockTick() }
                                     }
-                                } else if (event.y in (height * .60f)..(height * .75f) &&
+                                } else if (event.y in (height * .70f)..(height * .83f) &&
                                     settingsHitX in (width * .13f)..(width * .87f)) {
                                     settingsFocus = 22
                                     isSettingsOpen = false
@@ -3163,13 +3710,13 @@ class LauncherView(context: Context) : View(context) {
                                 settingsFocus = 14
                                 onRequestDefaultHome?.invoke()
                             }
-                            5 -> if (event.y in (height * .39f)..(height * .64f) &&
-                                settingsHitX in (width * .13f)..(width * .87f)) {
+                            5 -> if (event.y in (height * .555f)..(height * .685f) &&
+                                settingsHitX in (width * .642f)..(width * .87f)) {
                                 settingsFocus = 6
                                 context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
                             }
-                            6 -> if (event.y in (height * .39f)..(height * .64f) &&
-                                settingsHitX in (width * .13f)..(width * .87f)) {
+                            6 -> if (event.y in (height * .59f)..(height * .77f) &&
+                                settingsHitX in (width * .515f)..(width * .87f)) {
                                 settingsFocus = 7
                                 runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                             }
@@ -3277,25 +3824,10 @@ class LauncherView(context: Context) : View(context) {
     }
 
     override fun onKeyLongPress(keyCode: Int, event: KeyEvent): Boolean {
-        if (!widgetEditMode && !isSettingsOpen && !isDrawerOpen && !homeIconEditMode && !homePositionEditMode && homeTopFocus == -1 &&
-            (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
-            favorites.getOrNull(homeIndex)?.packageName != emptySlot.packageName) {
-            handler.removeCallbacks(okLongPressRunnable)
-            okPressPending = false
-            okLongPressTriggered = true
-            longPressReleaseConsumed = true
-            favorites.getOrNull(homeIndex)?.let { openAppActionMenu("home", homeIndex, it) }
-            return true
-        }
-        if (!widgetEditMode && !isSettingsOpen && isDrawerOpen && !drawerHeaderFocused &&
-            (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) {
-            handler.removeCallbacks(okLongPressRunnable)
-            okPressPending = false
-            okLongPressTriggered = true
-            longPressReleaseConsumed = true
-            apps.getOrNull(drawerIndex)?.let { openAppActionMenu("drawer", drawerIndex, it) }
-            return true
-        }
+        // OK long-press is handled only by okLongPressRunnable. Keep Android's
+        // native callback from opening a second menu or changing press state.
+        if ((keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
+            (okPressPending || longPressReleaseConsumed || actionMenuOpen)) return true
         if (widgetEditMode && (keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
                 keyCode == KeyEvent.KEYCODE_ENTER)) {
             resetSelectedWidget()
@@ -3363,6 +3895,9 @@ class LauncherView(context: Context) : View(context) {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if ((keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
+            (actionMenuSelectionConsumed || longPressReleaseConsumed ||
+                (okPressPending && okLongPressTriggered))) return true
         if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE) {
             return handleBack()
         }
@@ -3449,8 +3984,12 @@ class LauncherView(context: Context) : View(context) {
                 KeyEvent.KEYCODE_DPAD_UP -> moveActionMenuFocus(SpatialFocusNavigator.UP)
                 KeyEvent.KEYCODE_DPAD_DOWN -> moveActionMenuFocus(SpatialFocusNavigator.DOWN)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                    actionMenuSelectionConsumed = true
-                    runAppAction()
+                    // A held OK key may generate repeat events after the menu opens.
+                    // Only a fresh press may activate the focused menu item.
+                    if (event.repeatCount == 0 && !okLongPressTriggered) {
+                        actionMenuSelectionConsumed = true
+                        runAppAction()
+                    }
                     return true
                 }
                 KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> actionMenuOpen = false
@@ -3534,10 +4073,10 @@ class LauncherView(context: Context) : View(context) {
         }
         if (!widgetEditMode && !isSettingsOpen && !isDrawerOpen &&
             (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
-            (homeTopFocus in 0..1 || favorites.isNotEmpty()) && !event.isLongPress) {
+            (homeTopFocus in 0..1 || favorites.isNotEmpty())) {
             if (event.repeatCount == 0) {
-                event.startTracking()
                 if (homeTopFocus == -1) beginOkPressTracking("home", homeIndex)
+                else event.startTracking()
             }
             return true
         }
@@ -3595,8 +4134,18 @@ class LauncherView(context: Context) : View(context) {
             }
             when (keyCode) {
                 KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> { closeLauncherSettings(); return true }
-                KeyEvent.KEYCODE_DPAD_LEFT -> moveSettingsFocus(-1)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> moveSettingsFocus(1)
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    if (settingsFocus == 8) {
+                        homeIconScale = (homeIconScale - .05f).coerceAtLeast(.65f)
+                        prefs.edit().putFloat("home_icon_scale", homeIconScale).apply()
+                    } else moveSettingsFocus(-1)
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (settingsFocus == 8) {
+                        homeIconScale = (homeIconScale + .05f).coerceAtMost(1.6f)
+                        prefs.edit().putFloat("home_icon_scale", homeIconScale).apply()
+                    } else moveSettingsFocus(1)
+                }
                 KeyEvent.KEYCODE_DPAD_UP -> moveSettingsFocus(-2)
                 KeyEvent.KEYCODE_DPAD_DOWN -> moveSettingsFocus(2)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
@@ -3650,8 +4199,8 @@ class LauncherView(context: Context) : View(context) {
                 KeyEvent.KEYCODE_DPAD_DOWN -> moveDrawerSpatialFocus(SpatialFocusNavigator.DOWN)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     if (event.repeatCount == 0) {
-                        event.startTracking()
                         if (!drawerHeaderFocused) beginOkPressTracking("drawer", drawerIndex)
+                        else event.startTracking()
                     }
                     return true
                 }
@@ -3672,17 +4221,9 @@ class LauncherView(context: Context) : View(context) {
         when (keyCode) {
             KeyEvent.KEYCODE_MENU -> { if (!event.isLongPress) openControlCenter(); return true }
             KeyEvent.KEYCODE_DPAD_UP -> {
+                // UP moves focus toward the top widgets; it no longer opens the app drawer.
                 if (homeTopFocus == -1) moveHomeFocusToTop()
-                else {
-                    // Preserve the launcher's established UP gesture for opening the app drawer,
-                    // while remembering the prior target for Aerial-style focus restoration.
-                    drawerReturnHomeTopFocus = homeTopFocus
-                    isDrawerOpen = true
-                    homeTopFocus = -1
-                    drawerIndex = 0
-                    resetDrawerScroll()
-                    invalidate()
-                }
+                invalidate()
                 return true
             }
             KeyEvent.KEYCODE_DPAD_DOWN -> {
@@ -3690,6 +4231,14 @@ class LauncherView(context: Context) : View(context) {
                     moveHomeFocusToApps()
                     return true
                 }
+                // From the home app area, DOWN opens the app drawer.
+                drawerReturnHomeTopFocus = homeTopFocus
+                isDrawerOpen = true
+                homeTopFocus = -1
+                drawerIndex = 0
+                resetDrawerScroll()
+                invalidate()
+                return true
             }
             KeyEvent.KEYCODE_DPAD_LEFT -> {
                 moveHomeSpatialFocus(SpatialFocusNavigator.LEFT)

@@ -54,6 +54,7 @@ android {
     }
 }
 dependencies {
+    implementation("com.google.zxing:core:3.5.3")
     implementation(project(":feature:quanlian"))
     testImplementation("junit:junit:4.13.2")
 }
