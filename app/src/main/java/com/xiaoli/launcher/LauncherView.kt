@@ -2913,6 +2913,27 @@ class LauncherView(context: Context) : View(context) {
             rect.height() * .105f, 0xFFB5C7D8.toInt())
     }
 
+    private fun drawCompactFeatureTile(c: Canvas, bounds: RectF, title: String, detail: String, symbol: String) {
+        val rect = RectF(bounds)
+        val radius = rect.height() * .13f
+        paint.style = Paint.Style.FILL
+        paint.shader = LinearGradient(rect.left, rect.top, rect.left, rect.bottom,
+            intArrayOf(0xD3224565.toInt(), 0xC6112B46.toInt()), null, Shader.TileMode.CLAMP)
+        c.drawRoundRect(rect, radius, radius, paint)
+        paint.shader = null
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = (height * .0009f).coerceAtLeast(1f)
+        paint.color = 0x554F86B1
+        c.drawRoundRect(rect, radius, radius, paint)
+        paint.style = Paint.Style.FILL
+        text(c, symbol, rect.centerX(), rect.top + rect.height() * .43f,
+            minOf(rect.height() * .25f, rect.width() * .25f), 0xFF8CEBFF.toInt(), true)
+        text(c, title, rect.centerX(), rect.top + rect.height() * .70f,
+            minOf(rect.height() * .105f, rect.width() * .105f), 0xFFF2F7FF.toInt(), true)
+        text(c, detail, rect.centerX(), rect.top + rect.height() * .84f,
+            minOf(rect.height() * .070f, rect.width() * .078f), 0xFFB5C7D8.toInt())
+    }
+
     private fun drawSettingsSectionLabel(c: Canvas, label: String, x: Float, y: Float, w: Float) {
         text(c, label, x, y, height * .013f, 0xFF83B6D9.toInt(), true)
         paint.style = Paint.Style.FILL
@@ -3023,7 +3044,7 @@ class LauncherView(context: Context) : View(context) {
                 val tileW = (w * .74f - gap * 4f) / 5f
                 for (i in 0..4) {
                     val left = w * .13f + i * (tileW + gap)
-                    val rect = RectF(left, h * .39f, left + tileW, h * .67f)
+                    val rect = RectF(left, h * .385f, left + tileW, h * .625f)
                     paint.style = Paint.Style.FILL
                     paint.color = 0xCC1A3554.toInt()
                     c.drawRoundRect(rect, h * .016f, h * .016f, paint)
@@ -3036,22 +3057,22 @@ class LauncherView(context: Context) : View(context) {
                     val app = entry?.let { item -> apps.firstOrNull { it.packageName == item.packageName } }
                     if (app != null) runCatching {
                         val drawable = context.packageManager.getApplicationIcon(app.packageName)
-                        val iconSize = h * .085f
+                        val iconSize = h * .075f
                         drawable.setBounds((rect.centerX() - iconSize / 2f).toInt(),
-                            (rect.top + h * .045f).toInt(), (rect.centerX() + iconSize / 2f).toInt(),
-                            (rect.top + h * .045f + iconSize).toInt())
+                            (rect.top + h * .035f).toInt(), (rect.centerX() + iconSize / 2f).toInt(),
+                            (rect.top + h * .035f + iconSize).toInt())
                         drawable.draw(c)
                     }
-                    text(c, app?.label ?: "＋", rect.centerX(), rect.bottom - h * .055f,
-                        h * .014f, 0xFFE8F2FC.toInt(), true)
+                    text(c, app?.label ?: "＋", rect.centerX(), rect.bottom - h * .040f,
+                        h * .0125f, 0xFFE8F2FC.toInt(), true)
                 }
-                drawSymbolTile(c, RectF(w * .13f, h * .72f, w * .35f, h * .86f),
+                drawSymbolTile(c, RectF(w * .13f, h * .675f, w * .35f, h * .805f),
                     "最多五个", "首页快捷入口", "5")
-                drawSymbolTile(c, RectF(w * .385f, h * .72f, w * .605f, h * .86f),
+                drawSymbolTile(c, RectF(w * .385f, h * .675f, w * .605f, h * .805f),
                     "应用抽屉", "选择已安装应用", "▦")
-                drawSymbolTile(c, RectF(w * .64f, h * .72f, w * .87f, h * .86f),
+                drawSymbolTile(c, RectF(w * .64f, h * .675f, w * .87f, h * .805f),
                     "即时生效", "保存快捷入口", "✓")
-                drawSettingCard(c, RectF(w * .13f, h * .875f, w * .54f, h * .94f),
+                drawSettingCard(c, RectF(w * .13f, h * .825f, w * .54f, h * .915f),
                     "管理桌面应用", "编辑首页入口", settingsFocus == 21)
             }
             3 -> {
@@ -3124,24 +3145,24 @@ class LauncherView(context: Context) : View(context) {
                     h * .012f, 0xFF8CEBFF.toInt())
                 paint.textAlign = Paint.Align.LEFT
                 val left = w * .40f
-                val gap = w * .018f
+                val gap = w * .014f
                 val tileW = (w * .47f - gap * 2f) / 3f
-                drawSymbolTile(c, RectF(left, h * .40f, left + tileW, h * .76f),
+                drawCompactFeatureTile(c, RectF(left, h * .405f, left + tileW, h * .705f),
                     "发送文件", "设备互传", "↑")
-                drawSymbolTile(c, RectF(left + tileW + gap, h * .40f,
-                    left + 2 * tileW + gap, h * .76f), "接收文件", "接收设备文件", "↓")
-                drawSymbolTile(c, RectF(left + 2 * (tileW + gap), h * .40f,
-                    w * .87f, h * .76f), "传输历史", "查看记录", "◷")
-                drawSettingCard(c, RectF(left, h * .80f, w * .87f, h * .91f),
+                drawCompactFeatureTile(c, RectF(left + tileW + gap, h * .405f,
+                    left + 2 * tileW + gap, h * .705f), "接收文件", "接收设备文件", "↓")
+                drawCompactFeatureTile(c, RectF(left + 2 * (tileW + gap), h * .405f,
+                    w * .87f, h * .705f), "传输历史", "查看记录", "◷")
+                drawSettingCard(c, RectF(left, h * .755f, w * .87f, h * .835f),
                     "打开小李全联", "进入独立文件传输应用", settingsFocus == 6)
             }
             6 -> {
                 drawSettingsSectionLabel(c, "Android TV 系统入口", w * .13f, h * .335f, w * .74f)
-                drawSymbolTile(c, RectF(w * .13f, h * .39f, w * .35f, h * .76f),
+                drawCompactFeatureTile(c, RectF(w * .13f, h * .405f, w * .35f, h * .715f),
                     "网络", "Wi-Fi 与连接", "⌁")
-                drawSymbolTile(c, RectF(w * .385f, h * .39f, w * .605f, h * .76f),
+                drawCompactFeatureTile(c, RectF(w * .385f, h * .405f, w * .605f, h * .715f),
                     "显示", "画面与亮度", "☼")
-                drawSymbolTile(c, RectF(w * .64f, h * .39f, w * .87f, h * .76f),
+                drawCompactFeatureTile(c, RectF(w * .64f, h * .405f, w * .87f, h * .715f),
                     "设备偏好", "系统与设备", "⚙")
                 drawSettingCard(c, RectF(w * .13f, h * .81f, w * .60f, h * .92f),
                     "打开 Android 系统设置", "进入电视系统设置", settingsFocus == 7)
