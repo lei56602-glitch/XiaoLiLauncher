@@ -28,7 +28,8 @@ internal object SettingsFocusNavigator {
     private val horizontalPosition = mapOf(
         8 to .38f, 22 to .77f, 23 to .38f,
         9 to .24f, 10 to .42f, 15 to .60f, 16 to .78f,
-        0 to .246f, 1 to .498f, 2 to .750f, 17 to .246f, 18 to .498f, 19 to .750f,
+        // Drawer grid option centers are derived from the same rectangles used by Canvas and touch.
+        
         3 to .24f, 4 to .50f, 5 to .76f, 24 to .38f,
         6 to .31f, 21 to .70f,
         7 to .22f, 14 to .52f, 13 to .82f
@@ -38,9 +39,19 @@ internal object SettingsFocusNavigator {
         val rows = rowsByCategory[category] ?: return emptyList()
         return rows.flatMapIndexed { rowIndex, row ->
             row.map { id ->
-                FocusTarget(id, horizontalPosition[id] ?: .5f, rowIndex.toFloat())
+                FocusTarget(id, horizontalPosition[id] ?: drawerGridOptionCenterX(id), rowIndex.toFloat())
             }
         }
+    }
+
+    private fun drawerGridOptionCenterX(id: Int): Float {
+        val index = when (id) {
+            0, 17 -> 0
+            1, 18 -> 1
+            2, 19 -> 2
+            else -> return .5f
+        }
+        return SettingsLayout.drawerGridOptionBounds(index, if (id >= 17) 1 else 0, 1f, 1f).centerX()
     }
 
     fun next(currentFocus: Int, direction: Int): Int {
