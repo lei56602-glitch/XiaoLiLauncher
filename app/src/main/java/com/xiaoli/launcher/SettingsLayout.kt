@@ -20,10 +20,11 @@ internal object SettingsLayout {
      */
     fun drawerGridOptionBounds(index: Int, row: Int, width: Float, height: Float): RectF {
         val safeIndex = index.coerceIn(0, 2)
-        val left = .13f + safeIndex * .105f
-        val cardWidth = .095f
-        val top = if (row == 0) .54f else .71f
-        val bottom = if (row == 0) .63f else .80f
-        return RectF(width * left, height * top, width * (left + cardWidth), height * bottom)
+        val col = safeIndex % 2
+        val visualRow = safeIndex / 2
+        val left = .13f + col * .385f
+        val cardWidth = .355f
+        val top = (if (row == 0) .50f else .705f) + visualRow * .085f
+        return RectF(width * left, height * top, width * (left + cardWidth), height * (top + .075f))
     }
 }
