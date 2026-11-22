@@ -436,8 +436,8 @@ class LauncherView(context: Context) : View(context) {
         }
         isFocusable = true
         isFocusableInTouchMode = true
-        loadApps()
-        loadSavedWallpaper()
+        refreshInstalledApps()
+        reloadSavedWallpaper()
         handler.post(clockTick)
         updateAnimationLoop()
     }
@@ -468,47 +468,55 @@ class LauncherView(context: Context) : View(context) {
         super.onDetachedFromWindow()
     }
 
-    fun refreshInstalledApps() {
-        appIconCache.clear()
-        loadApps()
-        invalidate()
-    }
+    private var appLoadGeneration = 0
 
-    private fun loadApps() {
-        val pm = context.packageManager
-        val query = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        val resolved = pm.queryIntentActivities(query, PackageManager.MATCH_ALL)
-            .mapNotNull { info ->
-                val pkg = info.activityInfo.packageName
-                if (pkg == context.packageName) null else AppEntry(
-                    info.loadLabel(pm).toString(), pkg,
-                    Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-                        .setClassName(pkg, info.activityInfo.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                )
-            }.sortedBy { it.label.lowercase(Locale.getDefault()) }
-        apps.clear(); apps.addAll(resolved)
-        homeIconPositions.clear()
-        runCatching {
-            val stored = JSONObject(prefs.getString("home_icon_positions", "{}") ?: "{}")
-            resolved.forEach { app ->
-                val position = stored.optJSONObject(app.packageName) ?: return@forEach
-                if (position.has("x") && position.has("y")) {
-                    homeIconPositions[app.packageName] = Pair(
-                        position.optDouble("x", 0.5).toFloat().coerceIn(0f, 1f),
-                        position.optDouble("y", 0.6).toFloat().coerceIn(0f, 1f)
-                    )
+    fun refreshInstalledApps() {
+        val generation = ++appLoadGeneration
+        thread(name = "launcher-app-scan") {
+            val pm = context.packageManager
+            val query = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+            val resolved = runCatching {
+                pm.queryIntentActivities(query, PackageManager.MATCH_ALL)
+                    .mapNotNull { info ->
+                        val pkg = info.activityInfo.packageName
+                        if (pkg == context.packageName) null else AppEntry(
+                            info.loadLabel(pm).toString(), pkg,
+                            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                                .setClassName(pkg, info.activityInfo.name)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    }.sortedBy { it.label.lowercase(Locale.getDefault()) }
+            }.getOrDefault(emptyList())
+            handler.post {
+                if (generation != appLoadGeneration) return@post
+                apps.clear()
+                apps.addAll(resolved)
+                homeIconPositions.clear()
+                runCatching {
+                    val stored = JSONObject(prefs.getString("home_icon_positions", "{}") ?: "{}")
+                    resolved.forEach { app ->
+                        val position = stored.optJSONObject(app.packageName) ?: return@forEach
+                        if (position.has("x") && position.has("y")) {
+                            homeIconPositions[app.packageName] = Pair(
+                                position.optDouble("x", 0.5).toFloat().coerceIn(0f, 1f),
+                                position.optDouble("y", 0.6).toFloat().coerceIn(0f, 1f)
+                            )
+                        }
+                    }
                 }
+                val saved = prefs.getString("favorites", null)
+                favorites.clear()
+                val byPackage = apps.associateBy { it.packageName }
+                if (saved == null) favorites.addAll(apps.take(5))
+                else saved.split("|").take(5).forEach { pkg ->
+                    favorites.add(if (pkg.isBlank()) emptySlot else byPackage[pkg] ?: emptySlot)
+                }
+                while (favorites.size < 5) favorites.add(emptySlot)
+                homeIndex = homeIndex.coerceIn(0, 4)
+                appIconCache.keys.retainAll(resolved.mapTo(HashSet()) { it.packageName })
+                invalidate()
             }
         }
-        val saved = prefs.getString("favorites", null)
-        favorites.clear()
-        val byPackage = apps.associateBy { it.packageName }
-        if (saved == null) favorites.addAll(apps.take(5))
-        else saved.split("|").take(5).forEach { pkg ->
-            favorites.add(if (pkg.isBlank()) emptySlot else byPackage[pkg] ?: emptySlot)
-        }
-        while (favorites.size < 5) favorites.add(emptySlot)
-        homeIndex = homeIndex.coerceIn(0, 4)
     }
 
     private var editingFavorites = false
@@ -562,7 +570,7 @@ class LauncherView(context: Context) : View(context) {
             return
         }
         if (editingFavorites) {
-            if (favorites.any { it.packageName == app.packageName }) {
+            if (app.packageName in pinnedPackages) {
                 android.widget.Toast.makeText(context, "该应用已经在桌面", android.widget.Toast.LENGTH_SHORT).show()
             } else {
                 val slot = favorites.indexOfFirst { it.packageName == emptySlot.packageName }
@@ -828,33 +836,39 @@ class LauncherView(context: Context) : View(context) {
         }.getOrNull()
     }
 
+    private var wallpaperLoadGeneration = 0
+
     fun setWallpaper(uri: Uri) {
         runCatching {
             context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        val bitmap = decodeWallpaper(uri) ?: return
-        wallpaperBitmap?.recycle()
-        wallpaperBitmap = bitmap
         prefs.edit().putString("wallpaper_uri", uri.toString()).apply()
-        invalidate()
+        loadWallpaperAsync(uri)
     }
 
     fun reloadSavedWallpaper() {
-        wallpaperBitmap?.recycle()
-        loadSavedWallpaper()
-        invalidate()
+        val value = prefs.getString("wallpaper_uri", null)
+        val uri = value?.takeIf { it.isNotBlank() }?.let { runCatching { Uri.parse(it) }.getOrNull() }
+        loadWallpaperAsync(uri)
     }
 
-    private fun loadSavedWallpaper() {
-        val defaultWallpaper = {
-            BitmapFactory.decodeResource(context.resources, R.drawable.default_wallpaper)
-        }
-        val value = prefs.getString("wallpaper_uri", null)
-        wallpaperBitmap = if (value.isNullOrBlank()) {
-            defaultWallpaper()
-        } else {
-            val uri = runCatching { Uri.parse(value) }.getOrNull()
-            uri?.let(::decodeWallpaper) ?: defaultWallpaper()
+    private fun loadWallpaperAsync(uri: Uri?) {
+        val generation = ++wallpaperLoadGeneration
+        thread(name = "launcher-wallpaper-load") {
+            val bitmap = uri?.let(::decodeWallpaper)
+                ?: runCatching {
+                    BitmapFactory.decodeResource(context.resources, R.drawable.default_wallpaper)
+                }.getOrNull()
+            handler.post {
+                if (generation != wallpaperLoadGeneration) {
+                    bitmap?.recycle()
+                    return@post
+                }
+                val previous = wallpaperBitmap
+                wallpaperBitmap = bitmap
+                if (previous !== bitmap) previous?.recycle()
+                invalidate()
+            }
         }
     }
 
@@ -2382,7 +2396,14 @@ class LauncherView(context: Context) : View(context) {
         drawerScrollVisualRow = drawerScrollVisualRow.coerceIn(0f, maxScroll.toFloat())
         val clipSave = c.save()
         c.clipRect(gridLeft, contentTop, gridRight, contentBottom)
-        apps.forEachIndexed { i, app ->
+        val firstVisibleRow = (kotlin.math.floor(drawerScrollVisualRow).toInt() - 1).coerceAtLeast(0)
+        val lastVisibleRow = (kotlin.math.ceil(drawerScrollVisualRow + visibleRows).toInt() + 1)
+            .coerceAtMost(totalRows - 1)
+        val pinnedPackages = favorites.asSequence().map { it.packageName }.toHashSet()
+        val firstVisibleIndex = (firstVisibleRow * cols).coerceAtMost(apps.size)
+        val lastVisibleIndex = ((lastVisibleRow + 1) * cols).coerceAtMost(apps.size)
+        for (i in firstVisibleIndex until lastVisibleIndex) {
+            val app = apps[i]
             val row = i / cols
             val col = i % cols
             val left = gridLeft + col * cellW
