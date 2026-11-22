@@ -174,6 +174,7 @@ class LauncherView(context: Context) : View(context) {
     private var controlCenterPage = 0
     private var controlCenterFocus = 0
     private var controlCenterInputOffset = 0
+    private var controlSliderTouchActive = false
     private var controlCecEnabled = prefs.getBoolean("control_cec_switch", false)
     private var controlBootInputId = prefs.getString("control_boot_input_id", "").orEmpty()
     private var bootInputLaunchChecked = false
@@ -2940,9 +2941,55 @@ class LauncherView(context: Context) : View(context) {
         }
     }
 
+    private fun updateControlSliderFromTouch(x: Float) {
+        val panelLeft = width * .60f
+        val panelWidth = width * .375f
+        val fraction = ((x - (panelLeft + panelWidth * .10f)) / (panelWidth * .80f)).coerceIn(0f, 1f)
+        if (controlCenterPage == 2) {
+            if (!isControlVolumeFixed()) {
+                val max = volumeLevel().second
+                val target = (fraction * max).toInt().coerceIn(0, max)
+                runCatching { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0) }
+            }
+        } else if (hisenseLaserLevel() != null) {
+            setHisenseLaserLevel((fraction * 10f).toInt().coerceIn(0, 10))
+        } else if (xgimiBrightnessLevel() != null) {
+            setXgimiBrightnessLevel((fraction * 10f).toInt().coerceIn(1, 10))
+        } else if (isPlaybackDevice() || hasVendorBrightnessBackend() ||
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.System.canWrite(context)) {
+            adjustControlBrightness(0)
+        } else {
+            val target = (fraction * 255f).toInt().coerceIn(1, 255)
+            runCatching { setControlBrightnessLevel(target) }
+        }
+        invalidate()
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (handleDrawerTouchScroll(event)) return true
         if (controlCenterOpen) {
+            val sliderTop = height * (.075f + .85f * .43f)
+            val sliderBottom = height * (.075f + .85f * .49f)
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    controlSliderTouchActive = controlCenterPage in 2..3 &&
+                        event.x >= width * .60f && event.y in sliderTop..sliderBottom
+                    if (controlSliderTouchActive) {
+                        updateControlSliderFromTouch(event.x)
+                        return true
+                    }
+                }
+                MotionEvent.ACTION_MOVE -> if (controlSliderTouchActive) {
+                    updateControlSliderFromTouch(event.x)
+                    return true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> if (controlSliderTouchActive) {
+                    if (event.actionMasked == MotionEvent.ACTION_UP) updateControlSliderFromTouch(event.x)
+                    controlSliderTouchActive = false
+                    if (event.actionMasked == MotionEvent.ACTION_UP) performClick()
+                    return true
+                }
+            }
             if (event.actionMasked == MotionEvent.ACTION_UP) {
                 val panelLeft = width * .60f
                 val panelTop = height * .075f
