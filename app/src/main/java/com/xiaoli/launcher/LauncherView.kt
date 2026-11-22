@@ -139,8 +139,6 @@ class LauncherView(context: Context) : View(context) {
     private val drawerTouchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private var spatialFocusAnimator: ValueAnimator? = null
     private var spatialFocusScale = 1f
-    private var focusChasePhase = 0f
-    private var focusChaseAnimator: ValueAnimator? = null
     // Header action is a first-class D-pad target, separate from the app grid.
     private var drawerHeaderFocused = false
     // Remember the grid item that entered the header so Down returns to that exact item.
@@ -303,68 +301,37 @@ class LauncherView(context: Context) : View(context) {
             rect.centerX() + halfWidth, rect.centerY() + halfHeight)
     }
 
-    // One shared remote-focus renderer: three subtle chasing light streaks with cyan tails.
+    // Shared static remote-focus light: it follows the focused control without a running animation.
     private fun drawFocusChase(c: Canvas, source: RectF, cornerRadius: Float) {
         if (source.width() <= 0f || source.height() <= 0f) return
         val stroke = (minOf(source.width(), source.height()) * .018f).coerceAtLeast(2f)
         val bounds = RectF(source).apply { inset(stroke * .45f, stroke * .45f) }
         val radius = (cornerRadius - stroke * .45f).coerceAtLeast(stroke)
-        val outline = Path().apply { addRoundRect(bounds, radius, radius, Path.Direction.CW) }
-        val measure = PathMeasure(outline, false)
-        val perimeter = measure.length
-        if (perimeter <= 0f) return
-        val streakCount = 3
-        val chaseLength = perimeter * .105f
-        val pieces = 12
-        val pieceLength = chaseLength / pieces
-        val baseHead = focusChasePhase * perimeter
         val oldStyle = paint.style
         val oldCap = paint.strokeCap
         val oldJoin = paint.strokeJoin
+        val oldWidth = paint.strokeWidth
         paint.style = Paint.Style.STROKE
         paint.strokeCap = Paint.Cap.ROUND
         paint.strokeJoin = Paint.Join.ROUND
-        for (streak in 0 until streakCount) {
-            // Evenly distribute the three streaks around the same rounded outline.
-            val head = baseHead + perimeter * streak / streakCount
-            for (index in pieces - 1 downTo 0) {
-                val end = ((head - index * pieceLength) % perimeter + perimeter) % perimeter
-                val start = end - pieceLength
-                val segment = Path()
-                if (start < 0f) {
-                    measure.getSegment(perimeter + start, perimeter, segment, true)
-                    measure.getSegment(0f, end, segment, false)
-                } else {
-                    measure.getSegment(start, end, segment, true)
-                }
-                val strength = (1f - index.toFloat() / pieces).coerceIn(0f, 1f)
-                // Slightly soften the secondary streaks so the leading edge remains readable.
-                val streakScale = if (streak == 0) 1f else .88f
-                paint.color = android.graphics.Color.argb((30f + strength * 190f * streakScale).toInt(), 91, 224, 255)
-                paint.strokeWidth = stroke * .95f
-                paint.setShadowLayer(stroke * 1.5f, 0f, 0f,
-                    android.graphics.Color.argb((strength * 82f).toInt(), 39, 191, 255))
-                c.drawPath(segment, paint)
-            }
-        }
+
+        // Draw a restrained cyan halo and crisp inner edge only when the view invalidates.
+        paint.color = android.graphics.Color.argb(150, 91, 224, 255)
+        paint.strokeWidth = stroke * 1.15f
+        paint.setShadowLayer(stroke * 2f, 0f, 0f,
+            android.graphics.Color.argb(95, 39, 191, 255))
+        c.drawRoundRect(bounds, radius, radius, paint)
+
+        paint.clearShadowLayer()
+        paint.color = android.graphics.Color.argb(225, 145, 238, 255)
+        paint.strokeWidth = stroke * .48f
+        c.drawRoundRect(bounds, radius, radius, paint)
+
         paint.clearShadowLayer()
         paint.style = oldStyle
         paint.strokeCap = oldCap
         paint.strokeJoin = oldJoin
-    }
-
-    private fun startFocusChaseAnimation() {
-        if (focusChaseAnimator?.isStarted == true) return
-        focusChaseAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = 1850L
-            repeatCount = ValueAnimator.INFINITE
-            interpolator = android.view.animation.LinearInterpolator()
-            addUpdateListener { animator ->
-                focusChasePhase = animator.animatedValue as Float
-                invalidate()
-            }
-            start()
-        }
+        paint.strokeWidth = oldWidth
     }
 
     private fun animateDrawerScrollTo(targetRow: Int) {
@@ -491,12 +458,9 @@ class LauncherView(context: Context) : View(context) {
         handler.removeCallbacks(clockTick)
         handler.post(clockTick)
         updateAnimationLoop()
-        startFocusChaseAnimation()
     }
 
     override fun onDetachedFromWindow() {
-        focusChaseAnimator?.cancel()
-        focusChaseAnimator = null
         handler.removeCallbacks(clockTick)
         handler.removeCallbacks(animationTick)
         animationStarted = false
