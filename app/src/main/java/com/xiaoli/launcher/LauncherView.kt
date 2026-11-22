@@ -2824,7 +2824,7 @@ class LauncherView(context: Context) : View(context) {
                 drawSettingsSectionLabel(c, "当前壁纸预览", w * .13f, h * .545f, w * .74f)
                 drawWallpaperPreview(c, RectF(w * .13f, h * .57f, w * .87f, h * .82f))
                 drawSettingCard(c, RectF(w * .13f, h * .865f, w * .62f, h * .945f),
-                    "从手机接收壁纸", "通过小李全联传输图片；小李全联应用本身保持独立",
+                    "从手机接收壁纸", "通过小李全联接收图片；传输功能在独立应用中完成",
                     settingsFocus == 24)
             }
             2 -> {
@@ -2860,11 +2860,11 @@ class LauncherView(context: Context) : View(context) {
                     "编辑桌面组件", "拖动调整时间日期整体位置 · 使用方向键微调 · 音量键调整大小",
                     settingsFocus == 22)
                 drawSettingsMetaTile(c, RectF(w * .13f, h * .77f, w * .36f, h * .85f),
-                    "时间 / 日期", "位置与缩放")
+                    "时间 / 日期", "显示开关")
                 drawSettingsMetaTile(c, RectF(w * .39f, h * .77f, w * .62f, h * .85f),
-                    "农历信息", "显示与布局")
+                    "位置调整", "组件编辑")
                 drawSettingsMetaTile(c, RectF(w * .65f, h * .77f, w * .87f, h * .85f),
-                    "天气信息", "显示与布局")
+                    "尺寸调整", "组件编辑")
             }
             4 -> {
                 drawSettingsSectionLabel(c, "默认主屏幕", w * .13f, h * .335f, w * .74f)
@@ -2874,9 +2874,9 @@ class LauncherView(context: Context) : View(context) {
                     settingsFocus == 14)
                 drawSettingsSectionLabel(c, "遥控器快捷操作", w * .13f, h * .655f, w * .74f)
                 drawSettingsMetaTile(c, RectF(w * .13f, h * .68f, w * .36f, h * .81f),
-                    "方向上键", "进入应用抽屉")
+                    "上键 × 2", "打开应用抽屉")
                 drawSettingsMetaTile(c, RectF(w * .39f, h * .68f, w * .62f, h * .81f),
-                    "长按 OK", "打开应用操作")
+                    "长按 OK", "打开应用操作菜单")
                 drawSettingsMetaTile(c, RectF(w * .65f, h * .68f, w * .87f, h * .81f),
                     "菜单键", "打开控制中心")
                 text(c, "按返回键退出设置页面；系统默认桌面切换由 Android 设置流程确认。",
@@ -2893,7 +2893,7 @@ class LauncherView(context: Context) : View(context) {
                     "独立界面", "从此处启动")
                 drawSettingsMetaTile(c, RectF(w * .65f, h * .65f, w * .87f, h * .78f),
                     "独立功能", "不在此处修改")
-                text(c, "此处仅提供启动入口。本次设置中心改造不会修改小李全联项目。",
+                text(c, "此处提供快捷入口；发送、接收与传输管理请在小李全联中操作。",
                     w * .13f, h * .835f, h * .014f, 0xFF9FBBD3.toInt())
             }
             6 -> {
