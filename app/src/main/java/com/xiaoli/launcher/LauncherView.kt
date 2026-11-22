@@ -15,6 +15,7 @@ import android.graphics.BitmapFactory
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PathMeasure
 import android.graphics.RectF
 import android.graphics.RadialGradient
 import android.graphics.Shader
@@ -138,6 +139,8 @@ class LauncherView(context: Context) : View(context) {
     private val drawerTouchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private var spatialFocusAnimator: ValueAnimator? = null
     private var spatialFocusScale = 1f
+    private var focusChasePhase = 0f
+    private var focusChaseAnimator: ValueAnimator? = null
     // Header action is a first-class D-pad target, separate from the app grid.
     private var drawerHeaderFocused = false
     // Remember the grid item that entered the header so Down returns to that exact item.
@@ -300,6 +303,63 @@ class LauncherView(context: Context) : View(context) {
             rect.centerX() + halfWidth, rect.centerY() + halfHeight)
     }
 
+    // One shared remote-focus renderer: a subtle chasing light with a short cyan tail.
+    private fun drawFocusChase(c: Canvas, source: RectF, cornerRadius: Float) {
+        if (source.width() <= 0f || source.height() <= 0f) return
+        val stroke = (minOf(source.width(), source.height()) * .018f).coerceAtLeast(2f)
+        val bounds = RectF(source).apply { inset(stroke * .45f, stroke * .45f) }
+        val radius = (cornerRadius - stroke * .45f).coerceAtLeast(stroke)
+        val outline = Path().apply { addRoundRect(bounds, radius, radius, Path.Direction.CW) }
+        val measure = PathMeasure(outline, false)
+        val perimeter = measure.length
+        if (perimeter <= 0f) return
+        val chaseLength = perimeter * .145f
+        val pieces = 12
+        val pieceLength = chaseLength / pieces
+        val head = focusChasePhase * perimeter
+        val oldStyle = paint.style
+        val oldCap = paint.strokeCap
+        val oldJoin = paint.strokeJoin
+        paint.style = Paint.Style.STROKE
+        paint.strokeCap = Paint.Cap.ROUND
+        paint.strokeJoin = Paint.Join.ROUND
+        for (index in pieces - 1 downTo 0) {
+            val end = ((head - index * pieceLength) % perimeter + perimeter) % perimeter
+            val start = end - pieceLength
+            val segment = Path()
+            if (start < 0f) {
+                measure.getSegment(perimeter + start, perimeter, segment, true)
+                measure.getSegment(0f, end, segment, false)
+            } else {
+                measure.getSegment(start, end, segment, true)
+            }
+            val strength = (1f - index.toFloat() / pieces).coerceIn(0f, 1f)
+            paint.color = android.graphics.Color.argb((34f + strength * 190f).toInt(), 91, 224, 255)
+            paint.strokeWidth = stroke * .95f
+            paint.setShadowLayer(stroke * 1.6f, 0f, 0f,
+                android.graphics.Color.argb((strength * 95f).toInt(), 39, 191, 255))
+            c.drawPath(segment, paint)
+        }
+        paint.clearShadowLayer()
+        paint.style = oldStyle
+        paint.strokeCap = oldCap
+        paint.strokeJoin = oldJoin
+    }
+
+    private fun startFocusChaseAnimation() {
+        if (focusChaseAnimator?.isStarted == true) return
+        focusChaseAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 1850L
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = android.view.animation.LinearInterpolator()
+            addUpdateListener { animator ->
+                focusChasePhase = animator.animatedValue as Float
+                invalidate()
+            }
+            start()
+        }
+    }
+
     private fun animateDrawerScrollTo(targetRow: Int) {
         drawerFlingScroller.abortAnimation()
         drawerScrollAnimator?.cancel()
@@ -424,9 +484,12 @@ class LauncherView(context: Context) : View(context) {
         handler.removeCallbacks(clockTick)
         handler.post(clockTick)
         updateAnimationLoop()
+        startFocusChaseAnimation()
     }
 
     override fun onDetachedFromWindow() {
+        focusChaseAnimator?.cancel()
+        focusChaseAnimator = null
         handler.removeCallbacks(clockTick)
         handler.removeCallbacks(animationTick)
         animationStarted = false
@@ -694,6 +757,7 @@ class LauncherView(context: Context) : View(context) {
             c.drawRoundRect(row, h * .012f, h * .012f, paint)
             paint.textAlign = Paint.Align.CENTER
             text(c, label, row.centerX(), row.centerY() + h * .009f, h * .026f, -1, i == actionMenuChoice)
+            if (i == actionMenuChoice) drawFocusChase(c, row, h * .012f)
             paint.textAlign = Paint.Align.LEFT
         }
     }
@@ -1320,14 +1384,8 @@ class LauncherView(context: Context) : View(context) {
                 w * (clockX + .245f), h * (clockY + .065f * clockScale))
             else -> controlCenterShortcutRect(w, h)
         }
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = (h * .004f).coerceAtLeast(2.5f)
-        paint.color = 0xFF8BE7FF.toInt()
-        paint.setShadowLayer((h * .012f).coerceAtLeast(5f), 0f, 0f, 0xAA27BFFF.toInt())
         val focusRect = scaledFocusRect(rect)
-        c.drawRoundRect(focusRect, (h * .018f).coerceAtLeast(10f), (h * .018f).coerceAtLeast(10f), paint)
-        paint.clearShadowLayer()
-        paint.style = Paint.Style.FILL
+        drawFocusChase(c, focusRect, (h * .018f).coerceAtLeast(10f))
     }
 
     private fun homeTopFocusCenterX(target: Int, w: Float): Float = when (target) {
@@ -2152,6 +2210,7 @@ class LauncherView(context: Context) : View(context) {
                     paint.color = 0xFFD8F4FF.toInt()
                     canvas.drawRoundRect(rect, h * .018f, h * .018f, paint)
                     paint.style = Paint.Style.FILL
+                    drawFocusChase(canvas, rect, h * .018f)
                 }
                 text(canvas, icons[index], rect.left + rect.width() * .075f, rect.centerY() + h * .012f,
                     h * .030f, 0xFFEAF8FF.toInt(), true)
@@ -2177,6 +2236,7 @@ class LauncherView(context: Context) : View(context) {
                     paint.color = 0xFFD8F4FF.toInt()
                     canvas.drawRoundRect(cecRect, h * .016f, h * .016f, paint)
                     paint.style = Paint.Style.FILL
+                    drawFocusChase(canvas, cecRect, h * .016f)
                 }
                 text(canvas, "HDMI-CEC 自动切源", cecRect.left + cecRect.width() * .07f,
                     cecRect.top + cecRect.height() * .44f, h * .019f, 0xFFF4FAFF.toInt(), true)
@@ -2205,6 +2265,7 @@ class LauncherView(context: Context) : View(context) {
                         paint.color = 0xFFD8F4FF.toInt()
                         canvas.drawRoundRect(rect, h * .016f, h * .016f, paint)
                         paint.style = Paint.Style.FILL
+                        drawFocusChase(canvas, rect, h * .016f)
                     }
                     text(canvas, input.label, rect.left + rect.width() * .07f,
                         rect.top + rect.height() * .44f, h * .020f, 0xFFF4FAFF.toInt(), true)
@@ -2289,18 +2350,14 @@ class LauncherView(context: Context) : View(context) {
         c.clipPath(clip)
         drawable.setBounds(target.left.toInt(), target.top.toInt(), target.right.toInt(), target.bottom.toInt())
         drawable.draw(c)
+        // A restrained glass sheen unifies third-party icons without replacing their artwork.
+        paint.shader = LinearGradient(target.left, target.top, target.left, target.bottom,
+            intArrayOf(0x26FFFFFF, 0x08FFFFFF, 0x00FFFFFF), null, Shader.TileMode.CLAMP)
+        paint.color = -1
+        c.drawRoundRect(target, radius, radius, paint)
+        paint.shader = null
         c.restoreToCount(save)
-
-        // Draw focus treatment after the artwork so it remains visible and does not shrink it.
-        if (focused) {
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = (rect.width() * .018f).coerceAtLeast(2f)
-            paint.color = 0xCC7DE5FF.toInt()
-            paint.setShadowLayer(rect.width() * .12f, 0f, 0f, 0xAA27BFFF.toInt())
-            c.drawRoundRect(target, radius, radius, paint)
-            paint.clearShadowLayer()
-            paint.style = Paint.Style.FILL
-        }
+        if (focused) drawFocusChase(c, target, radius)
     }
 
     private fun drawDrawer(c: Canvas, w: Float, h: Float) {
@@ -2321,9 +2378,10 @@ class LauncherView(context: Context) : View(context) {
             paint.style = Paint.Style.STROKE
             paint.strokeWidth = (h * .0035f).coerceAtLeast(2f)
             paint.color = 0xFF8BE7FF.toInt()
-            c.drawRoundRect(scaledFocusRect(RectF(w * .835f, h * .175f, w * .94f, h * .245f)),
-                h * .012f, h * .012f, paint)
+            val headerFocusRect = scaledFocusRect(RectF(w * .835f, h * .175f, w * .94f, h * .245f))
+            c.drawRoundRect(headerFocusRect, h * .012f, h * .012f, paint)
             paint.style = Paint.Style.FILL
+            drawFocusChase(c, headerFocusRect, h * .012f)
         }
         paint.textAlign = Paint.Align.LEFT
         if (replacingDesktopSlot) {
@@ -2625,6 +2683,7 @@ class LauncherView(context: Context) : View(context) {
                     null, Shader.TileMode.CLAMP)
                 c.drawRoundRect(selectedRect, h * .012f, h * .012f, paint)
                 paint.shader = null
+                if (settingsFocus == 30 + index) drawFocusChase(c, selectedRect, h * .012f)
                 paint.style = Paint.Style.STROKE
                 paint.strokeWidth = (h * .0012f).coerceAtLeast(1f)
                 paint.color = 0x6678DFFF
@@ -2671,6 +2730,7 @@ class LauncherView(context: Context) : View(context) {
         paint.color = if (focused) 0xCC78DFFF.toInt() else 0x445E8BB4
         c.drawRoundRect(rect, radius, radius, paint)
         paint.style = Paint.Style.FILL
+        if (focused) drawFocusChase(c, rect, radius)
 
         val sheen = RectF(rect.left + rect.width() * .025f, rect.top + rect.height() * .045f,
             rect.right - rect.width() * .025f, rect.top + rect.height() * .060f)
