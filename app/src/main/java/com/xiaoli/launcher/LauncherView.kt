@@ -199,6 +199,11 @@ class LauncherView(context: Context) : View(context) {
     private data class ControlInput(val id: String, val label: String, val kind: String, val switchIntent: Intent?, val setupIntent: Intent?, val connected: Boolean = false, val deviceName: String? = null)
     private var controlInputs: List<ControlInput> = emptyList()
     private val audioManager by lazy { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+    private val packageChangeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(receiverContext: Context, intent: Intent) {
+            refreshInstalledApps()
+        }
+    }
     private val controlCecReceiver = object : BroadcastReceiver() {
         override fun onReceive(receiverContext: Context, intent: Intent) {
             if (!controlCecEnabled) return
@@ -450,6 +455,16 @@ class LauncherView(context: Context) : View(context) {
             if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(controlCecReceiver, filter, Context.RECEIVER_EXPORTED)
             else context.registerReceiver(controlCecReceiver, filter)
         }
+        runCatching {
+            val packageFilter = IntentFilter().apply {
+                addAction(Intent.ACTION_PACKAGE_ADDED)
+                addAction(Intent.ACTION_PACKAGE_REMOVED)
+                addAction(Intent.ACTION_PACKAGE_CHANGED)
+                addDataScheme("package")
+            }
+            if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(packageChangeReceiver, packageFilter, Context.RECEIVER_EXPORTED)
+            else context.registerReceiver(packageChangeReceiver, packageFilter)
+        }
         maybeOpenBootInput()
         // The launcher is a single custom-drawn surface; keep it as the TV remote key target.
         isFocusable = true
@@ -465,6 +480,7 @@ class LauncherView(context: Context) : View(context) {
         handler.removeCallbacks(animationTick)
         animationStarted = false
         runCatching { context.unregisterReceiver(controlCecReceiver) }
+        runCatching { context.unregisterReceiver(packageChangeReceiver) }
         super.onDetachedFromWindow()
     }
 
