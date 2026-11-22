@@ -2790,7 +2790,7 @@ class LauncherView(context: Context) : View(context) {
         when (category) {
             0 -> {
                 drawSettingsSectionLabel(c, "桌面图标", w * .13f, h * .310f, w * .74f)
-                drawSettingCard(c, RectF(w * .13f, h * .33f, w * .87f, h * .445f),
+                drawSettingCard(c, RectF(w * .13f, h * .32f, w * .87f, h * .45f),
                     "图标大小  ·  \${(homeIconScale * 100).toInt()}%",
                     "同步影响首页与应用抽屉中的图标视觉比例 · 确认键调整",
                     settingsFocus == 8)
@@ -2814,22 +2814,22 @@ class LauncherView(context: Context) : View(context) {
             }
             1 -> {
                 drawSettingsSectionLabel(c, "壁纸来源与显示", w * .13f, h * .325f, w * .74f)
-                drawSettingCard(c, RectF(w * .13f, h * .35f, w * .35f, h * .50f),
+                drawSettingCard(c, RectF(w * .13f, h * .36f, w * .35f, h * .51f),
                     "选择壁纸", "从设备图片中选择", settingsFocus == 3)
-                drawSettingCard(c, RectF(w * .38f, h * .35f, w * .62f, h * .50f),
+                drawSettingCard(c, RectF(w * .38f, h * .36f, w * .62f, h * .51f),
                     if (dynamicWallpaperEnabled) "动态背景 · 已开启" else "动态背景 · 已关闭",
                     "切换动态光效背景", settingsFocus == 4)
-                drawSettingCard(c, RectF(w * .65f, h * .35f, w * .87f, h * .50f),
+                drawSettingCard(c, RectF(w * .65f, h * .36f, w * .87f, h * .51f),
                     "恢复默认壁纸", "移除当前自定义图片", settingsFocus == 5)
                 drawSettingsSectionLabel(c, "当前壁纸预览", w * .13f, h * .545f, w * .74f)
                 drawWallpaperPreview(c, RectF(w * .13f, h * .57f, w * .87f, h * .82f))
-                drawSettingCard(c, RectF(w * .13f, h * .85f, w * .62f, h * .935f),
+                drawSettingCard(c, RectF(w * .13f, h * .865f, w * .62f, h * .945f),
                     "从手机接收壁纸", "通过小李全联传输图片；小李全联应用本身保持独立",
                     settingsFocus == 24)
             }
             2 -> {
                 drawSettingsSectionLabel(c, "首页快捷入口", w * .13f, h * .335f, w * .74f)
-                drawSettingCard(c, RectF(w * .13f, h * .36f, w * .87f, h * .59f),
+                drawSettingCard(c, RectF(w * .13f, h * .39f, w * .87f, h * .64f),
                     "管理桌面应用", "从应用抽屉选择、固定或移除首页常用应用",
                     settingsFocus == 21)
                 drawSettingsMetaTile(c, RectF(w * .13f, h * .64f, w * .36f, h * .77f),
@@ -2852,18 +2852,18 @@ class LauncherView(context: Context) : View(context) {
                 val cardW = (w * .74f - gap * 3f) / 4f
                 for (i in 0..3) {
                     val left = w * .13f + i * (cardW + gap)
-                    drawSettingCard(c, RectF(left, h * .35f, left + cardW, h * .50f),
+                    drawSettingCard(c, RectF(left, h * .34f, left + cardW, h * .49f),
                         labels[i], "确认键切换", settingsFocus == ids[i])
                 }
                 drawSettingsSectionLabel(c, "组件位置与尺寸", w * .13f, h * .565f, w * .74f)
-                drawSettingCard(c, RectF(w * .13f, h * .59f, w * .87f, h * .735f),
+                drawSettingCard(c, RectF(w * .13f, h * .60f, w * .87f, h * .75f),
                     "编辑桌面组件", "拖动调整时间日期整体位置 · 使用方向键微调 · 音量键调整大小",
                     settingsFocus == 22)
-                drawSettingsMetaTile(c, RectF(w * .13f, h * .78f, w * .36f, h * .89f),
+                drawSettingsMetaTile(c, RectF(w * .13f, h * .77f, w * .36f, h * .85f),
                     "时间 / 日期", "位置与缩放")
-                drawSettingsMetaTile(c, RectF(w * .39f, h * .78f, w * .62f, h * .89f),
+                drawSettingsMetaTile(c, RectF(w * .39f, h * .77f, w * .62f, h * .85f),
                     "农历信息", "显示与布局")
-                drawSettingsMetaTile(c, RectF(w * .65f, h * .78f, w * .87f, h * .89f),
+                drawSettingsMetaTile(c, RectF(w * .65f, h * .77f, w * .87f, h * .85f),
                     "天气信息", "显示与布局")
             }
             4 -> {
