@@ -2990,18 +2990,42 @@ class LauncherView(context: Context) : View(context) {
                     settingsFocus == 24)
             }
             2 -> {
-                drawSettingsSectionLabel(c, "首页快捷入口", w * .13f, h * .335f, w * .74f)
-                drawSettingCard(c, RectF(w * .13f, h * .39f, w * .87f, h * .64f),
-                    "管理桌面应用", "从应用抽屉选择、固定或移除首页常用应用",
-                    settingsFocus == 21)
-                drawSettingsMetaTile(c, RectF(w * .13f, h * .64f, w * .36f, h * .77f),
-                    "最多五个", "首页常用应用")
-                drawSettingsMetaTile(c, RectF(w * .39f, h * .64f, w * .62f, h * .77f),
-                    "应用抽屉", "选择已安装应用")
-                drawSettingsMetaTile(c, RectF(w * .65f, h * .64f, w * .87f, h * .77f),
-                    "即时生效", "保存快捷入口")
-                text(c, "通过遥控器进入应用抽屉后，可选择需要固定到首页的应用。",
-                    w * .13f, h * .835f, h * .014f, 0xFF9FBBD3.toInt())
+                drawSettingsSectionLabel(c, "首页常用应用", w * .13f, h * .335f, w * .74f)
+                val slots = favorites.take(5)
+                val gap = w * .018f
+                val tileW = (w * .74f - gap * 4f) / 5f
+                for (i in 0..4) {
+                    val left = w * .13f + i * (tileW + gap)
+                    val rect = RectF(left, h * .39f, left + tileW, h * .67f)
+                    paint.style = Paint.Style.FILL
+                    paint.color = 0xCC1A3554.toInt()
+                    c.drawRoundRect(rect, h * .016f, h * .016f, paint)
+                    paint.style = Paint.Style.STROKE
+                    paint.strokeWidth = 1f
+                    paint.color = 0x44FFFFFF
+                    c.drawRoundRect(rect, h * .016f, h * .016f, paint)
+                    paint.style = Paint.Style.FILL
+                    val entry = slots.getOrNull(i)
+                    val app = entry?.let { item -> apps.firstOrNull { it.packageName == item.packageName } }
+                    if (app != null) runCatching {
+                        val drawable = context.packageManager.getApplicationIcon(app.packageName)
+                        val iconSize = h * .085f
+                        drawable.setBounds((rect.centerX() - iconSize / 2f).toInt(),
+                            (rect.top + h * .045f).toInt(), (rect.centerX() + iconSize / 2f).toInt(),
+                            (rect.top + h * .045f + iconSize).toInt())
+                        drawable.draw(c)
+                    }
+                    text(c, app?.label ?: "＋", rect.centerX(), rect.bottom - h * .055f,
+                        h * .014f, 0xFFE8F2FC.toInt(), true)
+                }
+                drawSymbolTile(c, RectF(w * .13f, h * .72f, w * .35f, h * .86f),
+                    "最多五个", "首页快捷入口", "5")
+                drawSymbolTile(c, RectF(w * .385f, h * .72f, w * .605f, h * .86f),
+                    "应用抽屉", "选择已安装应用", "▦")
+                drawSymbolTile(c, RectF(w * .64f, h * .72f, w * .87f, h * .86f),
+                    "即时生效", "保存快捷入口", "✓")
+                drawSettingCard(c, RectF(w * .13f, h * .875f, w * .54f, h * .94f),
+                    "管理桌面应用", "编辑首页入口", settingsFocus == 21)
             }
             3 -> {
                 drawSettingsSectionLabel(c, "时间与日期显示", w * .13f, h * .315f, w * .74f)
