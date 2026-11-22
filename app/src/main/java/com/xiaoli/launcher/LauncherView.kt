@@ -3046,22 +3046,18 @@ class LauncherView(context: Context) : View(context) {
                     w * .13f, h * .86f, h * .013f, 0xFF9FBBD3.toInt())
             }
             5 -> {
-                drawSettingsSectionLabel(c, "小李全联 · 应用入口与下载", w * .13f, h * .335f, w * .74f)
-                drawSettingCard(c, RectF(w * .13f, h * .39f, w * .49f, h * .59f),
-                    "打开小李全联", "发送 · 接收 · 附近设备 · 传输历史",
-                    settingsFocus == 6)
-                val qrPanel = RectF(w * .54f, h * .36f, w * .87f, h * .82f)
+                drawSettingsSectionLabel(c, "小李全联 · 应用下载与功能", w * .13f, h * .335f, w * .74f)
+                val qrPanel = RectF(w * .13f, h * .36f, w * .37f, h * .84f)
                 paint.color = 0xD91A3554.toInt()
                 c.drawRoundRect(qrPanel, h * .018f, h * .018f, paint)
                 paint.style = Paint.Style.STROKE
-                paint.strokeWidth = (h * .001f).coerceAtLeast(1f)
-                paint.color = 0x5565A6D6
+                paint.strokeWidth = 1f
+                paint.color = 0x55FFFFFF
                 c.drawRoundRect(qrPanel, h * .018f, h * .018f, paint)
                 paint.style = Paint.Style.FILL
-                val qrSize = minOf(h * .285f, w * .155f)
-                val qrRect = RectF(qrPanel.centerX() - qrSize / 2f,
-                    qrPanel.top + h * .018f, qrPanel.centerX() + qrSize / 2f,
-                    qrPanel.top + h * .018f + qrSize)
+                val qrSize = minOf(h * .27f, w * .15f)
+                val qrRect = RectF(qrPanel.centerX() - qrSize / 2f, qrPanel.top + h * .025f,
+                    qrPanel.centerX() + qrSize / 2f, qrPanel.top + h * .025f + qrSize)
                 paint.color = android.graphics.Color.WHITE
                 c.drawRoundRect(qrRect, h * .006f, h * .006f, paint)
                 quanLianDownloadQrBitmap?.let { bitmap ->
@@ -3071,13 +3067,22 @@ class LauncherView(context: Context) : View(context) {
                     paint.isFilterBitmap = true
                 }
                 paint.textAlign = Paint.Align.CENTER
-                text(c, "扫码下载小李全联 APK", qrPanel.centerX(), qrRect.bottom + h * .030f,
-                    h * .019f, 0xFFF1F8FF.toInt(), true)
-                text(c, "百度网盘提取码：1234", qrPanel.centerX(), qrRect.bottom + h * .058f,
-                    h * .015f, 0xFFB8D1E8.toInt())
+                text(c, "扫码下载 APK", qrPanel.centerX(), qrRect.bottom + h * .035f,
+                    h * .017f, 0xFFF1F8FF.toInt(), true)
+                text(c, "百度网盘提取码：1234", qrPanel.centerX(), qrRect.bottom + h * .065f,
+                    h * .012f, 0xFF8CEBFF.toInt())
                 paint.textAlign = Paint.Align.LEFT
-                text(c, "二维码打开百度网盘分享页，下载 APK 后安装。",
-                    w * .13f, h * .70f, h * .014f, 0xFF9FBBD3.toInt())
+                val left = w * .40f
+                val gap = w * .018f
+                val tileW = (w * .47f - gap * 2f) / 3f
+                drawSymbolTile(c, RectF(left, h * .40f, left + tileW, h * .76f),
+                    "发送文件", "设备互传", "↑")
+                drawSymbolTile(c, RectF(left + tileW + gap, h * .40f,
+                    left + 2 * tileW + gap, h * .76f), "接收文件", "接收设备文件", "↓")
+                drawSymbolTile(c, RectF(left + 2 * (tileW + gap), h * .40f,
+                    w * .87f, h * .76f), "传输历史", "查看记录", "◷")
+                drawSettingCard(c, RectF(left, h * .80f, w * .87f, h * .91f),
+                    "打开小李全联", "进入独立文件传输应用", settingsFocus == 6)
             }
             6 -> {
                 drawSettingsSectionLabel(c, "Android TV 系统管理", w * .13f, h * .335f, w * .74f)
