@@ -2583,53 +2583,105 @@ class LauncherView(context: Context) : View(context) {
 
     private fun drawSettingsNavigation(c: Canvas, w: Float, h: Float) {
         val rail = RectF(w * .045f, h * .105f, w * .225f, h * .965f)
+        val railRadius = h * .025f
         paint.style = Paint.Style.FILL
-        paint.color = 0xE8091932.toInt()
-        c.drawRoundRect(rail, h * .025f, h * .025f, paint)
-        paint.color = 0xFF35B9F2.toInt()
-        c.drawRoundRect(RectF(rail.left + w * .018f, rail.top + h * .055f,
-            rail.left + w * .022f, rail.top + h * .145f), h * .003f, h * .003f, paint)
-        text(c, "设置中心", rail.left + w * .035f, rail.top + h * .105f,
-            h * .031f, -1, true)
-        text(c, "DEVICE SETTINGS", rail.left + w * .035f, rail.top + h * .145f,
-            h * .011f, 0xFF8FAFCB.toInt(), true)
-        val labels = listOf("桌面布局", "外观与壁纸", "应用管理", "桌面组件", "遥控器与操作", "小李全联", "电视系统设置")
+        paint.shader = LinearGradient(rail.left, rail.top, rail.right, rail.bottom,
+            intArrayOf(0xF0142B49.toInt(), 0xF00A1A31.toInt(), 0xF00A1528.toInt()),
+            null, Shader.TileMode.CLAMP)
+        c.drawRoundRect(rail, railRadius, railRadius, paint)
+        paint.shader = null
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = (h * .0011f).coerceAtLeast(1f)
+        paint.color = 0x334D91C7
+        c.drawRoundRect(rail, railRadius, railRadius, paint)
+        paint.style = Paint.Style.FILL
+
+        val mark = RectF(rail.left + w * .025f, rail.top + h * .045f,
+            rail.left + w * .075f, rail.top + h * .095f)
+        paint.shader = LinearGradient(mark.left, mark.top, mark.right, mark.bottom,
+            intArrayOf(0xFF54D8FF.toInt(), 0xFF2479D8.toInt()), null, Shader.TileMode.CLAMP)
+        c.drawRoundRect(mark, h * .009f, h * .009f, paint)
+        paint.shader = null
+        text(c, "X", mark.centerX() - h * .008f, mark.centerY() + h * .010f,
+            h * .026f, -1, true)
+        text(c, "小李桌面", rail.left + w * .088f, rail.top + h * .071f,
+            h * .025f, -1, true)
+        text(c, "SYSTEM CONTROL", rail.left + w * .025f, rail.top + h * .135f,
+            h * .010f, 0xFF82A8CB.toInt(), true)
+        paint.color = 0x334D7195
+        c.drawRect(rail.left + w * .025f, rail.top + h * .165f,
+            rail.right - w * .025f, rail.top + h * .1665f, paint)
+
+        val labels = listOf("桌面布局", "外观与壁纸", "应用管理", "桌面组件",
+            "遥控器与操作", "小李全联", "电视系统设置")
         labels.forEachIndexed { index, label ->
             val rect = SettingsLayout.categoryBounds(index, w, h, rail)
             val selected = settingsFocus == 30 + index || settingsCategoryForControl(settingsFocus) == index
             if (selected) {
                 val selectedRect = if (settingsFocus == 30 + index) scaledFocusRect(rect) else rect
-                paint.color = 0xFF164D78.toInt()
+                paint.shader = LinearGradient(selectedRect.left, selectedRect.top,
+                    selectedRect.right, selectedRect.bottom,
+                    intArrayOf(0xE82B78B5.toInt(), 0xD915426D.toInt()),
+                    null, Shader.TileMode.CLAMP)
                 c.drawRoundRect(selectedRect, h * .012f, h * .012f, paint)
-                paint.color = 0xFF68D9FF.toInt()
-                c.drawRoundRect(RectF(selectedRect.left, selectedRect.top + h * .012f,
-                    selectedRect.left + w * .004f, selectedRect.bottom - h * .012f),
-                    h * .002f, h * .002f, paint)
+                paint.shader = null
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = (h * .0012f).coerceAtLeast(1f)
+                paint.color = 0x6678DFFF
+                c.drawRoundRect(selectedRect, h * .012f, h * .012f, paint)
+                paint.style = Paint.Style.FILL
+                paint.color = 0xFF67DFFF.toInt()
+                c.drawRoundRect(RectF(selectedRect.left + w * .006f,
+                    selectedRect.top + h * .014f, selectedRect.left + w * .009f,
+                    selectedRect.bottom - h * .014f), h * .002f, h * .002f, paint)
             }
-            paint.color = if (selected) 0xFF8BE7FF.toInt() else 0xFF7693B2.toInt()
-            c.drawCircle(rect.left + w * .025f, rect.centerY(), h * .0045f, paint)
+            paint.color = if (selected) 0xFF8BE7FF.toInt() else 0xFF58799A.toInt()
+            c.drawCircle(rect.left + w * .025f, rect.centerY(), h * .0042f, paint)
             text(c, label, rect.left + w * .045f, rect.centerY() + h * .007f,
-                h * .017f, if (selected) -1 else 0xFFD0DCEC.toInt(), selected)
+                h * .017f, if (selected) -1 else 0xFFC0D0E2.toInt(), selected)
+            if (selected) {
+                text(c, "›", rect.right - w * .020f, rect.centerY() + h * .008f,
+                    h * .022f, 0xFF9BEAFF.toInt(), true)
+            }
         }
-        text(c, "方向键选择  ·  OK 确认", rail.left + w * .025f, rail.bottom - h * .035f,
-            h * .011f, 0xFF829BB7.toInt())
+
+        paint.color = 0x334D7195
+        c.drawRect(rail.left + w * .025f, rail.bottom - h * .075f,
+            rail.right - w * .025f, rail.bottom - h * .0735f, paint)
+        text(c, "方向键选择  ·  OK 确认", rail.left + w * .025f,
+            rail.bottom - h * .043f, h * .0105f, 0xFF829BB7.toInt())
+        text(c, "XIAOLI  /  TV", rail.left + w * .025f,
+            rail.bottom - h * .020f, h * .009f, 0xFF58799A.toInt(), true)
     }
 
     private fun drawSettingCard(c: Canvas, bounds: RectF, heading: String, detail: String, focused: Boolean) {
         val rect = if (focused) scaledFocusRect(bounds) else RectF(bounds)
-        val radius = rect.height() * .16f
+        val radius = rect.height() * .17f
         paint.style = Paint.Style.FILL
-        paint.color = if (focused) 0xFF153F68.toInt() else 0xC9122945.toInt()
+        paint.shader = LinearGradient(rect.left, rect.top, rect.left, rect.bottom,
+            if (focused) intArrayOf(0xF02B6594.toInt(), 0xE817426B.toInt(), 0xE8112E50.toInt())
+            else intArrayOf(0xD91A3554.toInt(), 0xD00F2742.toInt(), 0xCC0B2038.toInt()),
+            null, Shader.TileMode.CLAMP)
         c.drawRoundRect(rect, radius, radius, paint)
+        paint.shader = null
+
         paint.style = Paint.Style.STROKE
-        paint.strokeWidth = if (focused) (height * .0032f).coerceAtLeast(2.5f) else (height * .0011f).coerceAtLeast(1f)
-        paint.color = if (focused) 0xFF72DFFF.toInt() else 0x554E83B5
+        paint.strokeWidth = if (focused) (height * .0024f).coerceAtLeast(2f)
+            else (height * .0009f).coerceAtLeast(1f)
+        paint.color = if (focused) 0xCC78DFFF.toInt() else 0x445E8BB4
         c.drawRoundRect(rect, radius, radius, paint)
         paint.style = Paint.Style.FILL
-        val accent = RectF(rect.left + rect.width() * .025f, rect.top + rect.height() * .22f,
-            rect.left + rect.width() * .032f, rect.bottom - rect.height() * .22f)
-        paint.color = if (focused) 0xFF65D9FF.toInt() else 0x665E9ACB
+
+        val sheen = RectF(rect.left + rect.width() * .025f, rect.top + rect.height() * .045f,
+            rect.right - rect.width() * .025f, rect.top + rect.height() * .060f)
+        paint.color = if (focused) 0x667DE8FF else 0x224E91C7
+        c.drawRoundRect(sheen, sheen.height(), sheen.height(), paint)
+
+        val accent = RectF(rect.left + rect.width() * .026f, rect.top + rect.height() * .22f,
+            rect.left + rect.width() * .033f, rect.bottom - rect.height() * .22f)
+        paint.color = if (focused) 0xFF6DE0FF.toInt() else 0x665E9ACB
         c.drawRoundRect(accent, accent.width(), accent.width(), paint)
+
         val left = rect.left + rect.width() * .075f
         val maxWidth = rect.width() * .79f
         val titleSize = (rect.height() * .235f).coerceAtLeast(height * .017f)
@@ -2654,8 +2706,15 @@ class LauncherView(context: Context) : View(context) {
                 if (focused) 0xFFDDF5FF.toInt() else 0xFFAFC4DA.toInt())
         }
         if (rect.width() > width * .18f) {
-            text(c, "›", rect.right - rect.width() * .065f, rect.centerY() + rect.height() * .12f,
-                rect.height() * .34f, if (focused) 0xFF8BE7FF.toInt() else 0xFF6F94B7.toInt(), true)
+            val cx = rect.right - rect.width() * .055f
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = (height * .0012f).coerceAtLeast(1f)
+            paint.color = if (focused) 0xAA8BE7FF.toInt() else 0x556F94B7
+            c.drawCircle(cx, rect.centerY(), rect.height() * .105f, paint)
+            paint.style = Paint.Style.FILL
+            text(c, "›", cx - rect.height() * .035f,
+                rect.centerY() + rect.height() * .10f, rect.height() * .25f,
+                if (focused) 0xFFB8F3FF.toInt() else 0xFF7898B8.toInt(), true)
         }
     }
 
@@ -2665,13 +2724,25 @@ class LauncherView(context: Context) : View(context) {
         val contentSave = c.save()
         c.translate(w * .18f, 0f)
         c.scale(.80f, 1f)
-        paint.color = 0xE9081A31.toInt()
-        c.drawRoundRect(RectF(w * .08f, h * .14f, w * .92f, h * .97f), h * .025f, h * .025f, paint)
+        val panel = RectF(w * .08f, h * .14f, w * .92f, h * .97f)
+        paint.style = Paint.Style.FILL
+        paint.shader = LinearGradient(panel.left, panel.top, panel.right, panel.bottom,
+            intArrayOf(0xF0142B48.toInt(), 0xF00B1D34.toInt(), 0xF009172A.toInt()),
+            null, Shader.TileMode.CLAMP)
+        c.drawRoundRect(panel, h * .025f, h * .025f, paint)
+        paint.shader = null
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = (h * .0012f).coerceAtLeast(1f)
-        paint.color = 0x334E91C7
-        c.drawRoundRect(RectF(w * .08f, h * .14f, w * .92f, h * .97f), h * .025f, h * .025f, paint)
+        paint.color = 0x445E9BCB
+        c.drawRoundRect(panel, h * .025f, h * .025f, paint)
         paint.style = Paint.Style.FILL
+        paint.color = 0x5548B8EA
+        c.drawRect(panel.left + w * .035f, panel.top + h * .018f,
+            panel.right - w * .035f, panel.top + h * .020f, paint)
+        text(c, "PERSONALIZE YOUR TV", w * .13f, h * .190f,
+            h * .010f, 0xFF79B7DE.toInt(), true)
+        text(c, "%02d  /  07".format(category + 1), w * .82f, h * .222f,
+            h * .014f, 0xFF78A7CA.toInt(), true)
 
         val headings = listOf("桌面布局", "外观与壁纸", "应用管理", "桌面组件",
             "遥控器与操作", "小李全联", "电视系统设置")
