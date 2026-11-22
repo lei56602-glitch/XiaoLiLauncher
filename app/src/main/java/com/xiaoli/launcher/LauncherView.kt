@@ -3899,8 +3899,8 @@ class LauncherView(context: Context) : View(context) {
             (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) &&
             (homeTopFocus in 0..1 || favorites.isNotEmpty())) {
             if (event.repeatCount == 0) {
-                event.startTracking()
                 if (homeTopFocus == -1) beginOkPressTracking("home", homeIndex)
+                else event.startTracking()
             }
             return true
         }
@@ -4013,8 +4013,8 @@ class LauncherView(context: Context) : View(context) {
                 KeyEvent.KEYCODE_DPAD_DOWN -> moveDrawerSpatialFocus(SpatialFocusNavigator.DOWN)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
                     if (event.repeatCount == 0) {
-                        event.startTracking()
                         if (!drawerHeaderFocused) beginOkPressTracking("drawer", drawerIndex)
+                        else event.startTracking()
                     }
                     return true
                 }
