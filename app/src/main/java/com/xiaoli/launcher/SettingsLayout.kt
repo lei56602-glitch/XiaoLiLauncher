@@ -20,9 +20,14 @@ internal object SettingsLayout {
      */
     fun drawerGridOptionBounds(index: Int, row: Int, width: Float, height: Float): RectF {
         val safeIndex = index.coerceIn(0, 2)
-        val col = safeIndex % 2
         val visualRow = safeIndex / 2
-        val left = .13f + col * .385f
+        // Two choices share the first row; the final odd choice is centered,
+        // avoiding the visually unbalanced left-aligned orphan card.
+        val left = when (safeIndex) {
+            0 -> .13f
+            1 -> .515f
+            else -> .3225f
+        }
         val cardWidth = .355f
         val top = (if (row == 0) .50f else .705f) + visualRow * .085f
         return RectF(width * left, height * top, width * (left + cardWidth), height * (top + .075f))
