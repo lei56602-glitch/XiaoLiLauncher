@@ -3815,7 +3815,7 @@ class LauncherView(context: Context) : View(context) {
                                 onRequestDefaultHome?.invoke()
                             }
                             5 -> if (event.y in (height * .555f)..(height * .685f) &&
-                                settingsHitX in (width * .40f)..(width * .87f)) {
+                                settingsHitX in (width * .642f)..(width * .87f)) {
                                 settingsFocus = 6
                                 context.startActivity(Intent(context, com.xiaoli.quanlian.QuanLianActivity::class.java))
                             }
