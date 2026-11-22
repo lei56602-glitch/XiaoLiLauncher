@@ -3009,6 +3009,7 @@ class LauncherView(context: Context) : View(context) {
                     if (showDate) "日期 · 开启" else "日期 · 关闭",
                     if (use24HourClock) "24 小时制" else "12 小时制",
                     if (showClockSeconds) "显示秒数" else "隐藏秒数")
+                val states = listOf(showClock, showDate, use24HourClock, showClockSeconds)
                 val ids = listOf(9, 10, 15, 16)
                 val gap = w * .012f
                 val cardW = (w * .74f - gap * 3f) / 4f
