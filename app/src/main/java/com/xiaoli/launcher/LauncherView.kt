@@ -3189,6 +3189,9 @@ class LauncherView(context: Context) : View(context) {
                     "设备偏好", "查看系统设备选项", "⚙")
                 drawSettingCard(c, RectF(w * .515f, h * .59f, w * .87f, h * .77f),
                     "打开系统设置", "进入 Android TV 完整设置", settingsFocus == 7)
+                drawSettingsSectionLabel(c, "系统设置说明", w * .13f, h * .845f, w * .74f)
+                text(c, "网络、显示与设备选项由电视系统提供，具体项目以当前电视型号为准。",
+                    w * .13f, h * .895f, h * .017f, 0xFFB4CBE0.toInt())
             }
         }
 
