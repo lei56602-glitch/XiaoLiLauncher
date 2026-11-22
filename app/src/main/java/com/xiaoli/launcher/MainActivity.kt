@@ -33,8 +33,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         if (::launcherView.isInitialized) {
-            launcherView.refreshInstalledApps()
-            launcherView.reloadSavedWallpaper()
+            // Expensive app discovery and wallpaper decoding run asynchronously from LauncherView.
             launcherView.requestFocus()
         }
     }
