@@ -175,6 +175,11 @@ class LauncherView(context: Context) : View(context) {
     private var controlCenterFocus = 0
     private var controlCenterInputOffset = 0
     private var controlSliderTouchActive = false
+    private var controlListTouchActive = false
+    private var controlListTouchDragging = false
+    private var controlListTouchDownY = 0f
+    private var controlListTouchLastY = 0f
+    private var controlListTouchTravel = 0f
     private var controlCecEnabled = prefs.getBoolean("control_cec_switch", false)
     private var controlBootInputId = prefs.getString("control_boot_input_id", "").orEmpty()
     private var bootInputLaunchChecked = false
@@ -2968,6 +2973,55 @@ class LauncherView(context: Context) : View(context) {
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (handleDrawerTouchScroll(event)) return true
         if (controlCenterOpen) {
+            if (controlCenterPage == 1 || controlCenterPage == 4) {
+                val panelTop = height * .075f
+                val panelBottom = height * .925f
+                val rowPitch = height * .85f * if (controlCenterPage == 4) .102f else .10f
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        controlListTouchActive = event.x >= width * .60f &&
+                            event.y in (panelTop + height * .85f * .20f)..(panelBottom - height * .08f)
+                        controlListTouchDragging = false
+                        controlListTouchDownY = event.y
+                        controlListTouchLastY = event.y
+                        controlListTouchTravel = 0f
+                    }
+                    MotionEvent.ACTION_MOVE -> if (controlListTouchActive) {
+                        val dy = event.y - controlListTouchLastY
+                        controlListTouchLastY = event.y
+                        if (!controlListTouchDragging &&
+                            kotlin.math.abs(event.y - controlListTouchDownY) > ViewConfiguration.get(context).scaledTouchSlop) {
+                            controlListTouchDragging = true
+                        }
+                        if (controlListTouchDragging && rowPitch > 0f) {
+                            controlListTouchTravel -= dy
+                            val total = if (controlCenterPage == 1) visibleControlInputs().size else controlInputs.size
+                            val visible = if (controlCenterPage == 1) 6 else 5
+                            while (controlListTouchTravel >= rowPitch) {
+                                controlCenterInputOffset = (controlCenterInputOffset + 1).coerceAtMost((total - visible).coerceAtLeast(0))
+                                controlListTouchTravel -= rowPitch
+                            }
+                            while (controlListTouchTravel <= -rowPitch) {
+                                controlCenterInputOffset = (controlCenterInputOffset - 1).coerceAtLeast(0)
+                                controlListTouchTravel += rowPitch
+                            }
+                            controlCenterFocus = controlCenterFocus.coerceAtMost(
+                                (minOf(visible, (total - controlCenterInputOffset).coerceAtLeast(1)) - 1).coerceAtLeast(0))
+                            invalidate()
+                            return true
+                        }
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        val wasDragging = controlListTouchDragging
+                        controlListTouchActive = false
+                        controlListTouchDragging = false
+                        if (wasDragging) {
+                            if (event.actionMasked == MotionEvent.ACTION_UP) performClick()
+                            return true
+                        }
+                    }
+                }
+            }
             val sliderTop = height * (.075f + .85f * .43f)
             val sliderBottom = height * (.075f + .85f * .49f)
             when (event.actionMasked) {
