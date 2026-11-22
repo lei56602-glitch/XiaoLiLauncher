@@ -315,6 +315,7 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun resetDrawerScroll() {
+        drawerFlingScroller.abortAnimation()
         drawerScrollAnimator?.cancel()
         drawerScrollRow = 0
         drawerScrollVisualRow = 0f
