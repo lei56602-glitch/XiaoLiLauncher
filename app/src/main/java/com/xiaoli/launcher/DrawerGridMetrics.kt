@@ -57,17 +57,17 @@ internal data class DrawerGridMetrics(
         return SpatialFocusNavigator.next(current, spatialDirection, targets)
     }
 
-    fun indexAt(x: Float, y: Float, scrollRow: Int, itemCount: Int): Int {
+    fun indexAt(x: Float, y: Float, scrollVisualRow: Float, itemCount: Int): Int {
         if (x < gridLeft || x >= gridRight || y < contentTop || y >= contentBottom ||
             cellWidth <= 0f || cellHeight <= 0f) return -1
         val column = ((x - gridLeft) / cellWidth).toInt()
-        val visibleRow = ((y - contentTop) / cellHeight).toInt()
-        if (column !in 0 until columns || visibleRow !in 0 until rows) return -1
-        val cellLeft = gridLeft + column * cellWidth
-        val cellTop = contentTop + visibleRow * cellHeight
-        if (x < cellLeft + cellWidth * .035f || x > cellLeft + cellWidth * .965f ||
-            y < cellTop + cellHeight * .025f || y > cellTop + cellHeight * .965f) return -1
-        val index = (visibleRow + scrollRow.coerceAtLeast(0)) * columns + column
+        val contentRow = (scrollVisualRow.coerceAtLeast(0f) + (y - contentTop) / cellHeight)
+        val row = contentRow.toInt()
+        if (column !in 0 until columns || row < 0) return -1
+        val rowFraction = contentRow - row
+        val cellX = (x - gridLeft) / cellWidth - column
+        if (cellX < .035f || cellX > .965f || rowFraction < .025f || rowFraction > .965f) return -1
+        val index = row * columns + column
         return if (index in 0 until itemCount) index else -1
     }
 }
