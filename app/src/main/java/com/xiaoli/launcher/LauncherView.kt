@@ -3101,10 +3101,8 @@ class LauncherView(context: Context) : View(context) {
                 drawSettingCard(c, RectF(w * .13f, h * .705f, w * .87f, h * .825f),
                     "编辑桌面组件", "拖动调整时间日期整体位置 · 方向键微调 · 音量键调整大小",
                     settingsFocus == 22)
-                drawSettingsMetaTile(c, RectF(w * .13f, h * .84f, w * .485f, h * .925f),
-                    "时间 / 日期", "显示开关")
-                drawSettingsMetaTile(c, RectF(w * .515f, h * .84f, w * .87f, h * .925f),
-                    "位置与尺寸", "组件编辑")
+                drawSettingsMetaTile(c, RectF(w * .13f, h * .84f, w * .60f, h * .925f),
+                    "时间 / 日期 · 位置与尺寸", "可独立控制显示，并调整桌面组件位置和大小")
             }
             4 -> {
                 drawSettingsSectionLabel(c, "默认主屏幕", w * .13f, h * .335f, w * .74f)
@@ -3765,7 +3763,7 @@ class LauncherView(context: Context) : View(context) {
                                         .putExtra(com.xiaoli.quanlian.QuanLianActivity.EXTRA_WALLPAPER_MODE, true))
                                 }
                             }
-                            2 -> if ((event.y in (height * .365f)..(height * .755f) &&
+                            2 -> if ((event.y in (height * .365f)..(height * .765f) &&
                                 settingsHitX in (width * .13f)..(width * .87f)) ||
                                 (event.y in (height * .875f)..(height * .945f) &&
                                     settingsHitX in (width * .13f)..(width * .60f))) {
