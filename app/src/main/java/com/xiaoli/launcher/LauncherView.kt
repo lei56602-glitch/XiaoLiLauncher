@@ -2930,15 +2930,16 @@ class LauncherView(context: Context) : View(context) {
         paint.color = 0x665F9BC5
         c.drawRoundRect(rect, radius, radius, paint)
         paint.style = Paint.Style.FILL
+        paint.textAlign = Paint.Align.LEFT
 
         val compact = rect.height() < height * .17f
         val iconSize = minOf(rect.height() * if (compact) .25f else .22f, rect.width() * .18f)
         val iconX = rect.left + rect.width() * .09f
         val textX = rect.left + rect.width() * .27f
         val titleSize = minOf(rect.height() * if (compact) .19f else .16f,
-            rect.width() * .085f).coerceAtLeast(height * .015f)
+            rect.width() * .085f).coerceAtLeast(height * .018f)
         val detailSize = minOf(rect.height() * if (compact) .13f else .115f,
-            rect.width() * .065f).coerceAtLeast(height * .0105f)
+            rect.width() * .065f).coerceAtLeast(height * .012f)
         text(c, symbol, iconX, rect.centerY() + iconSize * .34f,
             iconSize, 0xFF8CEBFF.toInt(), true)
         text(c, title, textX, rect.centerY() - rect.height() * .015f,
@@ -3010,11 +3011,11 @@ class LauncherView(context: Context) : View(context) {
         val categoryEyebrows = listOf("LAYOUT & GRID", "LOOK & FEEL", "APP SHORTCUTS",
             "HOME WIDGETS", "REMOTE CONTROL", "FILE TRANSFER", "ANDROID TV")
         text(c, categoryEyebrows[category], w * .13f, h * .190f,
-            h * .010f, 0xFF79B7DE.toInt(), true)
+            h * .012f, 0xFF79B7DE.toInt(), true)
         text(c, "%02d  /  07".format(category + 1), w * .82f, h * .190f,
             h * .012f, 0xFF78A7CA.toInt(), true)
-        text(c, headings[category], w * .13f, h * .235f, h * .038f, -1, true)
-        text(c, descriptions[category], w * .13f, h * .267f, h * .016f, 0xFFB4CBE0.toInt())
+        text(c, headings[category], w * .13f, h * .235f, h * .041f, -1, true)
+        text(c, descriptions[category], w * .13f, h * .267f, h * .018f, 0xFFB4CBE0.toInt())
 
         when (category) {
             0 -> {
@@ -3170,22 +3171,22 @@ class LauncherView(context: Context) : View(context) {
                 val gap = w * .014f
                 val tileW = (w * .47f - gap) / 2f
                 drawCompactFeatureTile(c, RectF(left, h * .405f, left + tileW, h * .535f),
-                    "发送文件", "设备互传", "↑")
+                    "文件发送", "进入应用后使用", "↑")
                 drawCompactFeatureTile(c, RectF(left + tileW + gap, h * .405f,
-                    w * .87f, h * .535f), "接收文件", "接收设备文件", "↓")
+                    w * .87f, h * .535f), "文件接收", "进入应用后使用", "↓")
                 drawCompactFeatureTile(c, RectF(left, h * .555f, left + tileW, h * .685f),
-                    "传输历史", "查看传输记录", "◷")
+                    "传输记录", "在应用内查看", "◷")
                 drawSettingCard(c, RectF(left + tileW + gap, h * .555f, w * .87f, h * .685f),
                     "打开小李全联", "进入文件传输应用", settingsFocus == 6)
             }
             6 -> {
                 drawSettingsSectionLabel(c, "电视系统入口说明", w * .13f, h * .335f, w * .74f)
                 drawCompactFeatureTile(c, RectF(w * .13f, h * .385f, w * .485f, h * .565f),
-                    "网络连接", "管理 Wi-Fi 与网络状态", "⌁")
+                    "网络连接", "在电视系统中管理", "⌁")
                 drawCompactFeatureTile(c, RectF(w * .515f, h * .385f, w * .87f, h * .565f),
-                    "显示设置", "调整画面与显示效果", "☼")
+                    "显示设置", "在电视系统中调整", "☼")
                 drawCompactFeatureTile(c, RectF(w * .13f, h * .59f, w * .485f, h * .77f),
-                    "设备偏好", "查看系统与设备选项", "⚙")
+                    "设备偏好", "查看系统设备选项", "⚙")
                 drawSettingCard(c, RectF(w * .515f, h * .59f, w * .87f, h * .77f),
                     "打开系统设置", "进入 Android TV 完整设置", settingsFocus == 7)
             }
