@@ -40,7 +40,10 @@ import java.net.URLEncoder
 import android.provider.Settings
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.VelocityTracker
+import android.widget.OverScroller
 import android.view.View
+import android.view.ViewConfiguration
 import android.animation.ValueAnimator
 import android.view.animation.DecelerateInterpolator
 import java.text.SimpleDateFormat
@@ -125,6 +128,14 @@ class LauncherView(context: Context) : View(context) {
     private var drawerScrollRow = 0
     private var drawerScrollVisualRow = 0f
     private var drawerScrollAnimator: ValueAnimator? = null
+    // Touch scrolling follows the finger continuously; fling uses Android's spline physics.
+    private val drawerFlingScroller = OverScroller(context)
+    private var drawerTouchTracker: VelocityTracker? = null
+    private var drawerTouchEligible = false
+    private var drawerTouchScrolling = false
+    private var drawerTouchDownY = 0f
+    private var drawerTouchStartVisualRow = 0f
+    private val drawerTouchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private var spatialFocusAnimator: ValueAnimator? = null
     private var spatialFocusScale = 1f
     // Header action is a first-class D-pad target, separate from the app grid.
@@ -284,6 +295,7 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun animateDrawerScrollTo(targetRow: Int) {
+        drawerFlingScroller.abortAnimation()
         drawerScrollAnimator?.cancel()
         val target = targetRow.toFloat().coerceAtLeast(0f)
         if (kotlin.math.abs(drawerScrollVisualRow - target) < .01f) {
@@ -2851,9 +2863,84 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun drawerItemIndexAt(x: Float, y: Float): Int =
-        drawerMetrics().indexAt(x, y, drawerScrollRow, apps.size)
+        drawerMetrics().indexAt(x, y, drawerScrollVisualRow, apps.size)
+
+    /** Aerial-style direct manipulation + native spline fling for the app drawer. */
+    private fun handleDrawerTouchScroll(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                drawerTouchEligible = isDrawerOpen && event.x in drawerMetrics().gridLeft..drawerMetrics().gridRight &&
+                    event.y in drawerMetrics().contentTop..drawerMetrics().contentBottom
+                drawerTouchScrolling = false
+                if (drawerTouchEligible) {
+                    drawerFlingScroller.abortAnimation()
+                    drawerScrollAnimator?.cancel()
+                    drawerTouchDownY = event.y
+                    drawerTouchStartVisualRow = drawerScrollVisualRow
+                    drawerTouchTracker?.recycle()
+                    drawerTouchTracker = VelocityTracker.obtain().also { it.addMovement(event) }
+                }
+            }
+            MotionEvent.ACTION_MOVE -> if (drawerTouchEligible) {
+                drawerTouchTracker?.addMovement(event)
+                val dy = event.y - drawerTouchDownY
+                if (!drawerTouchScrolling && kotlin.math.abs(dy) > drawerTouchSlop) {
+                    drawerTouchScrolling = true
+                }
+                if (drawerTouchScrolling) {
+                    val metrics = drawerMetrics()
+                    val maxRow = metrics.maxScroll(apps.size).toFloat()
+                    drawerScrollVisualRow = (drawerTouchStartVisualRow - dy / metrics.cellHeight)
+                        .coerceIn(0f, maxRow)
+                    drawerScrollRow = drawerScrollVisualRow.toInt().coerceIn(0, metrics.maxScroll(apps.size))
+                    invalidate()
+                    return true
+                }
+            }
+            MotionEvent.ACTION_UP -> if (drawerTouchEligible) {
+                drawerTouchTracker?.addMovement(event)
+                if (drawerTouchScrolling) {
+                    val metrics = drawerMetrics()
+                    drawerTouchTracker?.computeCurrentVelocity(1000)
+                    val velocityY = drawerTouchTracker?.yVelocity ?: 0f
+                    val maxY = (metrics.maxScroll(apps.size) * metrics.cellHeight).toInt().coerceAtLeast(0)
+                    drawerFlingScroller.fling(0, (drawerScrollVisualRow * metrics.cellHeight).toInt(),
+                        0, -velocityY.toInt(), 0, 0, 0, maxY)
+                    postInvalidateOnAnimation()
+                    finishDrawerTouchTracking()
+                    return true
+                }
+                finishDrawerTouchTracking()
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                val wasScrolling = drawerTouchScrolling
+                finishDrawerTouchTracking()
+                return wasScrolling
+            }
+        }
+        return false
+    }
+
+    private fun finishDrawerTouchTracking() {
+        drawerTouchTracker?.recycle()
+        drawerTouchTracker = null
+        drawerTouchEligible = false
+        drawerTouchScrolling = false
+    }
+
+    override fun computeScroll() {
+        super.computeScroll()
+        if (drawerFlingScroller.computeScrollOffset()) {
+            val metrics = drawerMetrics()
+            drawerScrollVisualRow = (drawerFlingScroller.currY / metrics.cellHeight)
+                .coerceIn(0f, metrics.maxScroll(apps.size).toFloat())
+            drawerScrollRow = drawerScrollVisualRow.toInt()
+            postInvalidateOnAnimation()
+        }
+    }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (handleDrawerTouchScroll(event)) return true
         if (controlCenterOpen) {
             if (event.actionMasked == MotionEvent.ACTION_UP) {
                 val panelLeft = width * .60f
