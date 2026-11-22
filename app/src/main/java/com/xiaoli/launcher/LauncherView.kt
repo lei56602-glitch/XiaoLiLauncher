@@ -129,6 +129,10 @@ class LauncherView(context: Context) : View(context) {
     private var spatialFocusScale = 1f
     // Header action is a first-class D-pad target, separate from the app grid.
     private var drawerHeaderFocused = false
+    // Remember the grid item that entered the header so Down returns to that exact item.
+    private var drawerHeaderReturnIndex = 0
+    // Aerial-style overlays restore the previously focused home target when dismissed.
+    private var drawerReturnHomeTopFocus = -1
     private var homeIndex = 0
     // Home-screen top widgets are independent D-pad focus targets: clock, Wi-Fi, settings.
     // -1 keeps focus on the five launcher app slots.
@@ -664,7 +668,22 @@ class LauncherView(context: Context) : View(context) {
                 }
             }
             isSettingsOpen -> closeLauncherSettings()
-            isDrawerOpen -> closeDrawer()
+            isDrawerOpen -> {
+                val metrics = drawerMetrics()
+                val focusedRow = if (metrics.columns > 0) drawerIndex / metrics.columns else 0
+                val wasScrolled = drawerScrollRow > 0 || drawerScrollVisualRow > 0.01f
+                // Match Aerial: Back from inside a scrolled grid returns focus to its top row
+                // before it dismisses the surface. A second Back closes the drawer.
+                if (!drawerHeaderFocused && (focusedRow > 0 || wasScrolled)) {
+                    drawerIndex = (drawerIndex % metrics.columns.coerceAtLeast(1))
+                        .coerceIn(0, (apps.size - 1).coerceAtLeast(0))
+                    drawerHeaderFocused = false
+                    drawerHeaderReturnIndex = drawerIndex
+                    drawerScrollRow = 0
+                    animateDrawerScrollTo(0)
+                    animateSpatialFocus()
+                } else closeDrawer()
+            }
             widgetEditMode -> toggleWidgetEditMode()
             homePositionEditMode -> finishHomePositionEdit(false)
             homeIconEditMode -> {
@@ -692,6 +711,11 @@ class LauncherView(context: Context) : View(context) {
             isSettingsOpen = true
             settingsFocus = 21
             returnToSettingsAfterDrawer = false
+            drawerReturnHomeTopFocus = -1
+            animateSpatialFocus()
+        } else if (drawerReturnHomeTopFocus in 0..1) {
+            homeTopFocus = drawerReturnHomeTopFocus
+            drawerReturnHomeTopFocus = -1
             animateSpatialFocus()
         }
         invalidate()
@@ -2375,33 +2399,53 @@ class LauncherView(context: Context) : View(context) {
 
     private fun moveDrawerSpatialFocus(direction: Int) {
         val metrics = drawerMetrics()
-        val w = width.toFloat().coerceAtLeast(1f)
-        val h = height.toFloat().coerceAtLeast(1f)
-        val targets = buildList {
-            apps.indices.forEach { index ->
-                val row = index / metrics.columns
-                val column = index % metrics.columns
-                val centerX = metrics.gridLeft + (column + .5f) * metrics.cellWidth
-                val centerY = metrics.contentTop +
-                    (row - drawerScrollVisualRow + .5f) * metrics.cellHeight
-                add(FocusTarget(index, centerX / w, centerY / h))
-            }
-            add(FocusTarget(-1, .8875f, .21f))
+        if (apps.isEmpty() || metrics.columns <= 0) {
+            if (direction == SpatialFocusNavigator.UP) drawerHeaderFocused = true
+            invalidate()
+            return
         }
-        val currentId = if (drawerHeaderFocused) -1 else drawerIndex
-        val eligibleTargets = if (direction == SpatialFocusNavigator.UP &&
-            !drawerHeaderFocused && drawerIndex >= metrics.columns) {
-            targets.filter { it.id != -1 }
-        } else targets
-        val next = SpatialFocusNavigator.next(currentId, direction, eligibleTargets)
-        if (next != currentId) {
-            if (next == -1) drawerHeaderFocused = true
-            else if (next >= 0) {
+
+        if (drawerHeaderFocused) {
+            // The header is a single target. Down restores the app that entered it,
+            // rather than jumping to an unrelated tile at the far-right edge.
+            if (direction == SpatialFocusNavigator.DOWN) {
+                drawerIndex = drawerHeaderReturnIndex.coerceIn(0, apps.lastIndex)
                 drawerHeaderFocused = false
-                drawerIndex = next
+                animateSpatialFocus()
             }
-            animateSpatialFocus()
+        } else {
+            val currentRow = drawerIndex / metrics.columns
+            val next = when (direction) {
+                SpatialFocusNavigator.LEFT -> metrics.moveFocus(drawerIndex, -1, apps.size)
+                SpatialFocusNavigator.RIGHT -> metrics.moveFocus(drawerIndex, 1, apps.size)
+                SpatialFocusNavigator.UP -> {
+                    if (currentRow == 0) {
+                        drawerHeaderReturnIndex = drawerIndex
+                        drawerHeaderFocused = true
+                        -1
+                    } else metrics.moveFocus(drawerIndex, -metrics.columns, apps.size)
+                }
+                SpatialFocusNavigator.DOWN -> metrics.moveFocus(drawerIndex, metrics.columns, apps.size)
+                else -> drawerIndex
+            }
+            if (next >= 0 && next != drawerIndex) {
+                drawerIndex = next
+                animateSpatialFocus()
+            } else if (next == -1 && drawerHeaderFocused) {
+                animateSpatialFocus()
+            }
         }
+
+        // Focus is authoritative: keep its row inside the visible window in either direction.
+        // This mirrors Aerial's focus-driven scroll, including when the grid is already scrolled.
+        val focusedRow = drawerIndex / metrics.columns
+        val maxScroll = metrics.maxScroll(apps.size)
+        drawerScrollRow = when {
+            focusedRow < drawerScrollRow -> focusedRow
+            focusedRow >= drawerScrollRow + metrics.rows -> focusedRow - metrics.rows + 1
+            else -> drawerScrollRow
+        }.coerceIn(0, maxScroll)
+        animateDrawerScrollTo(drawerScrollRow)
     }
 
     private fun drawerMetrics(): DrawerGridMetrics =
@@ -3630,7 +3674,9 @@ class LauncherView(context: Context) : View(context) {
             KeyEvent.KEYCODE_DPAD_UP -> {
                 if (homeTopFocus == -1) moveHomeFocusToTop()
                 else {
-                    // Preserve the launcher's established UP gesture for opening the app drawer.
+                    // Preserve the launcher's established UP gesture for opening the app drawer,
+                    // while remembering the prior target for Aerial-style focus restoration.
+                    drawerReturnHomeTopFocus = homeTopFocus
                     isDrawerOpen = true
                     homeTopFocus = -1
                     drawerIndex = 0
