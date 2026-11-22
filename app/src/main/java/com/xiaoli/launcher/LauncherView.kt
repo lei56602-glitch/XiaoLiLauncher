@@ -2975,19 +2975,17 @@ class LauncherView(context: Context) : View(context) {
                     settingsFocus == 23)
             }
             1 -> {
-                drawSettingsSectionLabel(c, "壁纸来源与显示", w * .13f, h * .325f, w * .74f)
-                drawSettingCard(c, RectF(w * .13f, h * .36f, w * .35f, h * .51f),
+                drawSettingsSectionLabel(c, "壁纸与背景效果", w * .13f, h * .335f, w * .74f)
+                drawSettingCard(c, RectF(w * .13f, h * .37f, w * .39f, h * .51f),
                     "选择壁纸", "从设备图片中选择", settingsFocus == 3)
-                drawSettingCard(c, RectF(w * .38f, h * .36f, w * .62f, h * .51f),
-                    if (dynamicWallpaperEnabled) "动态背景 · 已开启" else "动态背景 · 已关闭",
-                    "切换动态光效背景", settingsFocus == 4)
-                drawSettingCard(c, RectF(w * .65f, h * .36f, w * .87f, h * .51f),
-                    "恢复默认壁纸", "移除当前自定义图片", settingsFocus == 5)
-                drawSettingsSectionLabel(c, "当前壁纸预览", w * .13f, h * .545f, w * .74f)
-                drawWallpaperPreview(c, RectF(w * .13f, h * .57f, w * .87f, h * .82f))
-                drawSettingCard(c, RectF(w * .13f, h * .865f, w * .62f, h * .945f),
-                    "从手机接收壁纸", "通过小李全联接收图片；传输功能在独立应用中完成",
-                    settingsFocus == 24)
+                drawSettingCard(c, RectF(w * .13f, h * .535f, w * .39f, h * .675f),
+                    if (dynamicWallpaperEnabled) "动态背景 · 开启" else "动态背景 · 关闭",
+                    "切换动态光效", settingsFocus == 4)
+                drawSettingCard(c, RectF(w * .13f, h * .70f, w * .39f, h * .84f),
+                    "恢复默认壁纸", "移除自定义图片", settingsFocus == 5)
+                drawWallpaperPreview(c, RectF(w * .43f, h * .37f, w * .87f, h * .84f))
+                drawSettingCard(c, RectF(w * .13f, h * .875f, w * .62f, h * .945f),
+                    "从手机接收壁纸", "通过小李全联接收图片", settingsFocus == 24)
             }
             2 -> {
                 drawSettingsSectionLabel(c, "首页常用应用", w * .13f, h * .335f, w * .74f)
