@@ -613,31 +613,58 @@ class LauncherView(context: Context) : View(context) {
                 }
                 1 -> { hideDesktopApp(actionMenuIndex); actionMenuOpen = false }
                 2 -> { actionMenuOpen = false; beginHomePositionEdit(actionMenuIndex) }
-                else -> {
+                3 -> {
                     actionMenuOpen = false
                     isDrawerOpen = true
                     editingFavorites = false
                     drawerIndex = 0
                     resetDrawerScroll()
                 }
+                4 -> launchActionMenuApp(app)
+                5 -> uninstallActionMenuApp(app)
             }
         } else {
-            if (actionMenuChoice == 0 && app != null) {
-                val existing = favorites.indexOfFirst { it.packageName == app.packageName }
-                if (existing >= 0) {
-                    favorites[existing] = emptySlot
-                    saveFavorites()
-                    android.widget.Toast.makeText(context, "已从主屏幕移除", android.widget.Toast.LENGTH_SHORT).show()
-                } else {
-                    val slot = favorites.indexOfFirst { it.packageName == emptySlot.packageName }
-                    if (slot >= 0) {
-                        favorites[slot] = app
+            when (actionMenuChoice) {
+                0 -> if (app != null) {
+                    val existing = favorites.indexOfFirst { it.packageName == app.packageName }
+                    if (existing >= 0) {
+                        favorites[existing] = emptySlot
                         saveFavorites()
-                        android.widget.Toast.makeText(context, "已加入桌面第 ${slot + 1} 个位置", android.widget.Toast.LENGTH_SHORT).show()
-                    } else android.widget.Toast.makeText(context, "桌面已满，请先移除一个应用", android.widget.Toast.LENGTH_SHORT).show()
+                        android.widget.Toast.makeText(context, "已从主屏幕移除", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        val slot = favorites.indexOfFirst { it.packageName == emptySlot.packageName }
+                        if (slot >= 0) {
+                            favorites[slot] = app
+                            saveFavorites()
+                            android.widget.Toast.makeText(context, "已加入桌面第 ${slot + 1} 个位置", android.widget.Toast.LENGTH_SHORT).show()
+                        } else android.widget.Toast.makeText(context, "桌面已满，请先移除一个应用", android.widget.Toast.LENGTH_SHORT).show()
+                    }
                 }
+                1 -> launchActionMenuApp(app)
+                2 -> uninstallActionMenuApp(app)
             }
             actionMenuOpen = false
+        }
+        invalidate()
+    }
+
+    private fun launchActionMenuApp(app: AppEntry?) {
+        actionMenuOpen = false
+        if (app == null) return
+        runCatching { context.startActivity(app.intent) }
+            .onFailure { android.widget.Toast.makeText(context, "无法打开此应用", android.widget.Toast.LENGTH_SHORT).show() }
+        invalidate()
+    }
+
+    private fun uninstallActionMenuApp(app: AppEntry?) {
+        actionMenuOpen = false
+        if (app == null) return
+        runCatching {
+            val uninstall = Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:${app.packageName}"))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(uninstall)
+        }.onFailure {
+            android.widget.Toast.makeText(context, "系统不允许卸载此应用", android.widget.Toast.LENGTH_LONG).show()
         }
         invalidate()
     }
@@ -647,17 +674,19 @@ class LauncherView(context: Context) : View(context) {
         val h = height.toFloat()
         paint.color = 0xB9001028.toInt()
         c.drawRect(0f, 0f, w, h, paint)
-        val panel = if (actionMenuSource == "home") RectF(w * .34f, h * .20f, w * .66f, h * .80f)
-            else RectF(w * .34f, h * .31f, w * .66f, h * .70f)
+        val isHomeMenu = actionMenuSource == "home"
+        val panel = if (isHomeMenu) RectF(w * .34f, h * .12f, w * .66f, h * .88f)
+            else RectF(w * .34f, h * .22f, w * .66f, h * .78f)
         paint.color = 0xF20A3470.toInt()
         c.drawRoundRect(panel, h * .025f, h * .025f, paint)
         val drawerAppAlreadyPinned = actionMenuSource == "drawer" && favorites.any { it.packageName == actionMenuPackage }
-        val options = if (actionMenuSource == "home") listOf("移动 APP", "隐藏 APP", "调整位置", "返回抽屉") else listOf(if (drawerAppAlreadyPinned) "从主屏幕移除" else "加入主屏幕", "返回")
-        text(c, if (actionMenuSource == "home") "桌面应用管理" else "添加到主屏幕",
-            panel.left + panel.width() * .09f, panel.top + panel.height() * (if (actionMenuSource == "home") .16f else .20f), h * .031f, -1, true)
+        val options = if (isHomeMenu) listOf("移动 APP", "隐藏 APP", "调整位置", "返回抽屉", "打开应用", "卸载应用")
+            else listOf(if (drawerAppAlreadyPinned) "从主屏幕移除" else "加入主屏幕", "打开应用", "卸载应用", "返回")
+        text(c, if (isHomeMenu) "桌面应用管理" else "应用管理",
+            panel.left + panel.width() * .09f, panel.top + panel.height() * (if (isHomeMenu) .105f else .13f), h * .031f, -1, true)
         options.forEachIndexed { i, label ->
-            val top = panel.top + panel.height() * (if (actionMenuSource == "home") .25f + i * .17f else .29f + i * .22f)
-            val rowHeight = panel.height() * (if (actionMenuSource == "home") .14f else .18f)
+            val top = panel.top + panel.height() * (if (isHomeMenu) .20f + i * .125f else .25f + i * .17f)
+            val rowHeight = panel.height() * (if (isHomeMenu) .105f else .135f)
             val baseRow = RectF(panel.left + panel.width() * .07f, top,
                 panel.right - panel.width() * .07f, top + rowHeight)
             val row = if (i == actionMenuChoice) scaledFocusRect(baseRow) else baseRow
@@ -2394,10 +2423,10 @@ class LauncherView(context: Context) : View(context) {
     }
 
     private fun moveActionMenuFocus(direction: Int) {
-        val count = if (actionMenuSource == "home") 4 else 2
+        val count = if (actionMenuSource == "home") 6 else 4
         val targets = (0 until count).map { index ->
-            val y = if (actionMenuSource == "home") .25f + index * .17f
-                else .29f + index * .22f
+            val y = if (actionMenuSource == "home") .20f + index * .125f
+                else .25f + index * .17f
             FocusTarget(index, .5f, y)
         }
         val next = SpatialFocusNavigator.next(actionMenuChoice, direction, targets)
@@ -3250,11 +3279,12 @@ class LauncherView(context: Context) : View(context) {
                     return true
                 }
                 if (actionMenuOpen) {
-                    val count = if (actionMenuSource == "home") 4 else 2
-                    val top = height * (if (actionMenuSource == "home") .20f else .31f)
-                    val bottom = height * (if (actionMenuSource == "home") .80f else .70f)
-                    val rowStart = if (actionMenuSource == "home") .25f else .29f
-                    val rowStep = if (actionMenuSource == "home") .17f else .22f
+                    val isHomeMenu = actionMenuSource == "home"
+                    val count = if (isHomeMenu) 6 else 4
+                    val top = height * (if (isHomeMenu) .12f else .22f)
+                    val bottom = height * (if (isHomeMenu) .88f else .78f)
+                    val rowStart = if (isHomeMenu) .20f else .25f
+                    val rowStep = if (isHomeMenu) .125f else .17f
                     if (event.x in (width * .34f)..(width * .66f) && event.y in top..bottom) {
                         val row = ((event.y - top - (bottom - top) * rowStart) / ((bottom - top) * rowStep)).toInt()
                         actionMenuChoice = row.coerceIn(0, count - 1)
