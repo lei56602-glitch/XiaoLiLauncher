@@ -2809,6 +2809,37 @@ class LauncherView(context: Context) : View(context) {
         }
     }
 
+    private fun drawIconScaleSlider(c: Canvas, bounds: RectF, focused: Boolean) {
+        val rect = if (focused) scaledFocusRect(bounds) else RectF(bounds)
+        paint.style = Paint.Style.FILL
+        paint.color = if (focused) 0xE52B6795.toInt() else 0xC21A3554.toInt()
+        c.drawRoundRect(rect, rect.height() * .16f, rect.height() * .16f, paint)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = if (focused) 2.5f else 1f
+        paint.color = if (focused) 0xFF78DFFF.toInt() else 0x44FFFFFF
+        c.drawRoundRect(rect, rect.height() * .16f, rect.height() * .16f, paint)
+        paint.style = Paint.Style.FILL
+        if (focused) drawFocusChase(c, rect, rect.height() * .16f)
+        val cy = rect.centerY()
+        text(c, "A−", rect.left + rect.width() * .09f, cy + rect.height() * .10f,
+            rect.height() * .28f, 0xFFBFEFFF.toInt(), true)
+        text(c, "A+", rect.right - rect.width() * .09f, cy + rect.height() * .10f,
+            rect.height() * .28f, 0xFFBFEFFF.toInt(), true)
+        val left = rect.left + rect.width() * .22f
+        val right = rect.right - rect.width() * .22f
+        val track = RectF(left, cy - rect.height() * .025f, right, cy + rect.height() * .025f)
+        paint.color = 0x665B7892
+        c.drawRoundRect(track, track.height(), track.height(), paint)
+        val fraction = ((homeIconScale - .65f) / .95f).coerceIn(0f, 1f)
+        paint.color = 0xFF31B9F2.toInt()
+        c.drawRoundRect(RectF(track.left, track.top, track.left + track.width() * fraction, track.bottom),
+            track.height(), track.height(), paint)
+        paint.color = -1
+        c.drawCircle(track.left + track.width() * fraction, cy, rect.height() * .105f, paint)
+        text(c, "${(homeIconScale * 100).toInt()}%", rect.centerX(),
+            rect.bottom - rect.height() * .08f, rect.height() * .13f, 0xFF8CEBFF.toInt(), true)
+    }
+
     private fun drawGridChoice(c: Canvas, bounds: RectF, count: Int, selected: Boolean, focused: Boolean, label: String) {
         val rect = if (focused) scaledFocusRect(bounds) else RectF(bounds)
         paint.style = Paint.Style.FILL
@@ -2954,9 +2985,7 @@ class LauncherView(context: Context) : View(context) {
         when (category) {
             0 -> {
                 drawSettingsSectionLabel(c, "桌面图标", w * .13f, h * .310f, w * .74f)
-                drawSettingCard(c, RectF(w * .13f, h * .32f, w * .87f, h * .45f),
-                    "图标大小  ·  ${(homeIconScale * 100).toInt()}%",
-                    "A−                         A+",
+                drawIconScaleSlider(c, RectF(w * .13f, h * .32f, w * .87f, h * .45f),
                     settingsFocus == 8)
                 drawSettingsSectionLabel(c, "应用抽屉列数", w * .13f, h * .505f, w * .74f)
                 for (i in 0..2) {
@@ -4165,8 +4194,18 @@ class LauncherView(context: Context) : View(context) {
             }
             when (keyCode) {
                 KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> { closeLauncherSettings(); return true }
-                KeyEvent.KEYCODE_DPAD_LEFT -> moveSettingsFocus(-1)
-                KeyEvent.KEYCODE_DPAD_RIGHT -> moveSettingsFocus(1)
+                KeyEvent.KEYCODE_DPAD_LEFT -> {
+                    if (settingsFocus == 8) {
+                        homeIconScale = (homeIconScale - .05f).coerceAtLeast(.65f)
+                        prefs.edit().putFloat("home_icon_scale", homeIconScale).apply()
+                    } else moveSettingsFocus(-1)
+                }
+                KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    if (settingsFocus == 8) {
+                        homeIconScale = (homeIconScale + .05f).coerceAtMost(1.6f)
+                        prefs.edit().putFloat("home_icon_scale", homeIconScale).apply()
+                    } else moveSettingsFocus(1)
+                }
                 KeyEvent.KEYCODE_DPAD_UP -> moveSettingsFocus(-2)
                 KeyEvent.KEYCODE_DPAD_DOWN -> moveSettingsFocus(2)
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
